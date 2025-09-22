@@ -39,6 +39,10 @@
             font-weight: 500;
         }
 
+        nav a:hover {
+            color: #6e4b3a;
+        }
+
         .container {
             height: calc(100vh - 80px);
             display: flex;
@@ -175,6 +179,13 @@
     <div class="login-box">
         <div class="form-side">
             <h2>Login</h2>
+
+            <!-- {{-- ✅ Greeting if logged in --}}
+            @if(session('name'))
+                <div class="success-message">
+                    Welcome back, {{ session('name') }}! 🎉
+                </div>
+            @endif -->
 
             {{-- ✅ Success message after registration --}}
             @if (session('success'))

@@ -4,10 +4,11 @@
     @php
         use Carbon\Carbon;
         $today = Carbon::now()->format('F j, Y');
-        $email = session('email');
-        $name = $email ? ucfirst(explode('@', $email)[0]) : 'Curator';
 
-        // Optional: pass these from a controller; these are safe fallbacks:
+        // ✅ Use stored session name if available
+        $email = session('email');
+        $name = session('name') ?? ($email ? ucfirst(explode('@', $email)[0]) : 'Curator');
+
         $stats = $stats ?? [
             'landmarks' => $landmarksCount ?? 0,
             'trivia' => $triviaCount ?? 0,
@@ -15,7 +16,6 @@
             'logs' => $logsCount ?? 0,
         ];
 
-        // Optionally pass arrays for recent items
         $recentLandmarks = $recentLandmarks ?? [];
         $recentTrivia = $recentTrivia ?? [];
         $recentLogs = $recentLogs ?? [];
@@ -59,16 +59,6 @@
             </div>
         </div>
 
-        <!-- <div class="card stat" style="grid-column: span 3; background:#fff; border-radius:14px; padding:1rem; box-shadow: 0 4px 16px rgba(0,0,0,0.06);">
-            <div style="display:flex; align-items:center; justify-content:space-between;">
-                <div>
-                    <p style="margin:0; color:#6b7280; font-size:.9rem;">Pending Reviews</p>
-                    <h3 style="margin:.25rem 0 0 0; font-size:1.75rem; color:#4c1d95;">{{ number_format($stats['pending']) }}</h3>
-                </div>
-                <div class="pill" style="background:#fff7ed; color:#c2410c; padding:.4rem .6rem; border-radius:999px; font-size:.8rem;">Needs action</div>
-            </div>
-        </div> -->
-
         <div class="card stat" style="grid-column: span 3; background:#fff; border-radius:14px; padding:1rem; box-shadow: 0 4px 16px rgba(0,0,0,0.06);">
             <div style="display:flex; align-items:center; justify-content:space-between;">
                 <div>
@@ -88,7 +78,11 @@
                 <h4 style="margin:0; color:#111827;">Quick Actions</h4>
             </div>
             <div style="display:flex; flex-direction:column; gap:.5rem;">
-                <a href="{{ route('landmarks.create') }}" style="text-decoration:none; background:#8b5cf6; color:#fff; padding:.75rem 1rem; border-radius:10px; font-weight:600; text-align:center;">+ Add Landmark</a>
+                <button onclick="openModal('createModal')" 
+                    style="background-color: #8b5cf6; color: white; padding: 10px 16px; font-weight: 600; border-radius: 6px; border: none; cursor: pointer;">
+                    + Add Landmarks
+                </button>
+
                 <a href="{{ route('landmarks.index') }}" style="text-decoration:none; background:#f3f4f6; color:#111827; padding:.75rem 1rem; border-radius:10px; font-weight:600; text-align:center;">Manage Landmarks</a>
                 @if (Route::has('trivia.index'))
                     <a href="{{ route('trivia.index') }}" style="text-decoration:none; background:#f3f4f6; color:#111827; padding:.75rem 1rem; border-radius:10px; font-weight:600; text-align:center;">Manage Trivia</a>
@@ -97,18 +91,17 @@
             </div>
         </div>
 
-        {{-- Line Chart: Content added over time --}}
-            <div class="card" style="grid-column: span 8; background:#fff; border-radius:14px; padding:1rem; box-shadow: 0 4px 16px rgba(0,0,0,0.06);">
-                <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:.75rem;">
-                    <h4 style="margin:0; color:#111827;">Last 8 Weeks — Items Added</h4>
-                    <div style="font-size:.85rem; color:#6b7280;">Landmarks & Trivia</div>
-                </div>
-                <canvas id="lineChart" height="110"></canvas>
+        {{-- Line Chart --}}
+        <div class="card" style="grid-column: span 8; background:#fff; border-radius:14px; padding:1rem; box-shadow: 0 4px 16px rgba(0,0,0,0.06);">
+            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:.75rem;">
+                <h4 style="margin:0; color:#111827;">Last 8 Weeks — Items Added</h4>
+                <div style="font-size:.85rem; color:#6b7280;">Landmarks & Trivia</div>
             </div>
-
+            <canvas id="lineChart" height="110"></canvas>
+        </div>
     </div>
 
-    {{-- Two Columns: Recent + Doughnut --}}
+    {{-- Two Columns --}}
     <div class="grid" style="display:grid; grid-template-columns: repeat(12, minmax(0,1fr)); gap: 1rem; margin-bottom:1rem;">
         {{-- Recent Landmarks --}}
         <div class="card" style="grid-column: span 7; background:#fff; border-radius:14px; padding:1rem; box-shadow: 0 4px 16px rgba(0,0,0,0.06);">
@@ -127,7 +120,6 @@
                                 <th style="padding:.5rem .25rem;">Name</th>
                                 <th style="padding:.5rem .25rem;">Created</th>
                                 <th style="padding:.5rem .25rem;">Location</th>
-                                <!-- <th style="padding:.5rem .25rem; text-align:right;">Actions</th> -->
                             </tr>
                         </thead>
                         <tbody>
@@ -136,14 +128,6 @@
                                     <td style="padding:.6rem .25rem; font-weight:600; color:#111827;">{{ $l['name'] ?? 'Untitled' }}</td>
                                     <td style="padding:.6rem .25rem; color:#374151;">{{ $l['created_at'] ?? '—' }}</td>
                                     <td style="padding:.6rem .25rem; color:#374151;">{{ $l['location'] ?? (($l['latitude'] ?? '').', '.($l['longitude'] ?? '')) }}</td>
-                                    <td style="padding:.6rem .25rem; text-align:right;">
-                                        @if (!empty($l['id']))
-                                            <!-- <a href="{{ route('landmarks.show', $l['id']) }}" style="text-decoration:none; color:#2563eb; margin-right:.5rem;">View</a> -->
-                                            <!-- <a href="{{ route('landmarks.edit', $l['id']) }}" style="text-decoration:none; color:#92400e;">Edit</a> -->
-                                        @else
-                                            <span style="color:#9ca3af;">—</span>
-                                        @endif
-                                    </td>
                                 </tr>
                             @endforeach
                         </tbody>
@@ -152,7 +136,7 @@
             @endif
         </div>
 
-        {{-- Doughnut Chart: Composition --}}
+        {{-- Doughnut Chart --}}
         <div class="card" style="grid-column: span 5; background:#fff; border-radius:14px; padding:1rem; box-shadow: 0 4px 16px rgba(0,0,0,0.06);">
             <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:.75rem;">
                 <h4 style="margin:0; color:#111827;">Content Mix</h4>
@@ -192,7 +176,7 @@
             @endif
         </div>
 
-        {{-- Tips / Shortcuts --}}
+        {{-- Tips --}}
         <div class="card" style="grid-column: span 5; background:#fff; border-radius:14px; padding:1rem; box-shadow: 0 4px 16px rgba(0,0,0,0.06);">
             <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:.75rem;">
                 <h4 style="margin:0; color:#111827;">Tips & Shortcuts</h4>
@@ -223,65 +207,95 @@
         .card:hover { transform: translateY(-2px); transition: transform .15s ease, box-shadow .15s ease; box-shadow: 0 10px 24px rgba(0,0,0,0.08) !important; }
     </style>
 
-    {{-- Charts (Chart.js) --}}
+    {{-- Charts --}}
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" defer></script>
     <script>
         document.addEventListener('DOMContentLoaded', function () {
-            const weeks = ['W-7','W-6','W-5','W-4','W-3','W-2','W-1','Now'];
-            const sampleLandmarks = [2, 3, 1, 4, 2, 5, 3, 4];
-            const sampleTrivia = [1, 2, 2, 3, 1, 2, 4, 2];
+            const weeks = @json($weekLabels);
+            const sampleLandmarks = @json($landmarksPerWeek);
+            const sampleTrivia = @json($triviaPerWeek);
 
+            // Line chart
             const lineCtx = document.getElementById('lineChart').getContext('2d');
             new Chart(lineCtx, {
                 type: 'line',
                 data: {
                     labels: weeks,
                     datasets: [
-                        {
-                            label: 'Landmarks',
-                            data: sampleLandmarks,
-                            tension: 0.35,
-                            fill: false,
-                            borderWidth: 2,
-                        },
-                        {
-                            label: 'Trivia',
-                            data: sampleTrivia,
-                            tension: 0.35,
-                            fill: false,
-                            borderWidth: 2,
-                        },
+                        { label: 'Landmarks', data: sampleLandmarks, tension: 0.35, borderWidth: 2, borderColor: '#3b82f6', backgroundColor: '#3b82f6', fill: false },
+                        { label: 'Trivia', data: sampleTrivia, tension: 0.35, borderWidth: 2, borderColor: '#ec4899', backgroundColor: '#ec4899', fill: false },
                     ]
                 },
                 options: {
                     responsive: true,
-                    plugins: {
-                        legend: { position: 'top' },
-                        tooltip: { mode: 'index', intersect: false },
-                    },
+                    plugins: { legend: { position: 'top' }, tooltip: { mode: 'index', intersect: false } },
                     interaction: { mode: 'nearest', axis: 'x', intersect: false },
-                    scales: {
-                        x: { grid: { display: false } },
-                        y: { beginAtZero: true, ticks: { stepSize: 1 } }
-                    }
+                    scales: { x: { grid: { display: false } }, y: { beginAtZero: true, ticks: { stepSize: 1 } } }
                 }
             });
 
+            // Donut chart
             const donutCtx = document.getElementById('donutChart').getContext('2d');
             new Chart(donutCtx, {
                 type: 'doughnut',
                 data: {
                     labels: ['Landmarks', 'Trivia'],
-                    datasets: [{
-                        data: [{{ (int)($stats['landmarks'] ?: 0) }}, {{ (int)($stats['trivia'] ?: 0) }}],
-                        borderWidth: 0,
-                    }]
+                    datasets: [{ data: [{{ (int)($stats['landmarks'] ?: 0) }}, {{ (int)($stats['trivia'] ?: 0) }}], borderWidth: 0, backgroundColor: ['#3b82f6', '#ec4899'] }]
                 },
-                options: {
-                    cutout: '60%',
-                    plugins: { legend: { display: false } }
-                }
+                options: { cutout: '60%', plugins: { legend: { display: false } } }
             });
         });
+    </script>
+
+    <!-- Create Modal -->
+    <div id="createModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal('createModal')">&times;</span>
+            <form method="POST" action="{{ route('landmarks.store') }}" enctype="multipart/form-data">
+                @csrf
+
+                <label>Landmark Name:</label>
+                <input type="text" name="name" required>
+
+                <label>Description:</label>
+                <textarea name="description" rows="4" cols="50"></textarea>
+
+                <label>Latitude:</label>
+                <input type="text" name="latitude" placeholder="e.g., 10.3157" required>
+
+                <label>Longitude:</label>
+                <input type="text" name="longitude" placeholder="e.g., 123.8854" required>
+
+                <label>Video URL:</label>
+                <input type="url" name="video_url">
+
+                <label>Upload Old Photo:</label>
+                <input type="file" name="image" accept="image/*">
+
+                <button type="submit">Save</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal Styles -->
+    <style>
+        .modal { display:none; position:fixed; z-index:1000; left:0; top:0; width:100%; height:100%; overflow:auto; background:rgba(0,0,0,0.6); }
+        .modal-content { background:#fff; margin:5% auto; padding:20px; border-radius:10px; width:90%; max-width:500px; position:relative; }
+        .close { position:absolute; top:10px; right:15px; font-size:24px; cursor:pointer; }
+        .modal-content label { display:block; margin-top:10px; font-weight:600; }
+        .modal-content input, .modal-content textarea { width:100%; padding:8px; margin-top:4px; border:1px solid #ccc; border-radius:6px; }
+        .modal-content button { margin-top:15px; padding:10px 16px; background:#8b5cf6; color:white; font-weight:600; border:none; border-radius:6px; cursor:pointer; }
+        .modal-content button:hover { background:#7c3aed; }
+    </style>
+
+    <!-- Modal JS -->
+    <script>
+        function openModal(id) { document.getElementById(id).style.display = 'block'; }
+        function closeModal(id) { document.getElementById(id).style.display = 'none'; }
+        window.onclick = function(event) {
+            document.querySelectorAll('.modal').forEach(modal => {
+                if (event.target == modal) modal.style.display = 'none';
+            });
+        }
     </script>
 @endsection

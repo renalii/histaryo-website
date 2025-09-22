@@ -6,6 +6,8 @@ use App\Http\Controllers\Controller;
 use App\Services\FirebaseService;
 use Carbon\Carbon;
 use Kreait\Firebase\Factory;
+use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Collection;
 
 class AdminController extends Controller
 {
@@ -139,11 +141,33 @@ class AdminController extends Controller
         return view('admin.curators', compact('curators'));
     }
 
-    public function landmarks()
-    {
-        $landmarks = $this->firestore->collection('landmarks')->documents();
-        return view('admin.landmarks', compact('landmarks'));
+    public function landmarks(\Illuminate\Http\Request $request)
+{
+    $perPage = 4; // Only paginate in Card View
+    $landmarksQuery = $this->firestore->collection('landmarks')->documents();
+
+    // Convert snapshot into array
+    $allLandmarks = iterator_to_array($landmarksQuery);
+
+    // If "list" view requested → return ALL
+    if ($request->get('view') === 'list') {
+        $landmarks = collect($allLandmarks); // no pagination
+    } else {
+        // Default = Card View → paginate manually
+        $page = $request->get('page', 1);
+        $items = array_slice($allLandmarks, ($page - 1) * $perPage, $perPage);
+
+        $landmarks = new \Illuminate\Pagination\LengthAwarePaginator(
+            $items,
+            count($allLandmarks),
+            $perPage,
+            $page,
+            ['path' => $request->url(), 'query' => $request->query()]
+        );
     }
+
+    return view('admin.landmarks', compact('landmarks'));
+}
 
     public function logs()
     {

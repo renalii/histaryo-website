@@ -192,7 +192,7 @@
 
             <form method="POST" action="{{ route('register') }}">
                 @csrf
-                <input type="text" name="display_name" placeholder="Full Name" value="{{ old('display_name') }}" required>
+                <input type="text" name="name" placeholder="Full Name" value="{{ old('name') }}" required>
                 <input type="email" name="email" placeholder="Email" value="{{ old('email') }}" required>
                 <input type="password" name="password" placeholder="Password" required>
 

@@ -22,6 +22,7 @@
                 <table style="width: 100%; border-collapse: collapse; font-size: 0.95rem; box-shadow: 0 0 10px rgba(0,0,0,0.05);">
                     <thead style="background-color: #ede9fe; text-align: left;">
                         <tr>
+                            <th style="padding: 0.75rem 1rem;">#</th>
                             <th style="padding: 0.75rem 1rem;">Landmark</th>
                             <th style="padding: 0.75rem 1rem;">Question</th>
                             <th style="padding: 0.75rem 1rem;">Choices</th>
@@ -30,9 +31,14 @@
                         </tr>
                     </thead>
                     <tbody>
-                        @foreach ($allTrivia as $trivia)
+                        @foreach ($allTrivia as $index => $trivia)
                             <tr style="background-color: #fff; border-bottom: 1px solid #e5e7eb;">
-                                <td style="padding: 0.75rem 1rem; font-weight: 500;">{{ $trivia['landmark_name'] }}</td>
+                                <td style="padding: 0.75rem 1rem; color: #6b7280;">{{ $index + 1 }}</td>
+                                <td style="padding: 0.75rem 1rem; font-weight: 500;">
+                                    <a href="{{ route('curators.trivia.index', $trivia['landmark_id']) }}" style="color: #4c1d95; text-decoration: underline;">
+                                        {{ $trivia['landmark_name'] }}
+                                    </a>
+                                </td>
                                 <td style="padding: 0.75rem 1rem;">{{ $trivia['question'] }}</td>
                                 <td style="padding: 0.75rem 1rem;">
                                     <ul style="padding-left: 1.25rem; margin: 0;">
@@ -41,11 +47,20 @@
                                         @endforeach
                                     </ul>
                                 </td>
-                                <td style="padding: 0.75rem 1rem; color: #059669;"><strong>{{ $trivia['correct_answer'] }}</strong></td>
-                                <td style="padding: 0.75rem 1rem;">
+                                <td style="padding: 0.75rem 1rem; color: #059669;">
+                                    <strong>{{ $trivia['correct_answer'] }}</strong>
+                                </td>
+                                <td style="padding: 0.75rem 1rem; display: flex; gap: 0.5rem;">
                                     <button onclick='openEditModal(@json($trivia))' style="padding: 0.5rem 0.75rem; background-color: #fbbf24; color: #1f2937; border: none; border-radius: 6px; font-size: 0.85rem; font-weight: 600; cursor: pointer;">
                                         ✏️ Edit
                                     </button>
+                                    <form action="{{ route('curators.trivia.destroy', $trivia['trivia_id']) }}" method="POST" onsubmit="return confirm('Are you sure you want to delete this trivia?');">
+                                        @csrf
+                                        @method('DELETE')
+                                        <button type="submit" style="padding: 0.5rem 0.75rem; background-color: #ef4444; color: white; border: none; border-radius: 6px; font-size: 0.85rem; font-weight: 600; cursor: pointer;">
+                                            🗑 Delete
+                                        </button>
+                                    </form>
                                 </td>
                             </tr>
                         @endforeach
@@ -63,7 +78,7 @@
             <h2 style="margin-top: 0; font-size: 1.5rem; font-weight: 700; color: #4c1d95;">Add Trivia</h2>
             <button onclick="closeModal()" style="position: absolute; top: 1rem; right: 1rem; font-size: 1.25rem; border: none; background: none; cursor: pointer;">✖</button>
 
-            <form id="addTriviaForm" method="POST">
+            <form id="addTriviaForm" method="POST" action="{{ route('curators.trivia.store') }}">
                 @csrf
 
                 <label for="landmark_id" style="font-weight: 600; display: block; margin-top: 1rem;">Select Landmark:</label>
@@ -142,16 +157,6 @@
             document.getElementById('modalOverlay').style.display = 'none';
         }
 
-        document.getElementById('addTriviaForm').addEventListener('submit', function(e) {
-            const selectedLandmark = document.getElementById('landmark_id').value;
-            if (!selectedLandmark) {
-                e.preventDefault();
-                alert('Please select a landmark.');
-                return;
-            }
-            this.action = `/curators/landmarks/${selectedLandmark}/trivia`;
-        });
-
         function openEditModal(trivia) {
             document.getElementById('edit_question').value = trivia.question || '';
             document.getElementById('edit_choice_1').value = trivia.choices[0] || '';
@@ -161,7 +166,7 @@
             document.getElementById('edit_correct_answer').value = trivia.correct_answer || '';
 
             document.getElementById('editTriviaForm').action =
-                `/curators/landmarks/${trivia.landmark_id}/trivia/${trivia.trivia_id}`;
+                `/curators/trivia/${trivia.trivia_id}`;
 
             document.getElementById('editModal').style.display = 'block';
         }

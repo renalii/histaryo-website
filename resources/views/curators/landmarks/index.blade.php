@@ -9,13 +9,61 @@
         </button>
     </div>
 
+    {{-- Success message --}}
     @if (session('success'))
         <div style="background-color: #d1fae5; color: #065f46; padding: 1rem 1.25rem; border-radius: 8px; margin-bottom: 1.5rem;">
             {{ session('success') }}
         </div>
     @endif
 
-    <!-- Landmark Cards -->
+    {{-- Filter --}}
+    <div style="margin-bottom: 1.5rem; display:flex; align-items:center; gap:1rem;">
+        <form method="GET" action="{{ route('landmarks.index') }}" style="display:flex; align-items:center; gap:.75rem;">
+            <label for="category" style="font-weight:600; color:#374151;">Filter by Category:</label>
+            <div style="position: relative;">
+                <select name="category" id="category" onchange="this.form.submit()" 
+                    style="
+                        appearance: none;
+                        -webkit-appearance: none;
+                        -moz-appearance: none;
+                        padding: .6rem 2.5rem .6rem 1rem;
+                        border: 1px solid #d1d5db;
+                        border-radius: 10px;
+                        font-size: .95rem;
+                        font-weight: 500;
+                        color: #374151;
+                        background-color: #ffffff;
+                        cursor: pointer;
+                        transition: all .2s ease-in-out;
+                        box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+                    "
+                    onmouseover="this.style.borderColor='#8b5cf6'"
+                    onmouseout="this.style.borderColor='#d1d5db'">
+                    <option value="">-- All Categories --</option>
+                    <option value="Historical" {{ ($selectedCategory ?? '') == 'Historical' ? 'selected' : '' }}>Historical</option>
+                    <option value="Natural" {{ ($selectedCategory ?? '') == 'Natural' ? 'selected' : '' }}>Natural</option>
+                    <option value="Cultural" {{ ($selectedCategory ?? '') == 'Cultural' ? 'selected' : '' }}>Cultural</option>
+                    <option value="Religious" {{ ($selectedCategory ?? '') == 'Religious' ? 'selected' : '' }}>Religious</option>
+                    <option value="Modern" {{ ($selectedCategory ?? '') == 'Modern' ? 'selected' : '' }}>Modern</option>
+                </select>
+
+                {{-- Custom arrow --}}
+                <span style="
+                    position: absolute;
+                    right: 1rem;
+                    top: 50%;
+                    transform: translateY(-50%);
+                    pointer-events: none;
+                    font-size: .85rem;
+                    color: #6b7280;
+                ">
+                    ▼
+                </span>
+            </div>
+        </form>
+    </div>
+
+    {{-- Landmarks --}}
     @if ($landmarks->total() === 0)
         <p style="color: #6b7280;">No landmarks available.</p>
     @else
@@ -36,6 +84,12 @@
 
                 <div style="background: white; border-radius: 10px; padding: 1.5rem; box-shadow: 0 2px 8px rgba(0,0,0,0.05); width: 100%; max-width: 400px;">
                     <strong style="font-size: 1.2rem; color: #7c3aed;">{{ $data['name'] ?? 'Unnamed Landmark' }}</strong>
+                    
+                    {{-- Category --}}
+                    <p style="margin: 0.25rem 0; font-size: 0.85rem; color: #2563eb; font-weight: 600;">
+                        🏷️ {{ $data['category'] ?? 'Uncategorized' }}
+                    </p>
+
                     <p style="margin: 0.75rem 0; color: #4b5563; font-size: 0.95rem;">
                         {{ $data['description'] ?? 'No description.' }}
                     </p>
@@ -57,11 +111,12 @@
                     </div>
                 </div>
 
-                <!-- View Modal -->
+                {{-- View Modal --}}
                 <div id="showModal{{ $loop->index }}" class="modal">
                     <div class="modal-content">
                         <span class="close" onclick="closeModal('showModal{{ $loop->index }}')">&times;</span>
                         <h3>{{ $data['name'] ?? 'Unnamed Landmark' }}</h3>
+                        <p><strong>Category:</strong> {{ $data['category'] ?? 'Uncategorized' }}</p>
                         <p>{{ $data['description'] ?? 'No description.' }}</p>
                         <p>Latitude: {{ $data['latitude'] ?? 'N/A' }}</p>
                         <p>Longitude: {{ $data['longitude'] ?? 'N/A' }}</p>
@@ -78,7 +133,7 @@
                     </div>
                 </div>
 
-                <!-- Edit Modal -->
+                {{-- Edit Modal --}}
                 <div id="editModal{{ $loop->index }}" class="modal">
                     <div class="modal-content">
                         <span class="close" onclick="closeModal('editModal{{ $loop->index }}')">&times;</span>
@@ -88,6 +143,15 @@
 
                             <label>Name:</label>
                             <input type="text" name="name" value="{{ $data['name'] }}" required>
+
+                            <label>Category:</label>
+                            <select name="category" required>
+                                <option value="Historical" {{ ($data['category'] ?? '') == 'Historical' ? 'selected' : '' }}>Historical</option>
+                                <option value="Natural" {{ ($data['category'] ?? '') == 'Natural' ? 'selected' : '' }}>Natural</option>
+                                <option value="Cultural" {{ ($data['category'] ?? '') == 'Cultural' ? 'selected' : '' }}>Cultural</option>
+                                <option value="Religious" {{ ($data['category'] ?? '') == 'Religious' ? 'selected' : '' }}>Religious</option>
+                                <option value="Modern" {{ ($data['category'] ?? '') == 'Modern' ? 'selected' : '' }}>Modern</option>
+                            </select>
 
                             <label>Description:</label>
                             <textarea name="description">{{ $data['description'] }}</textarea>
@@ -111,7 +175,7 @@
             @endforeach
         </div>
 
-        {{-- Prev / Next --}}
+        {{-- Pagination --}}
         @if ($landmarks->hasPages())
             <div style="display:flex; align-items:center; gap:.75rem; margin-top:1.5rem;">
                 @if ($landmarks->onFirstPage())
@@ -133,7 +197,7 @@
         @endif
     @endif
 
-    <!-- Create Modal -->
+    {{-- Create Modal --}}
     <div id="createModal" class="modal">
         <div class="modal-content">
             <span class="close" onclick="closeModal('createModal')">&times;</span>
@@ -142,6 +206,15 @@
 
                 <label>Landmark Name:</label>
                 <input type="text" name="name" required>
+
+                <label>Category:</label>
+                <select name="category" required>
+                    <option value="Historical">Historical</option>
+                    <option value="Natural">Natural</option>
+                    <option value="Cultural">Cultural</option>
+                    <option value="Religious">Religious</option>
+                    <option value="Modern">Modern</option>
+                </select>
 
                 <label>Description:</label>
                 <textarea name="description" rows="4" cols="50"></textarea>
@@ -163,13 +236,12 @@
         </div>
     </div>
 
+    {{-- Styles --}}
     <style>
     .modal {
         display: none;
         position: fixed;
         z-index: 1000;
-        left: 0;
-        top: 0;
         inset: 0;
         width: 100%;
         height: 100%;
@@ -211,7 +283,8 @@
     .modal-content input[type="text"],
     .modal-content input[type="url"],
     .modal-content input[type="file"],
-    .modal-content textarea {
+    .modal-content textarea,
+    .modal-content select {
         width: 100%;
         padding: 0.5rem 0.75rem;
         border: 1px solid #d1d5db;
@@ -260,6 +333,7 @@
     }
     </style>
 
+    {{-- Scripts --}}
     <script>
         function openModal(id) {
             document.getElementById(id).style.display = 'flex';

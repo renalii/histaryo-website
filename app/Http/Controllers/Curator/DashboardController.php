@@ -109,20 +109,23 @@ class DashboardController extends Controller
         return view('curators.dashboard', [
             'stats' => [
                 'landmarks' => $landmarksCount,
-                'trivia'    => $triviaCount,          
+                'trivia'    => $triviaCount,
                 'pending'   => $pending,
                 'logs'      => count($recentLogs),
             ],
             'recentLandmarks' => $recentLandmarks,
             'recentLogs'      => $recentLogs,
 
-            // pass chart data
+            // chart data
             'weekLabels'       => $weekLabels,
             'landmarksPerWeek' => $landmarksPerWeek,
             'triviaPerWeek'    => $triviaPerWeek,
         ]);
     }
 
+    /**
+     * Count Firestore documents safely across SDK versions.
+     */
     private function countDocuments($snapshot): int
     {
         if (is_object($snapshot) && method_exists($snapshot, 'size')) {
@@ -139,6 +142,9 @@ class DashboardController extends Controller
         return $count;
     }
 
+    /**
+     * Convert Firestore timestamp or string to a human-readable relative time.
+     */
     private function formatRelativeTime($value): string
     {
         if (!$value) return '—';
@@ -149,7 +155,7 @@ class DashboardController extends Controller
 
         if (is_object($value) && method_exists($value, 'get')) {
             try {
-                $dt = $value->get(); 
+                $dt = $value->get();
                 if ($dt instanceof \DateTimeInterface) {
                     return Carbon::instance($dt)->diffForHumans();
                 }

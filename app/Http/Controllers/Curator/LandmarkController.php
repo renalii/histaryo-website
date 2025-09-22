@@ -18,6 +18,9 @@ class LandmarkController extends Controller
         $this->firestore = $firebaseService->firestore();
     }
 
+    /**
+     * Show landmarks on a map
+     */
     public function map(Request $request, $id = null)
     {
         $landmarksRef = $this->firestore->collection('landmarks');
@@ -27,13 +30,14 @@ class LandmarkController extends Controller
         foreach ($documents as $doc) {
             $data = $doc->data();
 
-            // Normalize coords: prefer latitude/longitude, fallback to lati/longti
+            // Normalize coords: prefer latitude/longitude, fallback to old lati/longti
             $lat = $data['latitude'] ?? $data['lati'] ?? null;
             $lng = $data['longitude'] ?? $data['longti'] ?? null;
 
             if (is_numeric($lat) && is_numeric($lng)) {
                 $data['latitude']  = (float) $lat;
                 $data['longitude'] = (float) $lng;
+                unset($data['lati'], $data['longti']); // cleanup if still exists
                 $landmarks[] = array_merge($data, ['id' => $doc->id()]);
             }
         }
@@ -43,48 +47,65 @@ class LandmarkController extends Controller
         return view('curators.landmarks.map', compact('landmarks', 'mapboxToken'));
     }
 
+    /**
+     * Paginated list of landmarks
+     */
     public function index(Request $request)
-    {
-        $snapshot = $this->firestore->collection('landmarks')->documents();
-        $items = collect($snapshot->rows());
+{
+    $snapshot = $this->firestore->collection('landmarks')->documents();
+    $items = collect($snapshot->rows());
 
-        $perPage = 3;
-        $currentPage = LengthAwarePaginator::resolveCurrentPage();
-
-        $paginated = new LengthAwarePaginator(
-            $items->forPage($currentPage, $perPage)->values(),
-            $items->count(),
-            $perPage,
-            $currentPage,
-            [
-                'path'  => url()->current(),
-                'query' => $request->query(),
-            ]
-        );
-
-        return view('curators.landmarks.index', ['landmarks' => $paginated]);
+    // ✅ Filter by category if selected
+    if ($request->filled('category')) {
+        $items = $items->filter(function ($doc) use ($request) {
+            $data = $doc->data();
+            return isset($data['category']) && $data['category'] === $request->category;
+        });
     }
+
+    $perPage = 3;
+    $currentPage = LengthAwarePaginator::resolveCurrentPage();
+
+    $paginated = new LengthAwarePaginator(
+        $items->forPage($currentPage, $perPage)->values(),
+        $items->count(),
+        $perPage,
+        $currentPage,
+        [
+            'path'  => url()->current(),
+            'query' => $request->query(),
+        ]
+    );
+
+    // ✅ Pass selected category for persistence
+    return view('curators.landmarks.index', [
+        'landmarks' => $paginated,
+        'selectedCategory' => $request->category,
+    ]);
+}
 
     public function create()
     {
         return view('curators.landmarks.create');
     }
 
+    /**
+     * Store a new landmark
+     */
     public function store(Request $request)
     {
         $request->validate([
             'name' => 'required',
+            'category' => 'required|string',
             'description' => 'nullable',
-            'lati' => 'nullable|numeric',
-            'longti' => 'nullable|numeric',
             'latitude' => 'nullable|numeric',
             'longitude' => 'nullable|numeric',
             'video_url' => 'nullable|url',
             'image' => 'nullable|image|max:2048',
         ]);
 
-        $lat = $request->latitude ?? $request->lati;
-        $lng = $request->longitude ?? $request->longti;
+        $lat = $request->latitude;
+        $lng = $request->longitude;
 
         $imagePath = null;
         if ($request->hasFile('image')) {
@@ -93,9 +114,8 @@ class LandmarkController extends Controller
 
         $this->firestore->collection('landmarks')->add([
             'name' => $request->name,
+            'category' => $request->category,
             'description' => $request->description,
-            'lati' => is_numeric($lat) ? (float) $lat : null,
-            'longti' => is_numeric($lng) ? (float) $lng : null,
             'latitude' => is_numeric($lat) ? (float) $lat : null,
             'longitude' => is_numeric($lng) ? (float) $lng : null,
             'video_url' => $request->video_url,
@@ -119,13 +139,15 @@ class LandmarkController extends Controller
         return view('curators.landmarks.edit', ['id' => $id, 'landmark' => $doc->data()]);
     }
 
+    /**
+     * Update landmark
+     */
     public function update(Request $request, $id)
     {
         $request->validate([
             'name' => 'required',
+            'category' => 'required|string',
             'description' => 'nullable',
-            'lati' => 'nullable|numeric',
-            'longti' => 'nullable|numeric',
             'latitude' => 'nullable|numeric',
             'longitude' => 'nullable|numeric',
             'video_url' => 'nullable|url',
@@ -145,14 +167,13 @@ class LandmarkController extends Controller
             $data['image_path'] = $request->file('image')->store('landmarks', 'public');
         }
 
-        $lat = $request->latitude ?? $request->lati ?? $data['latitude'] ?? $data['lati'] ?? null;
-        $lng = $request->longitude ?? $request->longti ?? $data['longitude'] ?? $data['longti'] ?? null;
+        $lat = $request->latitude ?? $data['latitude'] ?? null;
+        $lng = $request->longitude ?? $data['longitude'] ?? null;
 
         $docRef->set([
             'name' => $request->name,
+            'category' => $request->category,
             'description' => $request->description,
-            'lati' => is_numeric($lat) ? (float) $lat : null,
-            'longti' => is_numeric($lng) ? (float) $lng : null,
             'latitude' => is_numeric($lat) ? (float) $lat : null,
             'longitude' => is_numeric($lng) ? (float) $lng : null,
             'video_url' => $request->video_url,
@@ -168,6 +189,9 @@ class LandmarkController extends Controller
         return redirect()->route('landmarks.index')->with('success', 'Updated successfully');
     }
 
+    /**
+     * Delete landmark
+     */
     public function destroy($id)
     {
         $doc = $this->firestore->collection('landmarks')->document($id)->snapshot();
