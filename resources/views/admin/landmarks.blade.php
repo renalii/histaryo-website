@@ -38,7 +38,7 @@
                         if (!empty($data['image_base64'])) {
                             $imageMime = $data['image_mime'] ?? 'image/jpeg';
                             $imageSrc = 'data:' . $imageMime . ';base64,' . $data['image_base64'];
-                        }
+                        }   
 
                         if (Str::contains($videoUrl, 'youtube.com/watch')) {
                             parse_str(parse_url($videoUrl, PHP_URL_QUERY), $queryParams);
