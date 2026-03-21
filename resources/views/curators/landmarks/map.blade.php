@@ -15,7 +15,7 @@
     .mapboxgl-popup { max-width: 300px; font: 14px/1.4 system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial; }
     .mapboxgl-popup-content a { text-decoration: underline; }
 
-    /* Private landmark search (no suggestions, no show-all) */
+    
     .landmark-search {
         position: absolute; top: 10px; left: 10px; z-index: 1001;
         display: flex; gap: .5rem; align-items: center;
@@ -26,7 +26,7 @@
         font-size: 14px; transition: border-color .15s ease;
     }
     .landmark-search input.ring {
-        border-color: #ef4444 !important; /* red-500 */
+        border-color: #ef4444 !important; 
     }
     .landmark-search button {
         padding: .4rem .6rem; border: 1px solid #e5e7eb; border-radius: .375rem; background: #f9fafb; cursor: pointer;
@@ -59,7 +59,7 @@ document.addEventListener("DOMContentLoaded", function () {
     mapboxgl.accessToken = @json($mapboxToken);
     if (!mapboxgl.accessToken) { alert('Missing MAPBOX_TOKEN in .env. Run php artisan config:clear after setting it.'); return; }
 
-    const DEFAULT_CENTER = [123.8854, 10.3157]; // [lng, lat]
+    const DEFAULT_CENTER = [123.8854, 10.3157]; 
     const DEFAULT_ZOOM = 12;
 
     const map = new mapboxgl.Map({
@@ -74,7 +74,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
     const landmarks = @json(array_values($landmarks));
 
-    // ---- Add markers & popups; keep references for searching ----
+    
     const markersById = new Map();
     const bounds = new mapboxgl.LngLatBounds();
 
@@ -90,7 +90,7 @@ document.addEventListener("DOMContentLoaded", function () {
             </div>
         `;
 
-        // <a href="/submit/${escapeAttr(l.id)}" target="_blank" rel="noopener">✍️ Contribute a Tip</a>
+    
 
         const marker = new mapboxgl.Marker()
             .setLngLat([l.longitude, l.latitude])
@@ -103,7 +103,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
     if (!bounds.isEmpty()) map.fitBounds(bounds, { padding: 60, maxZoom: 15 });
 
-    // ---- Focus by ID from URL like /curators/map/{id} (optional) ----
+    
     const focusId = @json($focusId ?? null);
     if (focusId) {
         const lm = landmarks.find(x => x.id === focusId);
@@ -114,11 +114,11 @@ document.addEventListener("DOMContentLoaded", function () {
         }
     }
 
-    // ---- Private landmark search (by name you type) ----
+    
     const input = document.getElementById('landmarkSearch');
     const btnGo = document.getElementById('landmarkGo');
 
-    // Gentle "not found" nudge (no alerts)
+    
     function nudgeNotFound() {
         input.classList.add('ring');
         input.style.borderColor = '#ef4444';
@@ -128,12 +128,12 @@ document.addEventListener("DOMContentLoaded", function () {
         }, 600);
     }
 
-    // Allow typing raw coords like "10.3157, 123.8854"
+    
     function tryCoords(q) {
         if (!q) return null;
         const m = q.trim().match(/^(-?\d+(\.\d+)?)[,\s]+(-?\d+(\.\d+)?)$/);
         if (!m) return null;
-        // user might type "lat, lng" — convert to map order [lng, lat]
+        
         const lat = parseFloat(m[1]);
         const lng = parseFloat(m[3]);
         if (isFinite(lat) && isFinite(lng)) return { latitude: lat, longitude: lng, id: '__coords__' };
@@ -143,7 +143,7 @@ document.addEventListener("DOMContentLoaded", function () {
     function findLandmarkByName(q) {
         if (!q) return null;
         const needle = q.trim().toLowerCase();
-        // exact (case-insensitive) first, then partial
+        
         let hit = landmarks.find(l => (l.name || '').toLowerCase() === needle);
         if (!hit) hit = landmarks.find(l => (l.name || '').toLowerCase().includes(needle));
         return hit || null;
@@ -160,7 +160,7 @@ document.addEventListener("DOMContentLoaded", function () {
         }
     }
 
-    // Event handlers (Go button + Enter)
+    
     btnGo.addEventListener('click', () => {
         const lm = tryCoords(input.value) || findLandmarkByName(input.value);
         if (lm) { focusLandmark(lm); } else { nudgeNotFound(); }
@@ -172,7 +172,7 @@ document.addEventListener("DOMContentLoaded", function () {
         }
     });
 
-    // ---- Helpers ----
+    
     function escapeHtml(str) {
         return String(str)
             .replace(/&/g, '&amp;').replace(/</g, '&lt;')

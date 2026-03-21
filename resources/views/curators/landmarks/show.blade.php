@@ -36,9 +36,17 @@
     <div id="map"></div>
 
     <!-- Old Photo -->
-    @if (!empty($landmark['image_path']))
+    @php
+        $imageSrc = null;
+        if (!empty($landmark['image_base64'])) {
+            $imageMime = $landmark['image_mime'] ?? 'image/jpeg';
+            $imageSrc = 'data:' . $imageMime . ';base64,' . $landmark['image_base64'];
+        }
+    @endphp
+
+    @if (!empty($imageSrc))
         <p><strong>Old Photo:</strong></p>
-        <img src="{{ asset('storage/' . $landmark['image_path']) }}" alt="Landmark Image" style="max-width: 300px;">
+        <img src="{{ $imageSrc }}" alt="Landmark Image" style="max-width: 300px;">
     @endif
 
     <!-- YouTube Video -->

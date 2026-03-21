@@ -56,7 +56,7 @@ class ReportController extends Controller
         foreach ($collection as $doc) {
             $data = $doc->data();
 
-            // ✅ Date range filter
+            
             if ($from || $to) {
                 $timestamp = $data['timestamp'] ?? $data['created_at'] ?? null;
                 if ($timestamp) {
@@ -71,7 +71,7 @@ class ReportController extends Controller
                 }
             }
 
-            // ✅ Normalize per type
+            
             switch ($type) {
                 case 'landmarks':
                     $results[] = [
@@ -107,7 +107,7 @@ class ReportController extends Controller
                     break;
 
                 default:
-                    $results[] = $data; // fallback generic
+                    $results[] = $data; 
             }
         }
 

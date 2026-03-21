@@ -11,7 +11,7 @@
     @if ($landmarks->isEmpty())
         <p style="color: #6b7280;">No landmarks found.</p>
     @else
-        <!-- Toggle buttons -->
+        
         <div style="margin-bottom: 1rem; display: flex; gap: 10px;">
             <a href="{{ route('admin.landmarks', ['view' => 'card']) }}"
                style="padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 6px; 
@@ -25,7 +25,7 @@
             </a>
         </div>
 
-        <!-- Card view -->
+        
         @if ($currentView === 'card')
             <div id="card-view" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1.5rem;">
                 @foreach ($landmarks as $landmark)
@@ -33,6 +33,12 @@
                         $data = $landmark->data();
                         $videoUrl = $data['video_url'] ?? '';
                         $embedUrl = '';
+                        $imageSrc = null;
+
+                        if (!empty($data['image_base64'])) {
+                            $imageMime = $data['image_mime'] ?? 'image/jpeg';
+                            $imageSrc = 'data:' . $imageMime . ';base64,' . $data['image_base64'];
+                        }
 
                         if (Str::contains($videoUrl, 'youtube.com/watch')) {
                             parse_str(parse_url($videoUrl, PHP_URL_QUERY), $queryParams);
@@ -49,18 +55,18 @@
 
                     <div style="background: white; padding: 1rem; border-radius: 10px; 
                                 box-shadow: 0 6px 12px rgba(0,0,0,0.05); display: flex; flex-direction: column;">
-                        <!-- Landmark Name -->
+                        
                         <h3 style="font-size: 1.2rem; color: #1a1a1a; margin-bottom: 0.5rem;">
                             {{ $data['name'] ?? 'Unnamed Landmark' }}
                         </h3>
 
-                        <!-- Coordinates -->
+                        
                         <p style="margin: 0; font-size: 0.9rem; color: #4b5563;">
                             📍 Lat: {{ $data['latitude'] ?? 'N/A' }}<br>
                             📍 Lng: {{ $data['longitude'] ?? 'N/A' }}
                         </p>
 
-                        <!-- Description -->
+                        
                         @if (!empty($data['description']))
                             <p style="margin-top: 0.5rem; font-size: 0.9rem; color: #374151; 
                                       overflow: hidden; display: -webkit-box; -webkit-line-clamp: 4; 
@@ -69,15 +75,15 @@
                             </p>
                         @endif
 
-                        <!-- Image -->
-                        @if (!empty($data['image_path']))
+                        
+                        @if (!empty($imageSrc))
                             <div style="margin-top: 0.75rem;">
-                                <img src="{{ asset('storage/' . $data['image_path']) }}" 
+                                <img src="{{ $imageSrc }}" 
                                      alt="Landmark Image" style="width: 100%; border-radius: 6px;">
                             </div>
                         @endif
 
-                        <!-- Video -->
+                        
                         @if (!empty($embedUrl))
                             <div style="margin-top: 0.75rem;">
                                 <iframe width="100%" height="180" src="{{ $embedUrl }}" frameborder="0"
@@ -88,13 +94,13 @@
                 @endforeach
             </div>
 
-            <!-- Pagination (only for Card View) -->
+            
             <div style="margin-top: 1.5rem; text-align:center;">
                 {{ $landmarks->links('vendor.pagination.custom') }}
             </div>
         @endif
 
-        <!-- List view -->
+        
         @if ($currentView === 'list')
             <div id="list-view" style="margin-top: 1rem;">
                 <table style="width: 100%; border-collapse: collapse; background: white; border-radius: 10px; 
@@ -112,6 +118,12 @@
                                 $data = $landmark->data();
                                 $videoUrl = $data['video_url'] ?? '';
                                 $embedUrl = '';
+                                $imageSrc = null;
+
+                                if (!empty($data['image_base64'])) {
+                                    $imageMime = $data['image_mime'] ?? 'image/jpeg';
+                                    $imageSrc = 'data:' . $imageMime . ';base64,' . $data['image_base64'];
+                                }
 
                                 if (Str::contains($videoUrl, 'youtube.com/watch')) {
                                     parse_str(parse_url($videoUrl, PHP_URL_QUERY), $queryParams);
@@ -137,9 +149,9 @@
                             <tr id="expand-{{ $index }}" style="display: none; background: #fafafa;">
                                 <td colspan="3" style="padding: 15px;">
                                     <strong>Description:</strong> {{ $data['description'] ?? 'No description' }} <br>
-                                    @if (!empty($data['image_path']))
+                                    @if (!empty($imageSrc))
                                         <div style="margin-top: 0.75rem;">
-                                            <img src="{{ asset('storage/' . $data['image_path']) }}" 
+                                            <img src="{{ $imageSrc }}" 
                                                  alt="Landmark Image" style="width: 300px; border-radius: 6px;">
                                         </div>
                                     @endif

@@ -16,8 +16,8 @@
       background: linear-gradient(to bottom right, #f4f1ff, #e0e7ff);
       color: #111827;
       display: flex;
-      height: 100vh;      /* lock full viewport height */
-      overflow: hidden;   /* prevent page scroll */
+      height: 100vh;      
+      overflow: hidden;   
     }
 
     .sidebar {
@@ -33,8 +33,8 @@
       flex-direction: column;
       justify-content: space-between;
       box-shadow: 6px 0 30px rgba(126, 34, 206, 0.2);
-      height: 100vh;        /* make sidebar fill screen */
-      position: sticky;     /* stick it */
+      height: 100vh;        
+      position: sticky;     
       top: 0;
     }
 
@@ -75,7 +75,7 @@
     }
 
     .logout form button {
-        background-color: rgba(253, 230, 138, 0.2); /* Soft yellow glow */
+        background-color: rgba(253, 230, 138, 0.2); 
         color: #fde68a;
         font-weight: 600;
         font-size: 0.95rem;
@@ -99,8 +99,8 @@
     .main-content {
       flex: 1;
       padding: 2.5rem;
-      height: 100vh;        /* fill remaining space */
-      overflow-y: auto;     /* scroll only inside main content */
+      height: 100vh;        
+      overflow-y: auto;     
     }
 
     @media (max-width: 768px) {

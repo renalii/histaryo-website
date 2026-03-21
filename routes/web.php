@@ -7,9 +7,9 @@ use App\Http\Controllers\Curator\LandmarkController;
 use App\Http\Controllers\Curator\TriviaController;
 use App\Http\Controllers\Curator\DashboardController;
 use App\Http\Controllers\Admin\AdminController;
-use Illuminate\Support\Facades\Auth;
 use App\Http\Controllers\QrController;
 use App\Http\Controllers\Admin\ReportController;
+use Illuminate\Support\Facades\Auth;
 
 Route::view('/', 'home')->name('home');
 Route::view('/about', 'about')->name('about');
@@ -26,34 +26,37 @@ Route::post('/logout', function () {
 })->name('logout');
 
 
-// routes/web.php (top-level, outside /curators group)
-Route::get('/s/{id}', function ($id) {
-    return redirect()->route('curators.map', ['id' => $id]);
-})->name('qr.resolve');
-
-
 Route::prefix('curators')->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('curators.dashboard');
 
     Route::get('/map', [LandmarkController::class, 'map'])->name('curators.map');
-
     Route::resource('landmarks', LandmarkController::class);
 
-    // QR Codes
+    
     Route::get('/qr',                 [QrController::class, 'index'])->name('curators.qr');
     Route::post('/qr',                [QrController::class, 'store'])->name('curators.qr.store');
     Route::delete('/qr/{id}',         [QrController::class, 'destroy'])->name('curators.qr.destroy');
     Route::get('/qr/{id}/download',   [QrController::class, 'download'])->name('curators.qr.download');
+    Route::get('/qr/by-landmark/{landmarkId}', [QrController::class, 'downloadByLandmark'])->name('curators.qr.byLandmark');
 
-    // ✅ Trivia Routes (flat structure)
-    Route::get('/trivia', [TriviaController::class, 'all'])->name('curators.trivia.all'); // all trivia
-    Route::get('/landmarks/{landmarkId}/trivia', [TriviaController::class, 'index'])->name('curators.trivia.index'); // trivia by landmark
-    Route::get('/trivia/create', [TriviaController::class, 'create'])->name('curators.trivia.create');
+    
+    Route::get('/trivia', [TriviaController::class, 'all'])->name('curators.trivia.all');
+
     Route::post('/trivia', [TriviaController::class, 'store'])->name('curators.trivia.store');
-    Route::get('/trivia/{triviaId}/edit', [TriviaController::class, 'edit'])->name('curators.trivia.edit');
+    
     Route::put('/trivia/{triviaId}', [TriviaController::class, 'update'])->name('curators.trivia.update');
     Route::delete('/trivia/{triviaId}', [TriviaController::class, 'destroy'])->name('curators.trivia.destroy');
 });
+
+
+Route::get('/qr/resolve/{id}', [QrController::class, 'download'])->name('qr.resolve'); 
+
+
+Route::get('/quiz/{landmarkId}', [TriviaController::class, 'play'])->name('quiz.play');
+Route::get('/api/quiz', [TriviaController::class, 'getQuiz'])->name('quiz.fetch');
+
+
+Route::get('/api/quiz-key', [TriviaController::class, 'getQuizKey'])->name('quiz.key');
 
 
 Route::prefix('admin')->middleware(['web'])->group(function () {
@@ -64,7 +67,6 @@ Route::prefix('admin')->middleware(['web'])->group(function () {
     Route::get('/logs', [AdminController::class, 'logs'])->name('admin.logs');
     Route::delete('/logs/clear', [AdminController::class, 'clearLogs'])->name('admin.logs.clear');
 
-    // Reports
     Route::get('/reports', [ReportController::class, 'index'])->name('admin.reports');
     Route::get('/reports/export/{any?}', [ReportController::class, 'export'])->name('admin.reports.export');
 });

@@ -6,68 +6,79 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Services\FirebaseService;
 use Carbon\Carbon;
+use Illuminate\Pagination\LengthAwarePaginator;
 
 class TriviaController extends Controller
 {
-    protected $firebaseService;
+    /**
+     * Hold the Firebase service instance.
+     */
+    private FirebaseService $firebase;
 
-    public function __construct(FirebaseService $firebaseService)
+    public function __construct(FirebaseService $firebase)
     {
-        $this->firebaseService = $firebaseService;
+        
+        $this->firebase = $firebase;
     }
 
-    /**
-     * Show all trivia
-     */
-    public function all()
+    
+    public function all(Request $request)
     {
-        $triviaDocs = $this->firebaseService->getAllTrivia();
-        $landmarkDocs = $this->firebaseService->getAllLandmarks();
-
-        // Map landmarks for quick lookup
-        $landmarkMap = [];
+        
+        $landmarkDocs = $this->firebase->getAllLandmarks();
+        $landmarkMap  = [];
         $landmarkList = [];
-        foreach ($landmarkDocs as $landmarkDoc) {
-            if ($landmarkDoc->exists()) {
-                $landmarkId   = $landmarkDoc->id();
-                $landmarkName = $landmarkDoc['name'] ?? 'Unnamed';
 
-                $landmarkList[] = [
-                    'id'   => $landmarkId,
-                    'name' => $landmarkName,
-                ];
-
-                $landmarkMap[$landmarkId] = $landmarkName;
-            }
+        foreach ($landmarkDocs as $ld) {
+            if (!$ld->exists()) continue;
+            $id   = $ld->id();
+            $name = $ld['name'] ?? 'Unnamed';
+            $landmarkMap[$id] = $name;
+            $landmarkList[]   = ['id' => $id, 'name' => $name];
         }
 
-        // Build trivia list
+        
+        $triviaDocs = $this->firebase->getAllTrivia();
+
         $allTrivia = [];
         foreach ($triviaDocs as $doc) {
             if (!$doc->exists()) continue;
-
-            $data = $doc->data();
-            $landmarkId = $data['landmark_id'] ?? '';
+            $d = $doc->data();
+            $landmarkId   = $d['landmark_id'] ?? '';
             $landmarkName = $landmarkMap[$landmarkId] ?? 'Unknown Landmark';
 
             $allTrivia[] = [
                 'trivia_id'      => $doc->id(),
                 'landmark_id'    => $landmarkId,
                 'landmark_name'  => $landmarkName,
-                'question'       => $data['question'] ?? '',
-                'choices'        => $data['choices'] ?? [],
-                'correct_answer' => $data['correct_answer'] ?? '',
-                'created_at'     => $data['created_at'] ?? '',
-                'updated_at'     => $data['updated_at'] ?? '',
+                'question'       => $d['question'] ?? '',
+                'choices'        => array_values($d['choices'] ?? []),
+                'correct_answer' => $d['correct_answer'] ?? '',
+                'created_at'     => $d['created_at'] ?? null,
+                'updated_at'     => $d['updated_at'] ?? null,
             ];
         }
 
-        return view('curators.trivia.all', compact('allTrivia', 'landmarkList'));
+        
+        $perPage = 9;
+        $currentPage = max(1, (int) $request->query('page', 1));
+        $offset = ($currentPage - 1) * $perPage;
+        $currentItems = array_slice($allTrivia, $offset, $perPage);
+
+        $triviaPaginator = new LengthAwarePaginator(
+            $currentItems,
+            count($allTrivia),
+            $perPage,
+            $currentPage,
+            [
+                'path' => $request->url(),
+                'query' => $request->query(),
+            ]
+        );
+
+        return view('curators.trivia.all', compact('triviaPaginator', 'landmarkList'));
     }
 
-    /**
-     * Store new trivia
-     */
     public function store(Request $request)
     {
         $request->validate([
@@ -77,20 +88,24 @@ class TriviaController extends Controller
             'correct_answer' => 'required|string',
         ]);
 
-        $this->firebaseService->addTrivia([
-            'landmark_id'    => $request->landmark_id,
-            'question'       => $request->question,
-            'choices'        => array_values(array_filter($request->choices)),
-            'correct_answer' => $request->correct_answer,
+        
+        if (!in_array($request->correct_answer, $request->choices, true)) {
+            return back()
+                ->withErrors(['correct_answer' => 'Correct answer must be one of the choices.'])
+                ->withInput();
+        }
+
+        $this->firebase->addTrivia([
+            'landmark_id'    => (string) $request->landmark_id,
+            'question'       => (string) $request->question,
+            'choices'        => array_values(array_filter($request->choices, fn($c) => $c !== null && $c !== '')),
+            'correct_answer' => (string) $request->correct_answer,
         ]);
 
-        return redirect()->back()->with('success', 'Trivia added successfully!');
+        return back()->with('success', 'Trivia added to Question Bank!');
     }
 
-    /**
-     * Update trivia
-     */
-    public function update(Request $request, $id)
+    public function update(Request $request, string $triviaId)
     {
         $request->validate([
             'question'       => 'required|string',
@@ -98,22 +113,99 @@ class TriviaController extends Controller
             'correct_answer' => 'required|string',
         ]);
 
-        $this->firebaseService->updateTrivia($id, [
-            'question'       => $request->question,
-            'choices'        => array_values(array_filter($request->choices)),
-            'correct_answer' => $request->correct_answer,
+        if (!in_array($request->correct_answer, $request->choices, true)) {
+            return back()
+                ->withErrors(['correct_answer' => 'Correct answer must be one of the choices.'])
+                ->withInput();
+        }
+
+        $this->firebase->updateTrivia($triviaId, [
+            'question'       => (string) $request->question,
+            'choices'        => array_values(array_filter($request->choices, fn($c) => $c !== null && $c !== '')),
+            'correct_answer' => (string) $request->correct_answer,
         ]);
 
-        return redirect()->back()->with('success', 'Trivia updated successfully!');
+        return back()->with('success', 'Trivia updated.');
     }
 
-    /**
-     * Delete trivia
-     */
-    public function destroy($id)
+    public function destroy(string $triviaId)
     {
-        $this->firebaseService->deleteTrivia($id);
+        $this->firebase->deleteTrivia($triviaId);
+        return back()->with('success', 'Trivia deleted.');
+    }
 
-        return redirect()->back()->with('success', 'Trivia deleted successfully!');
+    
+    public function play(string $landmarkId)
+    {
+        $lm = $this->firebase->getLandmarkById($landmarkId);
+        if (!$lm->exists()) abort(404);
+
+        return view('quiz.play', [
+            'landmark' => [
+                'id'   => $landmarkId,
+                'name' => $lm['name'] ?? 'Untitled',
+            ],
+        ]);
+    }
+
+    
+    public function getQuiz(Request $request)
+    {
+        $landmarkId = (string) $request->query('landmark_id', '');
+        $limit      = (int) $request->query('limit', 5);
+
+        if ($landmarkId === '') {
+            return response()->json(['error' => 'landmark_id is required'], 422);
+        }
+
+        $docs = $this->firebase->getTriviaByLandmarkId($landmarkId);
+
+        $pool = [];
+        foreach ($docs as $doc) {
+            if (!$doc->exists()) continue;
+            $d = $doc->data();
+            $choices = array_values($d['choices'] ?? []);
+            shuffle($choices);
+            $pool[] = [
+                'id'       => $doc->id(),
+                'question' => (string) ($d['question'] ?? ''),
+                'choices'  => $choices,
+            ];
+        }
+
+        shuffle($pool);
+        $items = array_slice($pool, 0, max(1, $limit));
+
+        return response()->json([
+            'landmark_id' => $landmarkId,
+            'count'       => count($items),
+            'items'       => $items,
+        ]);
+    }
+
+    
+    public function getQuizKey(Request $request)
+    {
+        $landmarkId = (string) $request->query('landmark_id', '');
+        if ($landmarkId === '') {
+            return response()->json(['error' => 'landmark_id is required'], 422);
+        }
+
+        $docs = $this->firebase->getTriviaByLandmarkId($landmarkId);
+
+        $key = [];
+        foreach ($docs as $doc) {
+            if (!$doc->exists()) continue;
+            $d = $doc->data();
+            $key[] = [
+                'id'              => $doc->id(),
+                'correct_answer'  => (string)($d['correct_answer'] ?? ''),
+            ];
+        }
+
+        return response()->json([
+            'landmark_id' => $landmarkId,
+            'items'       => $key,
+        ]);
     }
 }

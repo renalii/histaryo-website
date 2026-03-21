@@ -3,7 +3,7 @@
 @section('content')
     <h2 style="font-size: 1.75rem; font-weight: bold; margin-bottom: 1.5rem;">👥 All Registered Users</h2>
 
-    <!-- 🔍 Search + Filter -->
+    
     <form method="GET" action="{{ route('admin.users') }}" style="margin-bottom: 1.5rem; display: flex; gap: 10px; flex-wrap: wrap;">
         <input 
             type="text" 
@@ -19,13 +19,13 @@
             <option value="visitor" {{ request('role') === 'visitor' ? 'selected' : '' }}>Visitor</option>
         </select>
 
-        <!-- Apply button -->
+        
         <button type="submit" 
             style="background-color: #2563eb; color: white; padding: 10px 15px; border: none; border-radius: 6px; cursor: pointer;">
             Apply
         </button>
 
-        <!-- Clear button -->
+        
         <a href="{{ route('admin.users') }}" 
             style="background-color: #6b7280; color: white; padding: 10px 15px; border-radius: 6px; text-decoration: none; display: flex; align-items: center;">
             Clear

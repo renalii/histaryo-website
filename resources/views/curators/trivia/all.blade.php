@@ -1,178 +1,457 @@
 @extends('layouts.sidebar')
 
 @section('content')
-    <div style="max-width: 1100px; margin: 0 auto;">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
-            <h1 style="font-size: 2rem; font-weight: 700; margin: 0;">All Trivia Questions</h1>
-            <button onclick="openModal()" style="background-color: #7e22ce; color: white; padding: 0.6rem 1.25rem; border: none; border-radius: 8px; font-weight: 600; cursor: pointer;">
-                ➕ Add Trivia
-            </button>
-        </div>
+<style>
+    body { 
+    background:#f5f3ff; 
+    font-family: 'Inter', sans-serif; 
+    }
+    
+    .wrap {
+      max-width:1100px;
+      margin:0 auto;
+      padding:1rem
+    }
+    
+    .h1 {
+      font-size:1.8rem;
+      font-weight:800;
+      color:#4c1d95;
+      margin:0 0 .75rem
+    }
+    
+    .muted {
+      color:#6b7280
+    }
 
-        {{-- Success Message --}}
-        @if (session('success'))
-            <div style="background-color: #d1fae5; padding: 1rem 1.25rem; border-radius: 0.5rem; color: #065f46; font-weight: 500; margin-bottom: 1rem;">
-                {{ session('success') }}
-            </div>
-        @endif
+    /* buttons */
+    .btn {
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      font-weight:700;
+      font-size:.95rem;
+      border-radius:10px;
+      padding:.55rem .85rem;
+      border:none;
+      cursor:pointer;
+      transition:.2s
+    }
+    
+    .btn-add {
+      background:#7e22ce;
+      color:#fff
+    }
+    
+    .btn-add:hover { 
+      background:#6b21a8
+    }
+    
+    .btn-edit {
+      background:#fbbf24;
+      color:#1f2937
+    }
+    
+    .btn-edit:hover {
+      background:#f59e0b
+    }
+    
+    .btn-del {
+      background:#ef4444;
+      color:#fff
+    }
+    
+    .btn-del:hover {
+      background:#dc2626
+    }
+    
+    .btn-ghost {
+      background:#eef2ff;
+      color:#3730a3;
+      border:1px solid #c7d2fe
+    }
 
-        {{-- Trivia Table --}}
-        @if (count($allTrivia) > 0)
-            <div style="overflow-x: auto;">
-                <table style="width: 100%; border-collapse: collapse; font-size: 0.95rem; box-shadow: 0 0 10px rgba(0,0,0,0.05);">
-                    <thead style="background-color: #ede9fe; text-align: left;">
-                        <tr>
-                            <th style="padding: 0.75rem 1rem;">#</th>
-                            <th style="padding: 0.75rem 1rem;">Landmark</th>
-                            <th style="padding: 0.75rem 1rem;">Question</th>
-                            <th style="padding: 0.75rem 1rem;">Choices</th>
-                            <th style="padding: 0.75rem 1rem;">Correct Answer</th>
-                            <th style="padding: 0.75rem 1rem;">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @foreach ($allTrivia as $index => $trivia)
-                            <tr style="background-color: #fff; border-bottom: 1px solid #e5e7eb;">
-                                <td style="padding: 0.75rem 1rem; color: #6b7280;">{{ $index + 1 }}</td>
-                                <td style="padding: 0.75rem 1rem; font-weight: 500;">
-                                    <a href="{{ route('curators.trivia.index', $trivia['landmark_id']) }}" style="color: #4c1d95; text-decoration: underline;">
-                                        {{ $trivia['landmark_name'] }}
-                                    </a>
-                                </td>
-                                <td style="padding: 0.75rem 1rem;">{{ $trivia['question'] }}</td>
-                                <td style="padding: 0.75rem 1rem;">
-                                    <ul style="padding-left: 1.25rem; margin: 0;">
-                                        @foreach ($trivia['choices'] as $choice)
-                                            <li>{{ $choice }}</li>
-                                        @endforeach
-                                    </ul>
-                                </td>
-                                <td style="padding: 0.75rem 1rem; color: #059669;">
-                                    <strong>{{ $trivia['correct_answer'] }}</strong>
-                                </td>
-                                <td style="padding: 0.75rem 1rem; display: flex; gap: 0.5rem;">
-                                    <button onclick='openEditModal(@json($trivia))' style="padding: 0.5rem 0.75rem; background-color: #fbbf24; color: #1f2937; border: none; border-radius: 6px; font-size: 0.85rem; font-weight: 600; cursor: pointer;">
-                                        ✏️ Edit
-                                    </button>
-                                    <form action="{{ route('curators.trivia.destroy', $trivia['trivia_id']) }}" method="POST" onsubmit="return confirm('Are you sure you want to delete this trivia?');">
-                                        @csrf
-                                        @method('DELETE')
-                                        <button type="submit" style="padding: 0.5rem 0.75rem; background-color: #ef4444; color: white; border: none; border-radius: 6px; font-size: 0.85rem; font-weight: 600; cursor: pointer;">
-                                            🗑 Delete
-                                        </button>
-                                    </form>
-                                </td>
-                            </tr>
-                        @endforeach
-                    </tbody>
-                </table>
-            </div>
-        @else
-            <p style="color: #6b7280;">No trivia questions found.</p>
-        @endif
+    /* alerts */
+    .notice {
+      padding:.75rem 1rem;
+      border-radius:10px;
+      margin:.75rem 0
+    }
+    
+    .ok {
+      background:#d1fae5;
+      color:#065f46
+    }
+    
+    .err {
+      background:#fee2e2;
+      color:#991b1b
+    }
+
+    /* cards (non-tabular) */
+    .cards {
+      display:grid;
+      grid-template-columns:repeat(3,minmax(0,1fr));
+      gap:12px;
+      margin-top:.5rem
+    }
+    
+    .card {
+      background:#fff;
+      border-radius:12px;
+      box-shadow:0 8px 24px rgba(17,24,39,.06);
+      padding:14px;
+      display:flex;
+      flex-direction:column;
+      gap:10px
+    }
+
+    .landmark {
+      display:flex;
+      flex-direction:column;
+      align-items:flex-start;
+      gap:.35rem;
+      font-weight:700;
+      color:#4c1d95
+    }
+
+    .pill {
+      display:inline-flex;
+      align-items:center;
+      gap:.35rem;
+      background:#eef2ff;
+      border:1px solid #c7d2fe;
+      color:#3730a3;
+      border-radius:999px;
+      padding:.2rem .6rem;
+      font-size:.8rem;
+      font-weight:700
+    }
+    
+    .qtext {
+      font-weight:700;
+      color:#0f172a
+    }
+    
+    .actions {
+      display:flex;
+      gap:.4rem;
+      flex-wrap:wrap;
+      margin-top:2px
+    }
+    
+    .link {
+      color:#7e22ce;
+      text-decoration:none;
+      font-weight:700
+    }
+    
+    .link:hover{color:#5b21b6;text-decoration:underline}
+
+    /* modal */
+    .overlay {
+      display:none;
+      position:fixed;
+      inset:0;
+      background:rgba(0,0,0,.45);
+      backdrop-filter:blur(2px);
+      z-index:50;
+      justify-content:center;
+      align-items:center
+    }
+    
+    .modal {
+      background:#fff;
+      padding:1.25rem 1.5rem;
+      border-radius:14px;
+      width:520px;
+      max-width:92vw;
+      box-shadow:0 16px 48px rgba(17,24,39,.18)
+    }
+    
+    .modal h2 {
+      font-size:1.2rem;
+      font-weight:800;
+      color:#4c1d95;
+      margin:0 0 .5rem
+    }
+    
+    .row {
+      margin:.6rem 0
+    }
+    
+    .row label {
+      display:block;
+      font-weight:700;
+      margin-bottom:.25rem
+    }
+    
+    .row input[type="text"], .row select{width:100%;
+      padding:.6rem .7rem;
+      border:1px solid #e5e7eb;
+      border-radius:10px
+    }
+    
+    .choice {
+      display:flex;
+      align-items:center;
+      gap:.5rem;
+      margin:.4rem 0
+      }
+
+    .pager {
+      display:flex;
+      justify-content:center;
+      align-items:center;
+      gap:.35rem;
+      margin-top:1rem;
+      flex-wrap:wrap;
+    }
+
+    .page-btn {
+      padding:.45rem .7rem;
+      border-radius:8px;
+      border:1px solid #ddd6fe;
+      background:#ffffff;
+      color:#5b21b6;
+      font-weight:700;
+      text-decoration:none;
+      font-size:.9rem;
+      min-width:36px;
+      text-align:center;
+    }
+
+    .page-btn:hover {
+      background:#f5f3ff;
+    }
+
+    .page-btn.active {
+      background:#7e22ce;
+      color:#fff;
+      border-color:#7e22ce;
+    }
+
+    .page-btn.disabled {
+      pointer-events:none;
+      opacity:.45;
+    }
+
+    @media (max-width: 980px) {
+      .cards {
+        grid-template-columns:repeat(2,minmax(0,1fr));
+      }
+    }
+
+    @media (max-width: 640px) {
+      .cards {
+        grid-template-columns:1fr;
+      }
+    }
+</style>
+
+<div class="wrap">
+  <div style="display:flex;justify-content:space-between;align-items:center;gap:.75rem;flex-wrap:wrap">
+    <h1 class="h1">Question Bank</h1>
+    <div style="display:flex;gap:.5rem;flex-wrap:wrap">
+      <button class="btn btn-add" onclick="openAdd()">➕ Add Trivia</button>
     </div>
+  </div>
 
-    {{-- Add Trivia Modal --}}
-    <div id="modalOverlay" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.6); z-index: 9999;">
-        <div style="background: white; width: 90%; max-width: 600px; margin: 5% auto; padding: 2rem; border-radius: 1rem; position: relative; box-shadow: 0 0 20px rgba(0,0,0,0.2);">
-            <h2 style="margin-top: 0; font-size: 1.5rem; font-weight: 700; color: #4c1d95;">Add Trivia</h2>
-            <button onclick="closeModal()" style="position: absolute; top: 1rem; right: 1rem; font-size: 1.25rem; border: none; background: none; cursor: pointer;">✖</button>
+  @if (session('success'))
+    <div class="notice ok">{{ session('success') }}</div>
+  @endif
+  @if ($errors->any())
+    <div class="notice err">
+      <ul style="margin:0;padding-left:1.1rem">
+        @foreach ($errors->all() as $e)
+          <li>{{ $e }}</li>
+        @endforeach
+      </ul>
+    </div>
+  @endif
 
-            <form id="addTriviaForm" method="POST" action="{{ route('curators.trivia.store') }}">
-                @csrf
+  @if($triviaPaginator->total() > 0)
+    <div class="cards">
+      @foreach ($triviaPaginator as $t)
+        <div class="card">
+          <div class="landmark">
+            <span class="pill">🏷 {{ $t['landmark_name'] }}</span>
+          </div>
 
-                <label for="landmark_id" style="font-weight: 600; display: block; margin-top: 1rem;">Select Landmark:</label>
-                <select id="landmark_id" name="landmark_id" required style="width: 100%; padding: 0.6rem; margin-bottom: 1rem; border: 1px solid #d1d5db; border-radius: 0.375rem;">
-                    <option value="" disabled selected>-- Choose a Landmark --</option>
-                    @foreach ($landmarkList as $landmark)
-                        <option value="{{ $landmark['id'] }}">{{ $landmark['name'] }}</option>
-                    @endforeach
-                </select>
+          <div class="qtext">
+            {{ $t['question'] }}
+          </div>
 
-                <label style="font-weight: 600;">Question:</label>
-                <input type="text" name="question" required style="width: 100%; padding: 0.6rem; margin-bottom: 1rem;">
-
-                <label style="font-weight: 600;">Choices (min 2):</label>
-                <input type="text" name="choices[]" placeholder="Choice 1" required style="width: 100%; padding: 0.6rem; margin-bottom: 0.75rem;">
-                <input type="text" name="choices[]" placeholder="Choice 2" required style="width: 100%; padding: 0.6rem; margin-bottom: 0.75rem;">
-                <input type="text" name="choices[]" placeholder="Choice 3 (optional)" style="width: 100%; padding: 0.6rem; margin-bottom: 0.75rem;">
-                <input type="text" name="choices[]" placeholder="Choice 4 (optional)" style="width: 100%; padding: 0.6rem; margin-bottom: 1rem;">
-
-                <label style="font-weight: 600;">Correct Answer:</label>
-                <input type="text" name="correct_answer" placeholder="Must match one of the choices" required style="width: 100%; padding: 0.6rem; margin-bottom: 1.5rem;">
-
-                <button type="submit" style="background-color: #7e22ce; color: white; padding: 0.75rem 1.5rem; font-weight: 600; border: none; border-radius: 0.5rem; cursor: pointer;">
-                    ➕ Add Trivia
-                </button>
+          <div class="actions">
+            <button class="btn btn-edit" onclick='openEdit(@json($t))'>✏️ Edit</button>
+            <form action="{{ route('curators.trivia.destroy', $t['trivia_id']) }}"
+                  method="POST"
+                  onsubmit="return confirm('Delete this trivia?');">
+              @csrf @method('DELETE')
+              <button class="btn btn-del" type="submit">🗑 Delete</button>
             </form>
-
-            @if ($errors->any())
-                <div style="margin-top: 1rem; color: red;">
-                    <ul>
-                        @foreach ($errors->all() as $error)
-                            <li>{{ $error }}</li>
-                        @endforeach
-                    </ul>
-                </div>
-            @endif
+          </div>
         </div>
+      @endforeach
     </div>
 
-    {{-- Edit Trivia Modal --}}
-    <div id="editModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.6); z-index: 9999;">
-        <div style="background: white; width: 90%; max-width: 600px; margin: 5% auto; padding: 2rem; border-radius: 1rem; position: relative; box-shadow: 0 0 20px rgba(0,0,0,0.2);">
-            <h2 style="margin-top: 0; font-size: 1.5rem; font-weight: 700; color: #4c1d95;">Edit Trivia</h2>
-            <button onclick="closeEditModal()" style="position: absolute; top: 1rem; right: 1rem; font-size: 1.25rem; border: none; background: none; cursor: pointer;">✖</button>
+    @if ($triviaPaginator->lastPage() > 1)
+      <div class="pager">
+        <a href="{{ $triviaPaginator->previousPageUrl() ?: '#' }}"
+           class="page-btn {{ $triviaPaginator->onFirstPage() ? 'disabled' : '' }}">Prev</a>
 
-            <form id="editTriviaForm" method="POST">
-                @csrf
-                @method('PUT')
+        @for ($page = 1; $page <= $triviaPaginator->lastPage(); $page++)
+          <a href="{{ $triviaPaginator->url($page) }}"
+             class="page-btn {{ $triviaPaginator->currentPage() === $page ? 'active' : '' }}">
+            {{ $page }}
+          </a>
+        @endfor
 
-                <label style="font-weight: 600;">Question:</label>
-                <input type="text" name="question" id="edit_question" required style="width: 100%; padding: 0.6rem; margin-bottom: 1rem;">
+        <a href="{{ $triviaPaginator->hasMorePages() ? $triviaPaginator->nextPageUrl() : '#' }}"
+           class="page-btn {{ $triviaPaginator->hasMorePages() ? '' : 'disabled' }}">Next</a>
+      </div>
+    @endif
+  @else
+    <p class="muted" style="margin-top:1rem">No trivia in the Question Bank yet.</p>
+  @endif
+</div>
 
-                <label style="font-weight: 600;">Choices:</label>
-                <input type="text" name="choices[]" id="edit_choice_1" required style="width: 100%; padding: 0.6rem; margin-bottom: 0.5rem;">
-                <input type="text" name="choices[]" id="edit_choice_2" required style="width: 100%; padding: 0.6rem; margin-bottom: 0.5rem;">
-                <input type="text" name="choices[]" id="edit_choice_3" style="width: 100%; padding: 0.6rem; margin-bottom: 0.5rem;">
-                <input type="text" name="choices[]" id="edit_choice_4" style="width: 100%; padding: 0.6rem; margin-bottom: 1rem;">
 
-                <label style="font-weight: 600;">Correct Answer:</label>
-                <input type="text" name="correct_answer" id="edit_correct_answer" required style="width: 100%; padding: 0.6rem; margin-bottom: 1.5rem;">
+<div id="addOverlay" class="overlay">
+  <div class="modal">
+    <h2>Add Trivia (Question Bank)</h2>
+    <form action="{{ route('curators.trivia.store') }}" method="POST">
+      @csrf
+      <div class="row">
+        <label>Landmark</label>
+        <select name="landmark_id" required>
+          <option value="">-- Select Landmark --</option>
+          @foreach($landmarkList as $lm)
+            <option value="{{ $lm['id'] }}">{{ $lm['name'] }}</option>
+          @endforeach
+        </select>
+      </div>
 
-                <button type="submit" style="background-color: #7e22ce; color: white; padding: 0.75rem 1.5rem; font-weight: 600; border: none; border-radius: 0.5rem; cursor: pointer;">
-                    💾 Update
-                </button>
-            </form>
+      <div class="row">
+        <label>Question</label>
+        <input type="text" name="question" required>
+      </div>
+
+      <div class="row">
+        <label>Choices (select one correct)</label>
+        <div id="addChoices">
+          @for ($i = 0; $i < 4; $i++)
+          <div class="choice">
+            <input type="radio" name="correct_answer" value="" required>
+            <input type="text" name="choices[]" placeholder="Choice {{ $i+1 }}" required style="flex:1">
+          </div>
+          @endfor
         </div>
-    </div>
+        <button type="button" class="btn btn-ghost" onclick="addChoice('addChoices')">＋ Add Choice</button>
+      </div>
 
-    {{-- Modal Scripts --}}
-    <script>
-        function openModal() {
-            document.getElementById('modalOverlay').style.display = 'block';
-        }
+      <div style="display:flex;gap:.5rem;justify-content:flex-end;margin-top:.75rem">
+        <button type="button" class="btn" onclick="closeAdd()">Cancel</button>
+        <button type="submit" class="btn btn-add">Save</button>
+      </div>
+    </form>
+  </div>
+</div>
 
-        function closeModal() {
-            document.getElementById('modalOverlay').style.display = 'none';
-        }
 
-        function openEditModal(trivia) {
-            document.getElementById('edit_question').value = trivia.question || '';
-            document.getElementById('edit_choice_1').value = trivia.choices[0] || '';
-            document.getElementById('edit_choice_2').value = trivia.choices[1] || '';
-            document.getElementById('edit_choice_3').value = trivia.choices[2] || '';
-            document.getElementById('edit_choice_4').value = trivia.choices[3] || '';
-            document.getElementById('edit_correct_answer').value = trivia.correct_answer || '';
+<div id="editOverlay" class="overlay">
+  <div class="modal">
+    <h2>Edit Trivia (Question Bank)</h2>
+    <form id="editForm" method="POST">
+      @csrf @method('PUT')
 
-            document.getElementById('editTriviaForm').action =
-                `/curators/trivia/${trivia.trivia_id}`;
+      <div class="row">
+        <label>Question</label>
+        <input type="text" id="edit_question" name="question" required>
+      </div>
 
-            document.getElementById('editModal').style.display = 'block';
-        }
+      <div class="row">
+        <label>Choices (select one correct)</label>
+        <div id="editChoices"></div>
+        <button type="button" class="btn btn-ghost" onclick="addChoice('editChoices')">＋ Add Choice</button>
+      </div>
 
-        function closeEditModal() {
-            document.getElementById('editModal').style.display = 'none';
-        }
-    </script>
+      <div style="display:flex;gap:.5rem;justify-content:flex-end;margin-top:.75rem">
+        <button type="button" class="btn" onclick="closeEdit()">Cancel</button>
+        <button type="submit" class="btn btn-add">Update</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+  
+  function openAdd(){ document.getElementById('addOverlay').style.display='flex'; syncRadios('addChoices'); }
+  function closeAdd(){ document.getElementById('addOverlay').style.display='none'; }
+  function openEdit(t){
+      document.getElementById('editOverlay').style.display='flex';
+      const form = document.getElementById('editForm');
+      form.action = `/curators/trivia/${t.trivia_id}`;
+      document.getElementById('edit_question').value = t.question || '';
+
+      const box = document.getElementById('editChoices');
+      box.innerHTML = '';
+      const choices = Array.isArray(t.choices) ? t.choices : [];
+      const atleast = Math.max(4, choices.length || 4);
+
+      for(let i=0;i<atleast;i++){
+          const val = choices[i] || '';
+          const row = document.createElement('div');
+          row.className='choice';
+          row.innerHTML = `
+              <input type="radio" name="correct_answer" value="${escapeHtml(val)}" ${t.correct_answer===val?'checked':''} required>
+              <input type="text" name="choices[]" value="${escapeHtml(val)}" placeholder="Choice ${i+1}" required style="flex:1">
+          `;
+          box.appendChild(row);
+      }
+      syncRadios('editChoices');
+  }
+  function closeEdit(){ document.getElementById('editOverlay').style.display='none'; }
+
+  function addChoice(containerId){
+      const box = document.getElementById(containerId);
+      const idx = box.querySelectorAll('.choice').length + 1;
+      const row = document.createElement('div');
+      row.className='choice';
+      row.innerHTML = `
+          <input type="radio" name="correct_answer" value="" required>
+          <input type="text" name="choices[]" placeholder="Choice ${idx}" required style="flex:1">
+      `;
+      box.appendChild(row);
+      syncRadios(containerId);
+  }
+
+  function syncRadios(containerId){
+      const box = document.getElementById(containerId);
+      box.querySelectorAll('.choice').forEach(ch => {
+          const radio = ch.querySelector('input[type="radio"]');
+          const text  = ch.querySelector('input[type="text"]');
+          const setRadio = () => { radio.value = text.value; };
+          text.addEventListener('input', setRadio);
+          setRadio();
+      });
+  }
+
+  function escapeHtml(s){
+      return String(s)
+        .replace(/&/g,'&amp;')
+        .replace(/</g,'&lt;')
+        .replace(/>/g,'&gt;')
+        .replace(/"/g,'&quot;')
+        .replace(/'/g,'&#039;');
+  }
+
+ 
+  document.getElementById('addOverlay').addEventListener('click', (e)=>{
+      if(e.target.id==='addOverlay') closeAdd();
+  });
+  document.getElementById('editOverlay').addEventListener('click', (e)=>{
+      if(e.target.id==='editOverlay') closeEdit();
+  });
+</script>
 @endsection

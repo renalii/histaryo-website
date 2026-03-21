@@ -8,6 +8,7 @@ use App\Services\FirebaseService;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Session;
 use Illuminate\Pagination\LengthAwarePaginator;
+use Google\Cloud\Firestore\FieldValue;
 
 class LandmarkController extends Controller
 {
@@ -18,10 +19,8 @@ class LandmarkController extends Controller
         $this->firestore = $firebaseService->firestore();
     }
 
-    /**
-     * Show landmarks on a map
-     */
-    public function map(Request $request, $id = null)
+    
+    public function map(Request $request)
     {
         $landmarksRef = $this->firestore->collection('landmarks');
         $documents = $landmarksRef->documents();
@@ -29,109 +28,126 @@ class LandmarkController extends Controller
         $landmarks = [];
         foreach ($documents as $doc) {
             $data = $doc->data();
-
-            // Normalize coords: prefer latitude/longitude, fallback to old lati/longti
             $lat = $data['latitude'] ?? $data['lati'] ?? null;
             $lng = $data['longitude'] ?? $data['longti'] ?? null;
 
             if (is_numeric($lat) && is_numeric($lng)) {
                 $data['latitude']  = (float) $lat;
                 $data['longitude'] = (float) $lng;
-                unset($data['lati'], $data['longti']); // cleanup if still exists
+                unset($data['lati'], $data['longti']);
                 $landmarks[] = array_merge($data, ['id' => $doc->id()]);
             }
         }
 
         $mapboxToken = config('services.mapbox.token');
-        
         return view('curators.landmarks.map', compact('landmarks', 'mapboxToken'));
     }
 
-    /**
-     * Paginated list of landmarks
-     */
+    
     public function index(Request $request)
-{
-    $snapshot = $this->firestore->collection('landmarks')->documents();
-    $items = collect($snapshot->rows());
+    {
+        $snapshot = $this->firestore->collection('landmarks')->documents();
 
-    // ✅ Filter by category if selected
-    if ($request->filled('category')) {
-        $items = $items->filter(function ($doc) use ($request) {
-            $data = $doc->data();
-            return isset($data['category']) && $data['category'] === $request->category;
-        });
+        
+        $items = collect(iterator_to_array($snapshot));
+
+        if ($request->filled('category')) {
+            $items = $items->filter(function ($doc) use ($request) {
+                $data = $doc->data();
+                return isset($data['category']) && $data['category'] === $request->category;
+            });
+        }
+
+        $perPage = 3;
+        $currentPage = LengthAwarePaginator::resolveCurrentPage();
+
+        $paginated = new LengthAwarePaginator(
+            $items->forPage($currentPage, $perPage)->values(),
+            $items->count(),
+            $perPage,
+            $currentPage,
+            ['path' => url()->current(), 'query' => $request->query()]
+        );
+
+        return view('curators.landmarks.index', [
+            'landmarks' => $paginated,
+            'selectedCategory' => $request->category,
+        ]);
     }
 
-    $perPage = 3;
-    $currentPage = LengthAwarePaginator::resolveCurrentPage();
-
-    $paginated = new LengthAwarePaginator(
-        $items->forPage($currentPage, $perPage)->values(),
-        $items->count(),
-        $perPage,
-        $currentPage,
-        [
-            'path'  => url()->current(),
-            'query' => $request->query(),
-        ]
-    );
-
-    // ✅ Pass selected category for persistence
-    return view('curators.landmarks.index', [
-        'landmarks' => $paginated,
-        'selectedCategory' => $request->category,
-    ]);
-}
-
+    
     public function create()
     {
         return view('curators.landmarks.create');
     }
 
-    /**
-     * Store a new landmark
-     */
+    
     public function store(Request $request)
     {
         $request->validate([
-            'name' => 'required',
-            'category' => 'required|string',
-            'description' => 'nullable',
-            'latitude' => 'nullable|numeric',
-            'longitude' => 'nullable|numeric',
-            'video_url' => 'nullable|url',
-            'image' => 'nullable|image|max:2048',
+            'name'        => 'required|string',
+            'category'    => 'required|string',
+            'description' => 'nullable|string',
+            'latitude'    => 'nullable|numeric',
+            'longitude'   => 'nullable|numeric',
+            'video_url'   => 'nullable|url',
+            'image'       => 'nullable|image|max:512',
         ]);
 
-        $lat = $request->latitude;
-        $lng = $request->longitude;
-
-        $imagePath = null;
+        $imageBase64 = null;
+        $imageMime = null;
         if ($request->hasFile('image')) {
-            $imagePath = $request->file('image')->store('landmarks', 'public');
+            [$imageBase64, $imageMime] = $this->encodeImageToBase64($request->file('image')->getRealPath(), $request->file('image')->getMimeType());
         }
 
-        $this->firestore->collection('landmarks')->add([
-            'name' => $request->name,
-            'category' => $request->category,
+        
+        $ref = $this->firestore->collection('landmarks')->add([
+            'name'        => $request->name,
+            'category'    => $request->category,
             'description' => $request->description,
-            'latitude' => is_numeric($lat) ? (float) $lat : null,
-            'longitude' => is_numeric($lng) ? (float) $lng : null,
-            'video_url' => $request->video_url,
-            'image_path' => $imagePath,
-            'created_at' => now(),
+            'latitude'    => is_numeric($request->latitude)  ? (float) $request->latitude  : null,
+            'longitude'   => is_numeric($request->longitude) ? (float) $request->longitude : null,
+            'video_url'   => $request->video_url,
+            'image_base64'=> $imageBase64,
+            'image_mime'  => $imageMime,
+            'created_at'  => now(),
         ]);
 
+        $landmarkId = $ref->id();
+
+        
+        $code = 'LM-' . substr($landmarkId, 0, 6);
+
+        
+        $exists = $this->firestore->collection('qr_codes')->where('code', '==', $code)->limit(1)->documents();
+        foreach ($exists as $ex) {
+            if ($ex->exists()) { 
+                $code = 'LM-' . substr(sha1($landmarkId . microtime(true)), 0, 6);
+                break;
+            }
+        }
+
+        $this->firestore->collection('qr_codes')->add([
+            'code'        => $code,
+            'landmark_id' => $landmarkId,
+            'is_auto'     => true,
+            'created_at'  => FieldValue::serverTimestamp(),
+        ]);
+
+        
+        $this->generateQrImage($code, 'png');
+
+        
         $this->firestore->collection('logs')->add([
-            'email' => Session::get('email'),
-            'action' => 'Added a Landmark',
+            'email'     => Session::get('email'),
+            'action'    => 'Added a Landmark',
             'timestamp' => now()->toISOString(),
         ]);
 
         return redirect()->route('landmarks.index')->with('success', 'Landmark added!');
     }
 
+    
     public function edit($id)
     {
         $doc = $this->firestore->collection('landmarks')->document($id)->snapshot();
@@ -139,19 +155,17 @@ class LandmarkController extends Controller
         return view('curators.landmarks.edit', ['id' => $id, 'landmark' => $doc->data()]);
     }
 
-    /**
-     * Update landmark
-     */
+    
     public function update(Request $request, $id)
     {
         $request->validate([
-            'name' => 'required',
-            'category' => 'required|string',
-            'description' => 'nullable',
-            'latitude' => 'nullable|numeric',
-            'longitude' => 'nullable|numeric',
-            'video_url' => 'nullable|url',
-            'image' => 'nullable|image|max:2048',
+            'name'        => 'required|string',
+            'category'    => 'required|string',
+            'description' => 'nullable|string',
+            'latitude'    => 'nullable|numeric',
+            'longitude'   => 'nullable|numeric',
+            'video_url'   => 'nullable|url',
+            'image'       => 'nullable|image|max:512',
         ]);
 
         $docRef = $this->firestore->collection('landmarks')->document($id);
@@ -161,64 +175,108 @@ class LandmarkController extends Controller
         $data = $doc->data();
 
         if ($request->hasFile('image')) {
-            if (!empty($data['image_path'])) {
-                Storage::disk('public')->delete($data['image_path']);
-            }
-            $data['image_path'] = $request->file('image')->store('landmarks', 'public');
+            [$imageBase64, $imageMime] = $this->encodeImageToBase64($request->file('image')->getRealPath(), $request->file('image')->getMimeType());
+
+            $data['image_base64'] = $imageBase64;
+            $data['image_mime'] = $imageMime;
         }
 
         $lat = $request->latitude ?? $data['latitude'] ?? null;
         $lng = $request->longitude ?? $data['longitude'] ?? null;
 
         $docRef->set([
-            'name' => $request->name,
-            'category' => $request->category,
+            'name'        => $request->name,
+            'category'    => $request->category,
             'description' => $request->description,
-            'latitude' => is_numeric($lat) ? (float) $lat : null,
-            'longitude' => is_numeric($lng) ? (float) $lng : null,
-            'video_url' => $request->video_url,
-            'image_path' => $data['image_path'] ?? null,
+            'latitude'    => is_numeric($lat) ? (float) $lat : null,
+            'longitude'   => is_numeric($lng) ? (float) $lng : null,
+            'video_url'   => $request->video_url,
+            'image_base64'=> $data['image_base64'] ?? null,
+            'image_mime'  => $data['image_mime'] ?? null,
+            'updated_at'  => now(),
         ], ['merge' => true]);
 
         $this->firestore->collection('logs')->add([
-            'email' => Session::get('email'),
-            'action' => 'Updated a Landmark',
+            'email'     => Session::get('email'),
+            'action'    => 'Updated a Landmark',
             'timestamp' => now()->toISOString(),
         ]);
 
-        return redirect()->route('landmarks.index')->with('success', 'Updated successfully');
+        return redirect()->route('landmarks.index')->with('success', 'Landmark updated.');
     }
 
-    /**
-     * Delete landmark
-     */
+    
     public function destroy($id)
     {
         $doc = $this->firestore->collection('landmarks')->document($id)->snapshot();
         if ($doc->exists()) {
-            $data = $doc->data();
-            if (!empty($data['image_path'])) {
-                Storage::disk('public')->delete($data['image_path']);
-            }
             $this->firestore->collection('landmarks')->document($id)->delete();
 
             $this->firestore->collection('logs')->add([
-                'email' => Session::get('email'),
-                'action' => 'Deleted a Landmark',
+                'email'     => Session::get('email'),
+                'action'    => 'Deleted a Landmark',
                 'timestamp' => now()->toISOString(),
             ]);
         }
 
-        return redirect()->route('landmarks.index')->with('success', 'Deleted successfully');
+        return redirect()->route('landmarks.index')->with('success', 'Landmark deleted.');
     }
 
-    public function show($id)
+    
+    private function generateQrImage(string $code, string $format = 'png'): bool
     {
-        $doc = $this->firestore->collection('landmarks')->document($id)->snapshot();
-        if (!$doc->exists()) abort(404);
-        return view('curators.landmarks.show', [
-            'landmark' => $doc->data(),
-            'id' => $doc->id(),
-        ]);
+        
+        $dir = 'qrcodes';
+        $ext = in_array($format, ['png', 'svg']) ? $format : 'png';
+        $path = "{$dir}/{$code}.{$ext}";
+
+        try {
+            if (!Storage::disk('public')->exists($dir)) {
+                Storage::disk('public')->makeDirectory($dir);
+            }
+
+            $url = route('qr.resolve', ['id' => $code]);
+
+            
+            if (class_exists(\SimpleSoftwareIO\QrCode\Facades\QrCode::class)) {
+                $qr = \SimpleSoftwareIO\QrCode\Facades\QrCode::format($ext)
+                    ->size(600)->margin(1)->generate($url);
+
+                Storage::disk('public')->put($path, $qr);
+                return true;
+            }
+
+            
+            if ($ext === 'svg') {
+                $safe = htmlspecialchars($url, ENT_QUOTES, 'UTF-8');
+                $svg = <<<SVG
+                    <svg xmlns="http://www.w3.org/2000/svg" width="600" height="600">
+                    <rect width="100%" height="100%" fill="#ffffff"/>
+                    <rect x="10" y="10" width="580" height="580" fill="none" stroke="#000" stroke-width="6"/>
+                    <text x="50%" y="50%" font-family="monospace" font-size="18" text-anchor="middle">
+                        {$safe}
+                    </text>
+                    <text x="50%" y="570" font-family="monospace" font-size="14" text-anchor="middle" fill="#666">
+                        (Install simple-qrcode for scannable codes)
+                    </text>
+                    </svg>
+                    SVG;
+                Storage::disk('public')->put($path, $svg);
+                return true;
+            }
+
+            return false;
+        } catch (\Throwable $e) {
+            return false;
+        }
+    }
+
+    private function encodeImageToBase64(string $filePath, ?string $mimeType = null): array
+    {
+        $raw = file_get_contents($filePath);
+        $base64 = $raw !== false ? base64_encode($raw) : null;
+        $mime = $mimeType ?: 'image/jpeg';
+
+        return [$base64, $mime];
     }
 }

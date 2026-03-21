@@ -77,36 +77,36 @@ class AdminController extends Controller
     $search = strtolower($request->input('search'));
     $roleFilter = strtolower($request->input('role'));
 
-    // 1. Get Firebase Auth users
+    
     $authUsers = iterator_to_array($this->auth->listUsers());
 
-    // 2. Get Firestore user roles
+    
     $usersCollection = $this->firestore->collection('users')->documents();
     $firestoreRoles = [];
     foreach ($usersCollection as $doc) {
         $data = $doc->data();
         if (isset($data['role'])) {
-            $firestoreRoles[$doc->id()] = strtolower($data['role']); // uid => role
+            $firestoreRoles[$doc->id()] = strtolower($data['role']); 
         }
     }
 
-    // 3. Merge Auth + Firestore roles
+    
     $mergedUsers = [];
     foreach ($authUsers as $user) {
         $role = strtolower($user->customClaims['role'] ?? '');
         $uid  = $user->uid;
 
-        // Prefer Firestore role if available
+        
         if (isset($firestoreRoles[$uid])) {
             $role = $firestoreRoles[$uid];
         }
 
-        // Default if none
+        
         if (!$role) {
             $role = 'visitor';
         }
 
-        // Apply filters
+        
         $email = strtolower($user->email ?? '');
         $matchesSearch = !$search || str_contains($email, $search) || str_contains($uid, $search) || str_contains($role, $search);
         $matchesRole   = !$roleFilter || $role === $roleFilter;
@@ -130,11 +130,24 @@ class AdminController extends Controller
     public function curators()
     {
         $users = $this->auth->listUsers();
+        $usersCollection = $this->firestore->collection('users')->documents();
+        $firestoreProfiles = [];
+
+        foreach ($usersCollection as $doc) {
+            $firestoreProfiles[$doc->id()] = $doc->data();
+        }
+
         $curators = [];
 
         foreach ($users as $user) {
             if (isset($user->customClaims['role']) && $user->customClaims['role'] === 'curator') {
-                $curators[] = $user;
+                $profile = $firestoreProfiles[$user->uid] ?? [];
+                $curators[] = (object) [
+                    'email' => $user->email,
+                    'uid' => $user->uid,
+                    'profile_image_base64' => $profile['profile_image_base64'] ?? null,
+                    'profile_image_mime' => $profile['profile_image_mime'] ?? 'image/jpeg',
+                ];
             }
         }
 
@@ -143,17 +156,17 @@ class AdminController extends Controller
 
     public function landmarks(\Illuminate\Http\Request $request)
 {
-    $perPage = 4; // Only paginate in Card View
+    $perPage = 4; 
     $landmarksQuery = $this->firestore->collection('landmarks')->documents();
 
-    // Convert snapshot into array
+    
     $allLandmarks = iterator_to_array($landmarksQuery);
 
-    // If "list" view requested → return ALL
+    
     if ($request->get('view') === 'list') {
-        $landmarks = collect($allLandmarks); // no pagination
+        $landmarks = collect($allLandmarks); 
     } else {
-        // Default = Card View → paginate manually
+        
         $page = $request->get('page', 1);
         $items = array_slice($allLandmarks, ($page - 1) * $perPage, $perPage);
 
@@ -196,7 +209,7 @@ class AdminController extends Controller
             $doc->reference()->delete();
         }
 
-        return redirect()->route('admin.logs')->with('status', '✅ All logs have been cleared.');
+        return redirect()->route('admin.logs')->with('status', ' All logs have been cleared.');
     }
 
 }

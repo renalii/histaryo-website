@@ -28,7 +28,7 @@
         padding: 2rem 2.25rem;
         border-radius: 1.25rem;
         margin-bottom: 2rem;
-        box-shadow: 0 12px 24px rgba(126, 34, 206, 0.15);
+        box-shadow: 0 12px 24px rgba(87, 13, 151, 0.15);
         display: flex; flex-direction: column; gap: 0.5rem;">
         <p style="margin: 0; font-size: 0.9rem; opacity: 0.85;">{{ $today }}</p>
         <h2 style="font-size: 2rem; font-weight: 700; margin: 0;">Welcome back, {{ $name }} 👋</h2>
@@ -215,7 +215,7 @@
             const sampleLandmarks = @json($landmarksPerWeek);
             const sampleTrivia = @json($triviaPerWeek);
 
-            // Line chart
+            
             const lineCtx = document.getElementById('lineChart').getContext('2d');
             new Chart(lineCtx, {
                 type: 'line',
@@ -234,7 +234,7 @@
                 }
             });
 
-            // Donut chart
+            
             const donutCtx = document.getElementById('donutChart').getContext('2d');
             new Chart(donutCtx, {
                 type: 'doughnut',
@@ -247,7 +247,7 @@
         });
     </script>
 
-    <!-- Create Modal -->
+    
     <div id="createModal" class="modal">
         <div class="modal-content">
             <span class="close" onclick="closeModal('createModal')">&times;</span>
@@ -277,7 +277,7 @@
         </div>
     </div>
 
-    <!-- Modal Styles -->
+    
     <style>
         .modal { display:none; position:fixed; z-index:1000; left:0; top:0; width:100%; height:100%; overflow:auto; background:rgba(0,0,0,0.6); }
         .modal-content { background:#fff; margin:5% auto; padding:20px; border-radius:10px; width:90%; max-width:500px; position:relative; }
@@ -288,7 +288,7 @@
         .modal-content button:hover { background:#7c3aed; }
     </style>
 
-    <!-- Modal JS -->
+   
     <script>
         function openModal(id) { document.getElementById(id).style.display = 'block'; }
         function closeModal(id) { document.getElementById(id).style.display = 'none'; }

@@ -40,11 +40,11 @@ class LoginController extends Controller
             $uid = $firebaseUser->claims()->get('sub');
             $role = $firebaseUser->claims()->get('role');
 
-            // ✅ Fetch user profile from Firestore
+            
             $userDoc = $this->firebase->firestore()->collection('users')->document($uid)->snapshot();
             $name = $userDoc->exists() ? ($userDoc['name'] ?? null) : null;
 
-            // 🔐 Store session/token info
+            
             Session::put('uid', $uid);
             Session::put('role', $role);
             Session::put('email', $email);
@@ -52,14 +52,14 @@ class LoginController extends Controller
                 Session::put('name', $name);
             }
 
-            // Log user login
+            
             $this->firebase->firestore()->collection('logs')->add([
                 'email' => $email,
                 'action' => 'Logged in',
                 'timestamp' => now()->toISOString(),
             ]);
 
-            // Redirect based on role
+            
             if ($role === 'admin') {
                 return redirect()->route('admin.dashboard')->with('success', 'Welcome Admin!');
             } elseif ($role === 'curator') {

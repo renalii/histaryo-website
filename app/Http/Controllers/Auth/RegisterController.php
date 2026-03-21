@@ -28,31 +28,47 @@ class RegisterController extends Controller
             'password' => 'required|min:6',
             'name' => 'required|string',
             'role' => 'required|in:admin,curator',
+            'profile_image' => 'nullable|image|max:512',
         ]);
 
         $email = $request->email;
         $password = $request->password;
         $name = $request->name;
         $role = $request->role;
+        $profileImageBase64 = null;
+        $profileImageMime = null;
+
+        if ($role === 'curator' && $request->hasFile('profile_image')) {
+            $imageFile = $request->file('profile_image');
+            $profileImageBase64 = base64_encode(file_get_contents($imageFile->getRealPath()));
+            $profileImageMime = $imageFile->getMimeType();
+        }
 
         try {
-            // ✅ Create Firebase Auth user
+            
             $user = $this->firebase->createUser($email, $password, $name);
             $uid = $user->uid;
 
-            // ✅ Assign custom claim for role
+            
             $this->firebase->getAuth()->setCustomUserClaims($uid, ['role' => $role]);
 
-            // ✅ Save user to Firestore with "name" instead of "display_name"
+            
+            $userData = [
+                'email' => $email,
+                'name' => $name,
+                'role' => $role,
+                'created_at' => now()->toDateTimeString(),
+            ];
+
+            if ($profileImageBase64) {
+                $userData['profile_image_base64'] = $profileImageBase64;
+                $userData['profile_image_mime'] = $profileImageMime;
+            }
+
             $this->firebase->firestore()
                 ->collection('users')
                 ->document($uid)
-                ->set([
-                    'email' => $email,
-                    'name' => $name,
-                    'role' => $role,
-                    'created_at' => now()->toDateTimeString(),
-                ]);
+                ->set($userData);
 
             return redirect()->route('login')->with('success', 'Registration successful! Please log in.');
 

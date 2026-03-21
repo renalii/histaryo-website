@@ -9,7 +9,7 @@
         Export system data (users, landmarks, visits, trivia engagement) as PDF or Excel for offline analysis.
     </p>
 
-    <!-- Export Options -->
+    
     <div style="background: white; padding: 1rem; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.05);">
         <form action="{{ route('admin.reports.export', 'custom') }}" method="GET" style="margin-bottom: 1rem;">
             <label for="reportType" style="font-weight: bold; display: block; margin-bottom: 0.5rem;">Choose Report Type:</label>

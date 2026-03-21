@@ -16,7 +16,7 @@
             background-color: #f9f1e8;
             color: #1a1a1a;
             height: 100%;
-            overflow: hidden; /* Prevent scroll */
+            overflow: hidden;
         }
 
         header {
@@ -151,7 +151,7 @@
             }
 
             html, body {
-                overflow-y: auto; /* Allow scroll only for mobile */
+                overflow-y: auto; 
             }
 
             .container {
@@ -190,7 +190,7 @@
                 </div>
             @endif
 
-            <form method="POST" action="{{ route('register') }}">
+            <form method="POST" action="{{ route('register') }}" enctype="multipart/form-data">
                 @csrf
                 <input type="text" name="name" placeholder="Full Name" value="{{ old('name') }}" required>
                 <input type="email" name="email" placeholder="Email" value="{{ old('email') }}" required>
@@ -201,6 +201,8 @@
                     <option value="admin" {{ old('role') == 'admin' ? 'selected' : '' }}>Admin</option>
                     <option value="curator" {{ old('role') == 'curator' ? 'selected' : '' }}>Curator</option>
                 </select>
+
+                <input type="file" name="profile_image" accept="image/*">
 
                 <button type="submit">Register</button>
             </form>

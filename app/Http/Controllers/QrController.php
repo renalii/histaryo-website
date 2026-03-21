@@ -19,29 +19,46 @@ class QrController extends Controller
         return $this->firebase->firestore();
     }
 
-    /**
-     * GET /curators/qr
-     * Lists existing QR mappings and shows a form to create new ones.
-     */
+    
     public function index(Request $request)
     {
-        // Fetch all QR mappings
+        
         $qrDocs = $this->fs()->collection('qr_codes')->orderBy('code')->documents();
         $qrs = [];
         foreach ($qrDocs as $doc) {
             if (!$doc->exists()) continue;
             $d = $doc->data();
+            $code = (string) ($d['code'] ?? '');
+            $isAuto = (bool) ($d['is_auto'] ?? false);
+
+            // Hide auto-generated landmark QR entries from manager list.
+            if ($isAuto || preg_match('/^LM-[a-f0-9]{6}$/i', $code)) {
+                continue;
+            }
+
+            $openUrl = route('qr.resolve', ['id' => $code]);
+            $pngPath = "qrcodes/{$code}.png";
+            $svgPath = "qrcodes/{$code}.svg";
+
+            if (Storage::disk('public')->exists($pngPath)) {
+                $pngBytes = Storage::disk('public')->get($pngPath);
+                $openUrl = 'data:image/png;base64,' . base64_encode($pngBytes);
+            } elseif (Storage::disk('public')->exists($svgPath)) {
+                $svgBytes = Storage::disk('public')->get($svgPath);
+                $openUrl = 'data:image/svg+xml;base64,' . base64_encode($svgBytes);
+            }
+
             $qrs[] = [
                 'id'           => $doc->id(),
-                'code'         => $d['code'] ?? '',
+                'code'         => $code,
                 'landmark_id'  => $d['landmark_id'] ?? '',
                 'created_at'   => $d['created_at'] ?? null,
                 'download_url' => route('curators.qr.download', $doc->id()),
-                'resolve_url'  => route('qr.resolve', ['id' => $d['code'] ?? '']),
+                'resolve_url'  => $openUrl,
             ];
         }
 
-        // Fetch landmarks (id + name) for selection
+        
         $lmSnap = $this->fs()->collection('landmarks')->orderBy('name')->documents();
         $landmarks = [];
         foreach ($lmSnap as $lm) {
@@ -55,23 +72,20 @@ class QrController extends Controller
         return view('curators.qr.index', compact('qrs', 'landmarks'));
     }
 
-    /**
-     * POST /curators/qr
-     * Create a mapping: code -> landmark_id. Optionally generate and store a QR image.
-     */
+    
     public function store(Request $request)
     {
         $data = $request->validate([
             'code'        => 'required|string|max:120',
             'landmark_id' => 'required|string',
-            'format'      => 'nullable|in:png,svg', // optional: desired generated file format
+            'format'      => 'nullable|in:png,svg', 
         ]);
 
         $code = trim($data['code']);
         $landmarkId = $data['landmark_id'];
         $format = $data['format'] ?? 'png';
 
-        // Ensure code is unique (Firestore query)
+        
         $existing = $this->fs()->collection('qr_codes')->where('code', '==', $code)->limit(1)->documents();
         foreach ($existing as $ex) {
             if ($ex->exists()) {
@@ -79,40 +93,38 @@ class QrController extends Controller
             }
         }
 
-        // Ensure landmark exists
+        
         $lm = $this->fs()->collection('landmarks')->document($landmarkId)->snapshot();
         if (!$lm->exists()) {
             return back()->withErrors(['error' => 'Selected landmark does not exist.'])->withInput();
         }
 
-        // Create Firestore doc
+        
         $qrRef = $this->fs()->collection('qr_codes')->add([
             'code'        => $code,
             'landmark_id' => $landmarkId,
+            'is_auto'     => false,
             'created_at'  => FieldValue::serverTimestamp(),
         ]);
 
-        // Try to generate and store a QR image (optional)
+        
         $saved = $this->generateQrImage($code, $format);
 
         return redirect()->route('curators.qr')
             ->with('success', 'QR mapping created' . ($saved ? ' and image generated.' : '.'));
     }
 
-    /**
-     * DELETE /curators/qr/{id}
-     * Remove the mapping and any stored image file.
-     */
+    
     public function destroy(string $id)
     {
         $docRef = $this->fs()->collection('qr_codes')->document($id);
         $doc = $docRef->snapshot();
         if ($doc->exists()) {
             $code = (string) ($doc['code'] ?? '');
-            // Delete Firestore mapping
+            
             $docRef->delete();
 
-            // Delete generated files if present
+            
             foreach (['png', 'svg'] as $ext) {
                 $path = "qrcodes/{$code}.{$ext}";
                 try { Storage::disk('public')->delete($path); } catch (\Throwable $e) {}
@@ -122,10 +134,7 @@ class QrController extends Controller
         return back()->with('success', 'QR mapping deleted.');
     }
 
-    /**
-     * GET /curators/qr/{id}/download
-     * Streams a QR code image (generate on-the-fly if needed).
-     */
+    
     public function download(string $id)
     {
         $doc = $this->fs()->collection('qr_codes')->document($id)->snapshot();
@@ -134,13 +143,13 @@ class QrController extends Controller
         $code = (string) ($doc['code'] ?? '');
         if ($code === '') abort(404);
 
-        // Prefer existing PNG file; otherwise generate SVG on the fly.
+        
         $pngPath = "qrcodes/{$code}.png";
         if (Storage::disk('public')->exists($pngPath)) {
             return response()->download(Storage::disk('public')->path($pngPath), "{$code}.png");
         }
 
-        // Generate a fresh SVG in-memory
+        
         $url = route('qr.resolve', ['id' => $code]);
         $svg = $this->makeQrSvg($url);
 
@@ -162,12 +171,12 @@ class QrController extends Controller
         $path = "{$dir}/{$code}.{$ext}";
 
         try {
-            // Ensure symlink exists: php artisan storage:link
+            
             if (!Storage::disk('public')->exists($dir)) {
                 Storage::disk('public')->makeDirectory($dir);
             }
 
-            // Try Simple QrCode first (if installed)
+            
             if (class_exists(\SimpleSoftwareIO\QrCode\Facades\QrCode::class)) {
                 $qr = \SimpleSoftwareIO\QrCode\Facades\QrCode::format($ext)
                     ->size(600)->margin(1)
@@ -177,19 +186,55 @@ class QrController extends Controller
                 return true;
             }
 
-            // Fallback: inline SVG (works even without the package)
+            
             if ($ext === 'svg') {
                 $svg = $this->makeQrSvg($url);
                 Storage::disk('public')->put($path, $svg);
                 return true;
             }
 
-            // If PNG requested but no package, skip silently
+            
             return false;
 
         } catch (\Throwable $e) {
             return false;
         }
+    }
+
+
+    public function downloadByLandmark(string $landmarkId)
+    {
+        $firestore = app(\App\Services\FirebaseService::class)->firestore();
+
+        // find QR linked to this landmark
+        $snap = $firestore->collection('qr_codes')
+            ->where('landmark_id', '==', $landmarkId)
+            ->limit(1)
+            ->documents();
+
+        $qrDoc = null;
+        foreach ($snap as $doc) {
+            if ($doc->exists()) {
+                $qrDoc = $doc;
+                break;
+            }
+        }
+
+        if (!$qrDoc) {
+            return back()->with('error', 'No QR record found for this landmark.');
+        }
+
+        $code = $qrDoc->data()['code'] ?? null;
+        if (!$code) {
+            return back()->with('error', 'QR record has no code.');
+        }
+
+        $path = "qrcodes/{$code}.png";
+        if (!Storage::disk('public')->exists($path)) {
+            return back()->with('error', 'QR image not found.');
+        }
+
+        return response()->download(storage_path("app/public/{$path}"));
     }
 
     /**
@@ -198,20 +243,19 @@ class QrController extends Controller
      */
     private function makeQrSvg(string $text): string
     {
-        // Basic placeholder: render the URL as text inside a framed box.
-        // Replace with a real encoder if needed.
+        
         $safe = htmlspecialchars($text, ENT_QUOTES, 'UTF-8');
         return <<<SVG
-<svg xmlns="http://www.w3.org/2000/svg" width="600" height="600">
-  <rect width="100%" height="100%" fill="#ffffff"/>
-  <rect x="10" y="10" width="580" height="580" fill="none" stroke="#000" stroke-width="6"/>
-  <text x="50%" y="50%" font-family="monospace" font-size="18" text-anchor="middle">
-    {$safe}
-  </text>
-  <text x="50%" y="570" font-family="monospace" font-size="14" text-anchor="middle" fill="#666">
-    (Install simple-qrcode for scannable codes)
-  </text>
-</svg>
-SVG;
+                <svg xmlns="http://www.w3.org/2000/svg" width="600" height="600">
+                <rect width="100%" height="100%" fill="#ffffff"/>
+                <rect x="10" y="10" width="580" height="580" fill="none" stroke="#000" stroke-width="6"/>
+                <text x="50%" y="50%" font-family="monospace" font-size="18" text-anchor="middle">
+                    {$safe}
+                </text>
+                <text x="50%" y="570" font-family="monospace" font-size="14" text-anchor="middle" fill="#666">
+                    (Install simple-qrcode for scannable codes)
+                </text>
+                </svg>
+                SVG;
     }
 }

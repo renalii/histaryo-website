@@ -9,10 +9,15 @@
         </button>
     </div>
 
-    {{-- Success message --}}
+    {{-- Flash --}}
     @if (session('success'))
         <div style="background-color: #d1fae5; color: #065f46; padding: 1rem 1.25rem; border-radius: 8px; margin-bottom: 1.5rem;">
             {{ session('success') }}
+        </div>
+    @endif
+    @if (session('error'))
+        <div style="background-color: #fee2e2; color: #991b1b; padding: 1rem 1.25rem; border-radius: 8px; margin-bottom: 1.5rem;">
+            {{ session('error') }}
         </div>
     @endif
 
@@ -21,24 +26,24 @@
         <form method="GET" action="{{ route('landmarks.index') }}" style="display:flex; align-items:center; gap:.75rem;">
             <label for="category" style="font-weight:600; color:#374151;">Filter by Category:</label>
             <div style="position: relative;">
-                <select name="category" id="category" onchange="this.form.submit()" 
-                    style="
-                        appearance: none;
-                        -webkit-appearance: none;
-                        -moz-appearance: none;
-                        padding: .6rem 2.5rem .6rem 1rem;
-                        border: 1px solid #d1d5db;
-                        border-radius: 10px;
-                        font-size: .95rem;
-                        font-weight: 500;
-                        color: #374151;
-                        background-color: #ffffff;
-                        cursor: pointer;
-                        transition: all .2s ease-in-out;
-                        box-shadow: 0 1px 2px rgba(0,0,0,0.05);
-                    "
-                    onmouseover="this.style.borderColor='#8b5cf6'"
-                    onmouseout="this.style.borderColor='#d1d5db'">
+                <select name="category" id="category" onchange="this.form.submit()"
+                        style="
+                            appearance: none;
+                            -webkit-appearance: none;
+                            -moz-appearance: none;
+                            padding: .6rem 2.5rem .6rem 1rem;
+                            border: 1px solid #d1d5db;
+                            border-radius: 10px;
+                            font-size: .95rem;
+                            font-weight: 500;
+                            color: #374151;
+                            background-color: #ffffff;
+                            cursor: pointer;
+                            transition: all .2s ease-in-out;
+                            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+                        "
+                        onmouseover="this.style.borderColor='#8b5cf6'"
+                        onmouseout="this.style.borderColor='#d1d5db'">
                     <option value="">-- All Categories --</option>
                     <option value="Historical" {{ ($selectedCategory ?? '') == 'Historical' ? 'selected' : '' }}>Historical</option>
                     <option value="Natural" {{ ($selectedCategory ?? '') == 'Natural' ? 'selected' : '' }}>Natural</option>
@@ -55,8 +60,7 @@
                     transform: translateY(-50%);
                     pointer-events: none;
                     font-size: .85rem;
-                    color: #6b7280;
-                ">
+                    color: #6b7280;">
                     ▼
                 </span>
             </div>
@@ -73,18 +77,26 @@
                     $data = $landmark->data();
                     $videoUrl = $data['video_url'] ?? '';
                     $embedUrl = '';
+                    $imageSrc = null;
+
+                    if (!empty($data['image_base64'])) {
+                        $imageMime = $data['image_mime'] ?? 'image/jpeg';
+                        $imageSrc = 'data:' . $imageMime . ';base64,' . $data['image_base64'];
+                    }
 
                     if (strpos($videoUrl, 'youtube.com/watch') !== false) {
                         $embedUrl = str_replace('watch?v=', 'embed/', $videoUrl);
                     } elseif (strpos($videoUrl, 'youtu.be/') !== false) {
                         $videoId = explode('youtu.be/', $videoUrl)[1] ?? '';
                         $embedUrl = 'https://www.youtube.com/embed/' . $videoId;
+                    } else {
+                        $embedUrl = $videoUrl;
                     }
                 @endphp
 
-                <div style="background: white; border-radius: 10px; padding: 1.5rem; box-shadow: 0 2px 8px rgba(0,0,0,0.05); width: 100%; max-width: 400px;">
+                <div style="background: white; border-radius: 10px; padding: 1.5rem; box-shadow: 0 2px 8px rgba(0,0,0,0.05); width: 100%; max-width: 420px;">
                     <strong style="font-size: 1.2rem; color: #7c3aed;">{{ $data['name'] ?? 'Unnamed Landmark' }}</strong>
-                    
+
                     {{-- Category --}}
                     <p style="margin: 0.25rem 0; font-size: 0.85rem; color: #2563eb; font-weight: 600;">
                         🏷️ {{ $data['category'] ?? 'Uncategorized' }}
@@ -94,20 +106,29 @@
                         {{ $data['description'] ?? 'No description.' }}
                     </p>
 
-                    @if (!empty($data['image_path']))
-                        <img src="{{ asset('storage/' . $data['image_path']) }}" alt="Uploaded Image"
+                    @if (!empty($imageSrc))
+                        <img src="{{ $imageSrc }}"
+                             alt="Uploaded Image"
                              style="max-width: 100%; border-radius: 6px; margin-top: 0.5rem;">
                     @endif
 
-                    <div style="margin-top: 1rem;">
-                        <button onclick="openModal('showModal{{ $loop->index }}')" style="margin-right: 10px; color: #2563eb; background: none; border: none; cursor: pointer;">👁️ View</button>
-                        <button onclick="openModal('editModal{{ $loop->index }}')" style="margin-right: 10px; color: #92400e; background: none; border: none; cursor: pointer;">✏️ Edit</button>
+                    {{-- Actions --}}
+                    <div style="margin-top: 1rem; display:flex; flex-wrap:wrap; align-items:center; gap:.5rem;">
+                        <button onclick="openModal('showModal{{ $loop->index }}')" style="color: #2563eb; background: none; border: none; cursor: pointer;">👁️ View</button>
+                        <button onclick="openModal('editModal{{ $loop->index }}')" style="color: #92400e; background: none; border: none; cursor: pointer;">✏️ Edit</button>
 
                         <form action="{{ route('landmarks.destroy', ['landmark' => $landmark->id()]) }}" method="POST" style="display:inline;">
                             @csrf
                             @method('DELETE')
                             <button type="submit" style="background: none; border: none; color: #dc2626; cursor: pointer;">🗑️ Delete</button>
                         </form>
+
+                        {{-- NEW: quick QR download (auto-generated at store) --}}
+                        <a href="{{ route('curators.qr.byLandmark', $landmark->id()) }}"
+                           title="Download QR for this landmark"
+                           style="color:#16a34a; text-decoration:underline;">
+                           ⬇️ Download QR
+                        </a>
                     </div>
                 </div>
 
@@ -121,11 +142,11 @@
                         <p>Latitude: {{ $data['latitude'] ?? 'N/A' }}</p>
                         <p>Longitude: {{ $data['longitude'] ?? 'N/A' }}</p>
 
-                        @if (!empty($data['image_path']))
-                            <img src="{{ asset('storage/' . $data['image_path']) }}" style="max-width: 100%; margin-top: 10px;">
+                        @if (!empty($imageSrc))
+                            <img src="{{ $imageSrc }}" style="max-width: 100%; margin-top: 10px;">
                         @endif
 
-                        @if ($embedUrl)
+                        @if (!empty($embedUrl))
                             <div style="margin-top: 1rem;">
                                 <iframe width="100%" height="250" src="{{ $embedUrl }}" frameborder="0" allowfullscreen></iframe>
                             </div>
@@ -238,99 +259,85 @@
 
     {{-- Styles --}}
     <style>
-    .modal {
-        display: none;
-        position: fixed;
-        z-index: 1000;
-        inset: 0;
-        width: 100%;
-        height: 100%;
-        background-color: rgba(0, 0, 0, 0.4);
-        padding: 2rem;
-    }
-
-    .modal-content {
-        background: #fefefe;
-        margin: auto;
-        padding: 1.5rem 2rem;
-        border-radius: 14px;
-        max-width: 580px;
-        width: 100%;
-        box-shadow: 0 12px 28px rgba(0, 0, 0, 0.1);
-        position: relative;
-        animation: fadeIn 0.3s ease-in-out;
-        font-family: 'Segoe UI', sans-serif;
-        max-height:93vh;
-        overflow-y: auto;
-    }
-
-    .modal-content h3 {
-        margin-top: 0;
-        font-size: 1.4rem;
-        font-weight: 600;
-        color: #4c1d95;
-        margin-bottom: 1rem;
-    }
-
-    .modal-content label {
-        display: block;
-        font-weight: 600;
-        color: #374151;
-        margin-top: 1rem;
-        margin-bottom: 0.4rem;
-    }
-
-    .modal-content input[type="text"],
-    .modal-content input[type="url"],
-    .modal-content input[type="file"],
-    .modal-content textarea,
-    .modal-content select {
-        width: 100%;
-        padding: 0.5rem 0.75rem;
-        border: 1px solid #d1d5db;
-        border-radius: 8px;
-        background-color: #f9fafb;
-        font-size: 0.875rem;
-        color: #111827;
-        box-sizing: border-box;
-    }
-
-    .modal-content button[type="submit"] {
-        margin-top: 1.5rem;
-        background-color: #8b5cf6;
-        color: white;
-        padding: 0.5rem 1rem;
-        border: none;
-        font-size: 0.9rem;
-        border-radius: 8px;
-        font-weight: 600;
-        cursor: pointer;
-        transition: background-color 0.2s ease-in-out;
-    }
-
-    .modal-content button[type="submit"]:hover {
-        background-color: #7c3aed;
-    }
-
-    .close {
-        position: absolute;
-        top: 14px;
-        right: 18px;
-        font-size: 26px;
-        font-weight: bold;
-        color: #6b7280;
-        cursor: pointer;
-        transition: color 0.2s;
-    }
-
-    .close:hover {
-        color: #111827;
-    }
-
-    @keyframes fadeIn {
-        from { opacity: 0; transform: translateY(-10px); }
-        to { opacity: 1; transform: translateY(0); }
-    }
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.4);
+            padding: 2rem;
+        }
+        .modal-content {
+            background: #fefefe;
+            margin: auto;
+            padding: 1.5rem 2rem;
+            border-radius: 14px;
+            max-width: 580px;
+            width: 100%;
+            box-shadow: 0 12px 28px rgba(0, 0, 0, 0.1);
+            position: relative;
+            animation: fadeIn 0.3s ease-in-out;
+            font-family: 'Segoe UI', sans-serif;
+            max-height:93vh;
+            overflow-y: auto;
+        }
+        .modal-content h3 {
+            margin-top: 0;
+            font-size: 1.4rem;
+            font-weight: 600;
+            color: #4c1d95;
+            margin-bottom: 1rem;
+        }
+        .modal-content label {
+            display: block;
+            font-weight: 600;
+            color: #374151;
+            margin-top: 1rem;
+            margin-bottom: 0.4rem;
+        }
+        .modal-content input[type="text"],
+        .modal-content input[type="url"],
+        .modal-content input[type="file"],
+        .modal-content textarea,
+        .modal-content select {
+            width: 100%;
+            padding: 0.5rem 0.75rem;
+            border: 1px solid #d1d5db;
+            border-radius: 8px;
+            background-color: #f9fafb;
+            font-size: 0.875rem;
+            color: #111827;
+            box-sizing: border-box;
+        }
+        .modal-content button[type="submit"] {
+            margin-top: 1.5rem;
+            background-color: #8b5cf6;
+            color: white;
+            padding: 0.5rem 1rem;
+            border: none;
+            font-size: 0.9rem;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.2s ease-in-out;
+        }
+        .modal-content button[type="submit"]:hover {
+            background-color: #7c3aed;
+        }
+        .close {
+            position: absolute;
+            top: 14px;
+            right: 18px;
+            font-size: 26px;
+            font-weight: bold;
+            color: #6b7280;
+            cursor: pointer;
+            transition: color 0.2s;
+        }
+        .close:hover { color: #111827; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
     </style>
 
     {{-- Scripts --}}
@@ -339,12 +346,10 @@
             document.getElementById(id).style.display = 'flex';
             document.body.style.overflow = 'hidden';
         }
-
         function closeModal(id) {
             document.getElementById(id).style.display = 'none';
             document.body.style.overflow = '';
         }
-
         window.onclick = function(event) {
             const modals = document.querySelectorAll('.modal');
             modals.forEach(modal => {

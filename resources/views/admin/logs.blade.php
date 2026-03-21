@@ -4,7 +4,7 @@
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
         <h2 style="font-size: 1.75rem; font-weight: bold;">📋 System Logs</h2>
 
-        <!-- Clear Logs Button -->
+        
         <form action="{{ route('admin.logs.clear') }}" method="POST"
               onsubmit="return confirm('⚠️ Are you sure you want to clear all logs? This cannot be undone.');">
             @csrf
@@ -38,7 +38,7 @@
                         $data = $log->data();
                         $email = $data['email'] ?? '—';
                         $timestamp = $data['timestamp'] ?? '—';
-                        $action = $data['action'] ?? '—';
+                        $action = preg_replace('/\s*\(auto-QR:\s*LM-[a-f0-9]{6}\)/i', '', (string)($data['action'] ?? '—'));
                         $role = $userRoles[$email] ?? 'N/A';
                     @endphp
 

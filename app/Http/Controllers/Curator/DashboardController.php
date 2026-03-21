@@ -19,11 +19,11 @@ class DashboardController extends Controller
     {
         $db = $this->firestore;
 
-        // ---- Totals ----
+        
         $landmarksCount = $this->countDocuments($db->collection('landmarks')->documents());
-        $triviaCount    = $this->countDocuments($db->collectionGroup('trivia')->documents());
+        $triviaCount    = $this->countDocuments($db->collectionGroup('question_bank')->documents());
 
-        // ---- Weekly breakdown (last 8 weeks) ----
+        
         $weeks = collect(range(7, 0))->map(function ($i) {
             return Carbon::now()->startOfWeek()->subWeeks($i);
         });
@@ -32,17 +32,17 @@ class DashboardController extends Controller
         $landmarksPerWeek = [];
         $triviaPerWeek    = [];
 
-        // Fetch all landmarks + trivia once
+        
         $landmarksDocs = $db->collection('landmarks')->documents();
-        $triviaDocs    = $db->collectionGroup('trivia')->documents();
+        $triviaDocs    = $db->collectionGroup('question_bank')->documents();
 
         foreach ($weeks as $startOfWeek) {
             $endOfWeek = $startOfWeek->copy()->endOfWeek();
 
-            // Week label like "Aug 12–18"
+            
             $weekLabels[] = $startOfWeek->format('M d') . '–' . $endOfWeek->format('M d');
 
-            // Landmarks count
+            
             $lCount = 0;
             foreach ($landmarksDocs as $doc) {
                 $d = $doc->data();
@@ -55,7 +55,7 @@ class DashboardController extends Controller
             }
             $landmarksPerWeek[] = $lCount;
 
-            // Trivia count
+            
             $tCount = 0;
             foreach ($triviaDocs as $doc) {
                 $d = $doc->data();
@@ -69,7 +69,7 @@ class DashboardController extends Controller
             $triviaPerWeek[] = $tCount;
         }
 
-        // ---- Recent Logs ----
+        
         $recentLogs = [];
         $logsSnap = $db->collection('logs')
             ->orderBy('timestamp', 'DESC')
@@ -85,7 +85,7 @@ class DashboardController extends Controller
             ];
         }
 
-        // ---- Recent Landmarks ----
+        
         $recentLandmarks = [];
         $landmarksRecentSnap = $db->collection('landmarks')
             ->orderBy('created_at', 'DESC')
@@ -116,16 +116,14 @@ class DashboardController extends Controller
             'recentLandmarks' => $recentLandmarks,
             'recentLogs'      => $recentLogs,
 
-            // chart data
+            
             'weekLabels'       => $weekLabels,
             'landmarksPerWeek' => $landmarksPerWeek,
             'triviaPerWeek'    => $triviaPerWeek,
         ]);
     }
 
-    /**
-     * Count Firestore documents safely across SDK versions.
-     */
+    
     private function countDocuments($snapshot): int
     {
         if (is_object($snapshot) && method_exists($snapshot, 'size')) {
@@ -142,9 +140,7 @@ class DashboardController extends Controller
         return $count;
     }
 
-    /**
-     * Convert Firestore timestamp or string to a human-readable relative time.
-     */
+
     private function formatRelativeTime($value): string
     {
         if (!$value) return '—';

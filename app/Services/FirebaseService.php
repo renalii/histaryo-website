@@ -21,9 +21,7 @@ class FirebaseService
         $this->firestore = $factory->createFirestore()->database();
     }
 
-    /* -------------------------
-     | Accessors
-     |--------------------------*/
+    
     public function getAuth()
     {
         return $this->auth;
@@ -39,9 +37,7 @@ class FirebaseService
         return $this->firestore;
     }
 
-    /* -------------------------
-     | Firebase Auth helpers
-     |--------------------------*/
+    
     public function createUser($email, $password, $displayName)
     {
         return $this->auth->createUser([
@@ -71,9 +67,7 @@ class FirebaseService
         throw new \Exception('Firebase login failed: ' . $response->body());
     }
 
-    /* -------------------------
-     | Landmarks helpers
-     |--------------------------*/
+    
     public function getAllLandmarks()
     {
         return $this->firestore->collection('landmarks')->documents();
@@ -87,77 +81,64 @@ class FirebaseService
             ->snapshot();
     }
 
-    /* -------------------------
-     | Trivia helpers (flat collection)
-     |--------------------------*/
+    
     public function getAllTrivia()
-    {
-        return $this->firestore->collection('trivia')->documents();
+{
+    return $this->firestore->collection('question_bank')->documents();
+}
+
+public function addTrivia(array $data)
+{
+    $docData = [
+        'landmark_id' => $data['landmark_id'] ?? null,
+        'question' => $data['question'] ?? '',
+        'choices' => $data['choices'] ?? [],
+        'correct_answer' => $data['correct_answer'] ?? '',
+        'created_at' => now(),
+    ];
+
+    return $this->firestore->collection('question_bank')->add($docData);
+}
+
+public function updateTrivia($triviaId, array $data)
+{
+    $docData = [];
+
+    if (array_key_exists('landmark_id', $data)) {
+        $docData['landmark_id'] = $data['landmark_id'];
+    }
+    if (array_key_exists('question', $data)) {
+        $docData['question'] = $data['question'];
+    }
+    if (array_key_exists('choices', $data)) {
+        $docData['choices'] = $data['choices'];
+    }
+    if (array_key_exists('correct_answer', $data)) {
+        $docData['correct_answer'] = $data['correct_answer'];
     }
 
-    public function getTrivia($triviaId)
-    {
-        return $this->firestore
-            ->collection('trivia')
-            ->document($triviaId)
-            ->snapshot();
-    }
+    $docData['updated_at'] = now();
 
-    public function getTriviaByLandmarkId($landmarkId)
-    {
-        return $this->firestore
-            ->collection('trivia')
-            ->where('landmark_id', '=', $landmarkId)
-            ->documents();
-    }
+    return $this->firestore
+        ->collection('question_bank')
+        ->document($triviaId)
+        ->set($docData, ['merge' => true]);
+}
 
-    public function addTrivia(array $data)
-    {
-        $docData = [
-            'landmark_id'    => $data['landmark_id'] ?? null,
-            'question'       => $data['question'] ?? '',
-            'choices'        => $data['choices'] ?? [],
-            'correct_answer' => $data['correct_answer'] ?? '',
-            
-            'created_at'     => now(),
-        ];
+public function deleteTrivia($triviaId)
+{
+    return $this->firestore
+        ->collection('question_bank')
+        ->document($triviaId)
+        ->delete();
+}
 
-        return $this->firestore->collection('trivia')->add($docData);
-    }
+public function getTriviaByLandmarkId($landmarkId)
+{
+    return $this->firestore
+        ->collection('question_bank')
+        ->where('landmark_id', '=', $landmarkId)
+        ->documents();
+}
 
-    public function updateTrivia($triviaId, array $data)
-    {
-        $docData = [];
-
-        if (array_key_exists('landmark_id', $data)) {
-            $docData['landmark_id'] = $data['landmark_id'];
-        }
-        if (array_key_exists('question', $data)) {
-            $docData['question'] = $data['question'];
-        }
-        if (array_key_exists('choices', $data)) {
-            $docData['choices'] = $data['choices'];
-        }
-        if (array_key_exists('correct_answer', $data)) {
-            $docData['correct_answer'] = $data['correct_answer'];
-        }
-        if (array_key_exists('clue', $data)) {
-            $docData['clue'] = $data['clue'];
-        }
-
-        $docData['updated_at'] = now();
-
-        return $this->firestore
-            ->collection('trivia')
-            ->document($triviaId)
-            ->set($docData, ['merge' => true]);
-    }
-
-    public function deleteTrivia($triviaId)
-    {
-        return $this->firestore
-            ->collection('trivia')
-            ->document($triviaId)
-            ->delete();
-    }
 }
