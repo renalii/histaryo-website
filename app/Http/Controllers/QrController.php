@@ -3,6 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Services\FirebaseService;
+use BaconQrCode\Common\ErrorCorrectionLevel;
+use BaconQrCode\Encoder\Encoder as BaconQrEncoder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Google\Cloud\Firestore\FieldValue;
@@ -29,24 +31,12 @@ class QrController extends Controller
             if (!$doc->exists()) continue;
             $d = $doc->data();
             $code = (string) ($d['code'] ?? '');
-            $isAuto = (bool) ($d['is_auto'] ?? false);
-
-            // Hide auto-generated landmark QR entries from manager list.
-            if ($isAuto || preg_match('/^LM-[a-f0-9]{6}$/i', $code)) {
+            // Hide landmark system-generated QR entries from manager list.
+            if (preg_match('/^LM-[a-f0-9]{6}$/i', $code)) {
                 continue;
             }
 
-            $openUrl = route('qr.resolve', ['id' => $code]);
-            $pngPath = "qrcodes/{$code}.png";
-            $svgPath = "qrcodes/{$code}.svg";
-
-            if (Storage::disk('public')->exists($pngPath)) {
-                $pngBytes = Storage::disk('public')->get($pngPath);
-                $openUrl = 'data:image/png;base64,' . base64_encode($pngBytes);
-            } elseif (Storage::disk('public')->exists($svgPath)) {
-                $svgBytes = Storage::disk('public')->get($svgPath);
-                $openUrl = 'data:image/svg+xml;base64,' . base64_encode($svgBytes);
-            }
+            $openUrl = route('curators.qr.view', $doc->id());
 
             $qrs[] = [
                 'id'           => $doc->id(),
@@ -103,7 +93,7 @@ class QrController extends Controller
         $qrRef = $this->fs()->collection('qr_codes')->add([
             'code'        => $code,
             'landmark_id' => $landmarkId,
-            'is_auto'     => false,
+            'is_auto'     => true,
             'created_at'  => FieldValue::serverTimestamp(),
         ]);
 
@@ -119,8 +109,10 @@ class QrController extends Controller
     {
         $docRef = $this->fs()->collection('qr_codes')->document($id);
         $doc = $docRef->snapshot();
+        $deletedCode = '';
         if ($doc->exists()) {
             $code = (string) ($doc['code'] ?? '');
+            $deletedCode = $code;
             
             $docRef->delete();
 
@@ -131,7 +123,11 @@ class QrController extends Controller
             }
         }
 
-        return back()->with('success', 'QR mapping deleted.');
+        $message = $deletedCode !== ''
+            ? 'QR mapping deleted "' . $deletedCode . '".'
+            : 'QR mapping deleted.';
+
+        return back()->with('success', $message);
     }
 
     
@@ -150,12 +146,114 @@ class QrController extends Controller
         }
 
         
-        $url = route('qr.resolve', ['id' => $code]);
+        $url = route('qr.resolve', ['code' => $code]);
         $svg = $this->makeQrSvg($url);
 
         return response($svg, 200, [
             'Content-Type' => 'image/svg+xml',
             'Content-Disposition' => 'attachment; filename="'.$code.'.svg"',
+        ]);
+    }
+
+    public function view(string $id)
+    {
+        $doc = $this->fs()->collection('qr_codes')->document($id)->snapshot();
+        if (!$doc->exists()) {
+            abort(404);
+        }
+
+        $code = (string) ($doc['code'] ?? '');
+        if ($code === '') {
+            abort(404);
+        }
+
+        $pngPath = "qrcodes/{$code}.png";
+        $svgPath = "qrcodes/{$code}.svg";
+
+        if (!Storage::disk('public')->exists($pngPath) && !Storage::disk('public')->exists($svgPath)) {
+            $this->generateQrImage($code, 'png');
+        }
+
+        if (Storage::disk('public')->exists($pngPath)) {
+            return response(Storage::disk('public')->get($pngPath), 200, [
+                'Content-Type' => 'image/png',
+                'Content-Disposition' => 'inline; filename="'.$code.'.png"',
+            ]);
+        }
+
+        if (Storage::disk('public')->exists($svgPath)) {
+            return response(Storage::disk('public')->get($svgPath), 200, [
+                'Content-Type' => 'image/svg+xml',
+                'Content-Disposition' => 'inline; filename="'.$code.'.svg"',
+            ]);
+        }
+
+        $svg = $this->makeQrSvg(route('qr.resolve', ['code' => $code]));
+        return response($svg, 200, [
+            'Content-Type' => 'image/svg+xml',
+            'Content-Disposition' => 'inline; filename="'.$code.'.svg"',
+        ]);
+    }
+
+    public function resolve(string $code)
+    {
+        $normalizedCode = $this->normalizeScannedCode($code);
+
+        $qrDocs = $this->fs()->collection('qr_codes')
+            ->where('code', '==', $normalizedCode)
+            ->limit(1)
+            ->documents();
+
+        $qrDoc = null;
+        foreach ($qrDocs as $doc) {
+            if ($doc->exists()) {
+                $qrDoc = $doc;
+                break;
+            }
+        }
+
+        if (!$qrDoc) {
+            return response()->json([
+                'message' => 'QR code not found.',
+                'code' => $normalizedCode,
+            ], 404);
+        }
+
+        $qrData = $qrDoc->data();
+        $landmarkId = (string) ($qrData['landmark_id'] ?? '');
+        if ($landmarkId === '') {
+            return response()->json([
+                'message' => 'QR code is not linked to a landmark.',
+                'code' => $normalizedCode,
+            ], 422);
+        }
+
+        $landmarkDoc = $this->fs()->collection('landmarks')->document($landmarkId)->snapshot();
+        if (!$landmarkDoc->exists()) {
+            return response()->json([
+                'message' => 'Linked landmark not found.',
+                'code' => $normalizedCode,
+                'landmark_id' => $landmarkId,
+            ], 404);
+        }
+
+        $landmark = $landmarkDoc->data();
+
+        return response()->json([
+            'qr_code' => [
+                'id' => $qrDoc->id(),
+                'code' => (string) ($qrData['code'] ?? $normalizedCode),
+                'landmark_id' => $landmarkId,
+            ],
+            'landmark' => [
+                'id' => $landmarkId,
+                'name' => (string) ($landmark['name'] ?? 'Untitled'),
+                'description' => (string) ($landmark['description'] ?? ''),
+                'category' => (string) ($landmark['category'] ?? ''),
+                'latitude' => isset($landmark['latitude']) && is_numeric($landmark['latitude']) ? (float) $landmark['latitude'] : null,
+                'longitude' => isset($landmark['longitude']) && is_numeric($landmark['longitude']) ? (float) $landmark['longitude'] : null,
+                'video_url' => (string) ($landmark['video_url'] ?? ''),
+            ],
         ]);
     }
 
@@ -165,7 +263,7 @@ class QrController extends Controller
      */
     private function generateQrImage(string $code, string $format = 'png'): bool
     {
-        $url = route('qr.resolve', ['id' => $code]);
+        $url = route('qr.resolve', ['code' => $code]);
         $dir = 'qrcodes';
         $ext = in_array($format, ['png','svg']) ? $format : 'png';
         $path = "{$dir}/{$code}.{$ext}";
@@ -178,12 +276,30 @@ class QrController extends Controller
 
             
             if (class_exists(\SimpleSoftwareIO\QrCode\Facades\QrCode::class)) {
-                $qr = \SimpleSoftwareIO\QrCode\Facades\QrCode::format($ext)
-                    ->size(600)->margin(1)
-                    ->generate($url);
+                try {
+                    $qr = \SimpleSoftwareIO\QrCode\Facades\QrCode::format($ext)
+                        ->size(600)->margin(1)
+                        ->generate($url);
 
-                Storage::disk('public')->put($path, $qr);
-                return true;
+                    Storage::disk('public')->put($path, $qr);
+                    return true;
+                } catch (\Throwable $e) {
+                    // PNG may fail on some environments. Try GD-based fallback first.
+                    if ($ext === 'png') {
+                        $gdPng = $this->generateQrPngWithGd($url);
+                        if ($gdPng !== false) {
+                            Storage::disk('public')->put($path, $gdPng);
+                            return true;
+                        }
+
+                        // Fall back to real scannable SVG instead of placeholder image.
+                        $svg = \SimpleSoftwareIO\QrCode\Facades\QrCode::format('svg')
+                            ->size(600)->margin(1)
+                            ->generate($url);
+                        Storage::disk('public')->put("{$dir}/{$code}.svg", $svg);
+                        return true;
+                    }
+                }
             }
 
             
@@ -257,5 +373,80 @@ class QrController extends Controller
                 </text>
                 </svg>
                 SVG;
+    }
+
+    private function generateQrPngWithGd(string $url): string|false
+    {
+        if (!extension_loaded('gd')) {
+            return false;
+        }
+
+        try {
+            $ecLevel = ErrorCorrectionLevel::M();
+            $qrCode = BaconQrEncoder::encode($url, $ecLevel);
+            $matrix = $qrCode->getMatrix();
+
+            $numCells = $matrix->getWidth();
+            $margin = 4;
+            $targetPx = 600;
+            $cellSize = max(1, (int) floor($targetPx / ($numCells + (2 * $margin))));
+            $imgSize = ($numCells + 2 * $margin) * $cellSize;
+
+            $img = imagecreatetruecolor($imgSize, $imgSize);
+            $white = imagecolorallocate($img, 255, 255, 255);
+            $black = imagecolorallocate($img, 0, 0, 0);
+
+            imagefill($img, 0, 0, $white);
+
+            for ($y = 0; $y < $numCells; $y++) {
+                for ($x = 0; $x < $numCells; $x++) {
+                    if ($matrix->get($x, $y) !== 0) {
+                        $px = ($x + $margin) * $cellSize;
+                        $py = ($y + $margin) * $cellSize;
+                        imagefilledrectangle(
+                            $img,
+                            $px,
+                            $py,
+                            $px + $cellSize - 1,
+                            $py + $cellSize - 1,
+                            $black
+                        );
+                    }
+                }
+            }
+
+            ob_start();
+            imagepng($img);
+            $data = ob_get_clean();
+            imagedestroy($img);
+
+            return ($data !== '' && $data !== false) ? $data : false;
+        } catch (\Throwable $e) {
+            return false;
+        }
+    }
+
+    private function normalizeScannedCode(string $value): string
+    {
+        $normalized = trim(urldecode($value));
+        if ($normalized === '') {
+            return '';
+        }
+
+        if (filter_var($normalized, FILTER_VALIDATE_URL)) {
+            $path = parse_url($normalized, PHP_URL_PATH);
+            if (is_string($path) && $path !== '') {
+                $segments = array_values(array_filter(explode('/', trim($path, '/')), 'strlen'));
+                if (!empty($segments)) {
+                    $normalized = (string) end($segments);
+                }
+            }
+        }
+
+        if (str_contains($normalized, '?')) {
+            $normalized = (string) strtok($normalized, '?');
+        }
+
+        return trim($normalized);
     }
 }

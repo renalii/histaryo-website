@@ -105,6 +105,20 @@ class DashboardController extends Controller
         }
 
         $pending = 0;
+        foreach (['crowdsourced_tips', 'tips', 'user_tips'] as $tipsCollection) {
+            $tipsSnapshot = $db->collection($tipsCollection)->documents();
+            foreach ($tipsSnapshot as $tipDoc) {
+                if (!$tipDoc->exists()) {
+                    continue;
+                }
+
+                $tipData = $tipDoc->data();
+                $status = strtolower((string) ($tipData['status'] ?? 'pending'));
+                if ($status === '' || $status === 'pending') {
+                    $pending++;
+                }
+            }
+        }
 
         return view('curators.dashboard', [
             'stats' => [

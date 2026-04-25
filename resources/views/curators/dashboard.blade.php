@@ -23,12 +23,12 @@
 
     {{-- Welcome Banner --}}
     <div style="
-        background: linear-gradient(135deg, #7e22ce, #a855f7);
+        background: linear-gradient(135deg, #7A2E1F, #E8B34B);
         color: #fff;
         padding: 2rem 2.25rem;
         border-radius: 1.25rem;
         margin-bottom: 2rem;
-        box-shadow: 0 12px 24px rgba(87, 13, 151, 0.15);
+        box-shadow: 0 12px 24px rgba(122, 46, 31, 0.2);
         display: flex; flex-direction: column; gap: 0.5rem;">
         <p style="margin: 0; font-size: 0.9rem; opacity: 0.85;">{{ $today }}</p>
         <h2 style="font-size: 2rem; font-weight: 700; margin: 0;">Welcome back, {{ $name }} 👋</h2>
@@ -39,7 +39,7 @@
 
     {{-- Top Stats --}}
     <div class="grid" style="display:grid; grid-template-columns: repeat(12, minmax(0,1fr)); gap: 1rem; margin-bottom:1rem;">
-        <div class="card stat" style="grid-column: span 3; background:#fff; border-radius:14px; padding:1rem; box-shadow: 0 4px 16px rgba(0,0,0,0.06);">
+        <div class="card stat" style="grid-column: span 4; background:#fff; border-radius:14px; padding:1rem; box-shadow: 0 4px 16px rgba(0,0,0,0.06); border:1px solid #f3f4f6;">
             <div style="display:flex; align-items:center; justify-content:space-between;">
                 <div>
                     <p style="margin:0; color:#6b7280; font-size:.9rem;">Landmarks</p>
@@ -49,7 +49,7 @@
             </div>
         </div>
 
-        <div class="card stat" style="grid-column: span 3; background:#fff; border-radius:14px; padding:1rem; box-shadow: 0 4px 16px rgba(0,0,0,0.06);">
+        <div class="card stat" style="grid-column: span 4; background:#fff; border-radius:14px; padding:1rem; box-shadow: 0 4px 16px rgba(0,0,0,0.06); border:1px solid #f3f4f6;">
             <div style="display:flex; align-items:center; justify-content:space-between;">
                 <div>
                     <p style="margin:0; color:#6b7280; font-size:.9rem;">Trivia</p>
@@ -59,13 +59,13 @@
             </div>
         </div>
 
-        <div class="card stat" style="grid-column: span 3; background:#fff; border-radius:14px; padding:1rem; box-shadow: 0 4px 16px rgba(0,0,0,0.06);">
+        <div class="card stat" style="grid-column: span 4; background:#fff; border-radius:14px; padding:1rem; box-shadow: 0 4px 16px rgba(0,0,0,0.06); border:1px solid #f3f4f6;">
             <div style="display:flex; align-items:center; justify-content:space-between;">
                 <div>
-                    <p style="margin:0; color:#6b7280; font-size:.9rem;">Activity Logs</p>
-                    <h3 style="margin:.25rem 0 0 0; font-size:1.75rem; color:#4c1d95;">{{ number_format($stats['logs']) }}</h3>
+                    <p style="margin:0; color:#6b7280; font-size:.9rem;">Pending Tips</p>
+                    <h3 style="margin:.25rem 0 0 0; font-size:1.75rem; color:#4c1d95;">{{ number_format($stats['pending']) }}</h3>
                 </div>
-                <div class="pill" style="background:#ecfeff; color:#0e7490; padding:.4rem .6rem; border-radius:999px; font-size:.8rem;">Last 30d</div>
+                <a href="{{ route('curators.tips.index') }}" class="pill" style="background:#ecfeff; color:#0e7490; padding:.4rem .6rem; border-radius:999px; font-size:.8rem; text-decoration:none;">Review</a>
             </div>
         </div>
     </div>
@@ -79,15 +79,15 @@
             </div>
             <div style="display:flex; flex-direction:column; gap:.5rem;">
                 <button onclick="openModal('createModal')" 
-                    style="background-color: #8b5cf6; color: white; padding: 10px 16px; font-weight: 600; border-radius: 6px; border: none; cursor: pointer;">
-                    + Add Landmarks
+                    style="background-color: #E8B34B; color: #7A2E1F; padding: 10px 16px; font-weight: 700; border-radius: 10px; border: 1px solid #F3C96A; cursor: pointer;">
+                    + Add Landmark
                 </button>
 
-                <a href="{{ route('landmarks.index') }}" style="text-decoration:none; background:#f3f4f6; color:#111827; padding:.75rem 1rem; border-radius:10px; font-weight:600; text-align:center;">Manage Landmarks</a>
+                <a href="{{ route('landmarks.index') }}" style="text-decoration:none; background:#f3f4f6; color:#111827; padding:.75rem 1rem; border-radius:10px; font-weight:600; text-align:center; border:1px solid #e5e7eb;">Manage Landmarks</a>
                 @if (Route::has('trivia.index'))
-                    <a href="{{ route('trivia.index') }}" style="text-decoration:none; background:#f3f4f6; color:#111827; padding:.75rem 1rem; border-radius:10px; font-weight:600; text-align:center;">Manage Trivia</a>
+                    <a href="{{ route('trivia.index') }}" style="text-decoration:none; background:#f3f4f6; color:#111827; padding:.75rem 1rem; border-radius:10px; font-weight:600; text-align:center; border:1px solid #e5e7eb;">Manage Trivia</a>
                 @endif
-                <a href="{{ route('curators.map') }}" style="text-decoration:none; background:#eef2ff; color:#3730a3; padding:.75rem 1rem; border-radius:10px; font-weight:600; text-align:center;">🗺️ View Map</a>
+                <a href="{{ route('curators.map') }}" style="text-decoration:none; background:#F3C96A; color:#7A2E1F; padding:.75rem 1rem; border-radius:10px; font-weight:700; text-align:center; border:1px solid #E8B34B;">🗺️ View Map</a>
             </div>
         </div>
 
@@ -107,11 +107,11 @@
         <div class="card" style="grid-column: span 7; background:#fff; border-radius:14px; padding:1rem; box-shadow: 0 4px 16px rgba(0,0,0,0.06);">
             <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:.75rem;">
                 <h4 style="margin:0; color:#111827;">Recent Landmarks</h4>
-                <a href="{{ route('landmarks.index') }}" style="font-size:.9rem; color:#7c3aed; text-decoration:none;">View all →</a>
+                <a href="{{ route('landmarks.index') }}" style="font-size:.9rem; color:#7A2E1F; text-decoration:none; font-weight:700;">View all →</a>
             </div>
 
             @if (empty($recentLandmarks))
-                <p style="color:#6b7280; margin:.5rem 0;">No recent landmarks.</p>
+                <p style="color:#6b7280; margin:.5rem 0; background:#f9fafb; border:1px dashed #e5e7eb; border-radius:10px; padding:.8rem;">No recent landmarks yet. Add one using Quick Actions.</p>
             @else
                 <div style="overflow:auto;">
                     <table style="width:100%; border-collapse:collapse;">
@@ -160,12 +160,12 @@
             </div>
 
             @if (empty($recentLogs))
-                <p style="color:#6b7280; margin:.5rem 0;">No recent activity.</p>
+                <p style="color:#6b7280; margin:.5rem 0; background:#f9fafb; border:1px dashed #e5e7eb; border-radius:10px; padding:.8rem;">No recent activity in the last 24 hours.</p>
             @else
                 <ul style="list-style:none; padding:0; margin:0; display:flex; flex-direction:column; gap:.75rem;">
                     @foreach ($recentLogs as $log)
                         <li style="display:flex; gap:.75rem; align-items:flex-start;">
-                            <div style="width:10px; height:10px; border-radius:999px; background:#7c3aed; margin-top:.4rem;"></div>
+                            <div style="width:10px; height:10px; border-radius:999px; background:#7A2E1F; margin-top:.4rem;"></div>
                             <div>
                                 <div style="font-weight:600; color:#111827;">{{ $log['action'] ?? 'Action' }}</div>
                                 <div style="color:#6b7280; font-size:.9rem;">{{ $log['email'] ?? 'user' }} • {{ $log['timestamp'] ?? '' }}</div>
@@ -205,6 +205,9 @@
             .grid > .stat { grid-column: span 12 !important; }
         }
         .card:hover { transform: translateY(-2px); transition: transform .15s ease, box-shadow .15s ease; box-shadow: 0 10px 24px rgba(0,0,0,0.08) !important; }
+        .card tbody tr:hover { background:#fafafa; }
+        .card a, .card button { transition: all .15s ease-in-out; }
+        .card a:hover { transform: translateY(-1px); }
     </style>
 
     {{-- Charts --}}
@@ -222,8 +225,8 @@
                 data: {
                     labels: weeks,
                     datasets: [
-                        { label: 'Landmarks', data: sampleLandmarks, tension: 0.35, borderWidth: 2, borderColor: '#3b82f6', backgroundColor: '#3b82f6', fill: false },
-                        { label: 'Trivia', data: sampleTrivia, tension: 0.35, borderWidth: 2, borderColor: '#ec4899', backgroundColor: '#ec4899', fill: false },
+                        { label: 'Landmarks', data: sampleLandmarks, tension: 0.35, borderWidth: 2, borderColor: '#7A2E1F', backgroundColor: '#7A2E1F', fill: false },
+                        { label: 'Trivia', data: sampleTrivia, tension: 0.35, borderWidth: 2, borderColor: '#E8B34B', backgroundColor: '#E8B34B', fill: false },
                     ]
                 },
                 options: {
@@ -240,7 +243,7 @@
                 type: 'doughnut',
                 data: {
                     labels: ['Landmarks', 'Trivia'],
-                    datasets: [{ data: [{{ (int)($stats['landmarks'] ?: 0) }}, {{ (int)($stats['trivia'] ?: 0) }}], borderWidth: 0, backgroundColor: ['#3b82f6', '#ec4899'] }]
+                    datasets: [{ data: [{{ (int)($stats['landmarks'] ?: 0) }}, {{ (int)($stats['trivia'] ?: 0) }}], borderWidth: 0, backgroundColor: ['#7A2E1F', '#E8B34B'] }]
                 },
                 options: { cutout: '60%', plugins: { legend: { display: false } } }
             });
@@ -284,18 +287,35 @@
         .close { position:absolute; top:10px; right:15px; font-size:24px; cursor:pointer; }
         .modal-content label { display:block; margin-top:10px; font-weight:600; }
         .modal-content input, .modal-content textarea { width:100%; padding:8px; margin-top:4px; border:1px solid #ccc; border-radius:6px; }
-        .modal-content button { margin-top:15px; padding:10px 16px; background:#8b5cf6; color:white; font-weight:600; border:none; border-radius:6px; cursor:pointer; }
-        .modal-content button:hover { background:#7c3aed; }
+        .modal-content button { margin-top:15px; padding:10px 16px; background:#E8B34B; color:#7A2E1F; font-weight:700; border:1px solid #F3C96A; border-radius:6px; cursor:pointer; }
+        .modal-content button:hover { background:#F3C96A; }
     </style>
 
    
     <script>
-        function openModal(id) { document.getElementById(id).style.display = 'block'; }
-        function closeModal(id) { document.getElementById(id).style.display = 'none'; }
+        function openModal(id) { 
+            document.getElementById(id).style.display = 'block';
+            document.body.style.overflow = 'hidden';
+        }
+        function closeModal(id) { 
+            document.getElementById(id).style.display = 'none';
+            document.body.style.overflow = '';
+        }
         window.onclick = function(event) {
             document.querySelectorAll('.modal').forEach(modal => {
-                if (event.target == modal) modal.style.display = 'none';
+                if (event.target == modal) {
+                    modal.style.display = 'none';
+                    document.body.style.overflow = '';
+                }
             });
         }
+        window.addEventListener('keydown', function (event) {
+            if (event.key === 'Escape') {
+                document.querySelectorAll('.modal').forEach(modal => {
+                    modal.style.display = 'none';
+                });
+                document.body.style.overflow = '';
+            }
+        });
     </script>
 @endsection

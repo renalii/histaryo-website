@@ -3,11 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <title>About Histaryo</title>
+    <link rel="icon" type="image/svg+xml" href="{{ asset('favicon.svg') }}">
     <style>
         body {
             margin: 0;
             font-family: 'Segoe UI', sans-serif;
-            background-color: #f4eafa;
+            background-color: #e8e0ef;
             color: #1a1a1a;
         }
 
@@ -33,14 +34,18 @@
 
         .about-section {
             display: flex;
-            justify-content: space-between;
+            justify-content: center;
             align-items: center;
-            padding: 60px;
+            gap: 200px;
+            max-width: 2250px;
+            margin: 0 auto;
+            padding: 74px 60px 42px;
             flex-wrap: wrap;
         }
 
         .about-text {
-            max-width: 550px;
+            flex: 1 1 520px;
+            max-width: 2020px;
         }
 
         .about-text h2 {
@@ -56,8 +61,8 @@
         }
 
         .about-image {
-            width: 420px;
-            margin-top: 20px;
+            width: min(100%, 480px);
+            margin-top: 0;
         }
 
         .image-stack {
@@ -83,14 +88,96 @@
             box-shadow: 0 15px 30px rgba(0,0,0,0.2);
         }
 
+        .btn {
+            display: inline-block;
+            background-color: #6e4b3a;
+            color: white;
+            padding: 10px 24px;
+            border: none;
+            border-radius: 4px;
+            font-size: 14px;
+            text-decoration: none;
+            transition: background 0.3s ease;
+        }
+
+        .btn:hover {
+            background-color: #a8744f;
+        }
+
+        .btn-secondary {
+            background-color: transparent;
+            color: #ffffff;
+            border: 1px solid #ffffff;
+        }
+
+        .btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.13);
+        }
+
+        .cta-section {
+            max-width: 2250px;
+            margin: 10px auto 44px;
+            padding: 0 60px;
+        }
+
+        .cta-card {
+            background: linear-gradient(130deg, #6e4b3a 0%, #8d779b 100%);
+            color: #ffffff;
+            border-radius: 18px;
+            padding: 28px 30px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 20px;
+            flex-wrap: wrap;
+            box-shadow: 0 14px 26px rgba(40, 22, 53, 0.2);
+            max-width: 890px;
+            margin-right: auto;
+        }
+
+        .cta-card h2 {
+            margin: 0 0 8px;
+            font-size: 30px;
+            line-height: 1.2;
+        }
+
+        .cta-card p {
+            margin: 0;
+            font-size: 15px;
+            line-height: 1.55;
+            opacity: 0.94;
+            max-width: 620px;
+        }
+
+        .cta-actions {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
         @media (max-width: 960px) {
             .about-section {
                 flex-direction: column;
                 text-align: center;
+                gap: 30px;
+                padding: 24px 28px 36px;
             }
 
             .about-image {
-                margin-top: 30px;
+                width: min(100%, 460px);
+            }
+
+            .cta-section {
+                padding: 0 28px;
+                margin: 0 auto 32px;
+            }
+
+            .cta-card {
+                padding: 24px 22px;
+            }
+
+            .cta-card h2 {
+                font-size: 26px;
             }
         }
     </style>
@@ -127,6 +214,19 @@
         </div>
     </div>
 </div>
+
+<section class="cta-section">
+    <div class="cta-card">
+        <div>
+            <h2>Ready to Start Exploring?</h2>
+            <p>Join Histaryo and discover Cebu through AR tours, rich historical stories, and interactive landmark experiences from your phone.</p>
+        </div>
+        <div class="cta-actions">
+            <a href="{{ route('register') }}" class="btn">Start Exploring</a>
+            <a href="{{ route('login') }}" class="btn btn-secondary">Sign In</a>
+        </div>
+    </div>
+</section>
 
 </body>
 </html>

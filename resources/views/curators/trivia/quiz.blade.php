@@ -20,7 +20,7 @@
                 </div>
             @endforeach
 
-            <button type="submit" style="background-color: #7e22ce; color: white; padding: 0.75rem 1.5rem; font-weight: 600;">
+            <button type="submit" style="background-color: #E76A1F; color: white; padding: 0.75rem 1.5rem; font-weight: 600;">
                 Submit Quiz
             </button>
         </form>

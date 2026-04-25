@@ -115,6 +115,10 @@ class LandmarkController extends Controller
 
         $landmarkId = $ref->id();
 
+        if (!empty($imageBase64)) {
+            $this->persistLandmarkImageFile($landmarkId, $imageBase64, $imageMime);
+        }
+
         
         $code = 'LM-' . substr($landmarkId, 0, 6);
 
@@ -179,6 +183,10 @@ class LandmarkController extends Controller
 
             $data['image_base64'] = $imageBase64;
             $data['image_mime'] = $imageMime;
+
+            if (!empty($imageBase64)) {
+                $this->persistLandmarkImageFile((string) $id, $imageBase64, $imageMime);
+            }
         }
 
         $lat = $request->latitude ?? $data['latitude'] ?? null;
@@ -211,6 +219,7 @@ class LandmarkController extends Controller
         $doc = $this->firestore->collection('landmarks')->document($id)->snapshot();
         if ($doc->exists()) {
             $this->firestore->collection('landmarks')->document($id)->delete();
+            $this->deleteLandmarkImageFiles((string) $id);
 
             $this->firestore->collection('logs')->add([
                 'email'     => Session::get('email'),
@@ -235,7 +244,7 @@ class LandmarkController extends Controller
                 Storage::disk('public')->makeDirectory($dir);
             }
 
-            $url = route('qr.resolve', ['id' => $code]);
+            $url = route('qr.resolve', ['code' => $code]);
 
             
             if (class_exists(\SimpleSoftwareIO\QrCode\Facades\QrCode::class)) {
@@ -278,5 +287,47 @@ class LandmarkController extends Controller
         $mime = $mimeType ?: 'image/jpeg';
 
         return [$base64, $mime];
+    }
+
+    private function persistLandmarkImageFile(string $landmarkId, string $base64, ?string $mimeType = null): bool
+    {
+        if (str_contains($base64, ',')) {
+            $parts = explode(',', $base64, 2);
+            $base64 = $parts[1] ?? '';
+        }
+
+        $binary = base64_decode($base64, true);
+        if ($binary === false) {
+            return false;
+        }
+
+        $this->deleteLandmarkImageFiles($landmarkId);
+
+        $ext = $this->extensionFromMime($mimeType ?: 'image/jpeg');
+        Storage::disk('public')->put('landmarks/' . $landmarkId . '.' . $ext, $binary);
+
+        return true;
+    }
+
+    private function deleteLandmarkImageFiles(string $landmarkId): void
+    {
+        $disk = Storage::disk('public');
+        foreach (['jpg', 'jpeg', 'png', 'webp', 'gif'] as $ext) {
+            $path = 'landmarks/' . $landmarkId . '.' . $ext;
+            if ($disk->exists($path)) {
+                $disk->delete($path);
+            }
+        }
+    }
+
+    private function extensionFromMime(string $mime): string
+    {
+        return match (strtolower(trim($mime))) {
+            'image/png' => 'png',
+            'image/webp' => 'webp',
+            'image/gif' => 'gif',
+            'image/jpeg', 'image/jpg' => 'jpg',
+            default => 'jpg',
+        };
     }
 }

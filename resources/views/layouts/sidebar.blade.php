@@ -1,8 +1,29 @@
 <!DOCTYPE html>
 <html lang="en">
+@php
+  $pageTitle = 'Histaryo';
+
+  if (request()->routeIs('admin.dashboard')) {
+    $pageTitle = 'Admin Dashboard';
+  } elseif (request()->routeIs('admin.users')) {
+    $pageTitle = 'Admin Users';
+  } elseif (request()->routeIs('admin.landmarks')) {
+    $pageTitle = 'Admin Landmarks';
+  } elseif (request()->routeIs('admin.logs')) {
+    $pageTitle = 'Admin Logs';
+  } elseif (request()->routeIs('admin.reports')) {
+    $pageTitle = 'Admin Reports';
+  } elseif (request()->routeIs('curators.dashboard')) {
+    $pageTitle = 'Curator Dashboard';
+  } elseif (request()->routeIs('curators.tips.*')) {
+    $pageTitle = 'Curator Tips Review';
+  }
+@endphp
+
 <head>
   <meta charset="UTF-8">
-  <title>Histaryo Dashboard</title>
+  <title>{{ $pageTitle }}</title>
+  <link rel="icon" type="image/svg+xml" href="{{ asset('favicon.svg') }}">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
   <style>
@@ -22,17 +43,17 @@
 
     .sidebar {
       width: 260px;
-      background: rgba(126, 34, 206, 0.85);
+      background: linear-gradient(180deg, #7A2E1F, #8b3926);
       backdrop-filter: blur(12px);
       -webkit-backdrop-filter: blur(12px);
       border-top-right-radius: 1.5rem;
       border-bottom-right-radius: 1.5rem;
-      color: white;
+      color: #fff9eb;
       padding: 2rem 1.5rem;
       display: flex;
       flex-direction: column;
       justify-content: space-between;
-      box-shadow: 6px 0 30px rgba(126, 34, 206, 0.2);
+      box-shadow: 6px 0 30px rgba(122, 46, 31, 0.28);
       height: 100vh;        
       position: sticky;     
       top: 0;
@@ -52,7 +73,7 @@
     }
 
     .nav-links a {
-      color: #f3e8ff;
+      color: #fff3da;
       text-decoration: none;
       font-weight: 500;
       font-size: 1rem;
@@ -61,12 +82,26 @@
       transition: all 0.2s ease;
       display: flex;
       align-items: center;
-      gap: 0.5rem;
+      gap: 0.75rem;
+    }
+
+    .nav-links .nav-icon {
+      width: 1.4rem;
+      display: inline-flex;
+      justify-content: center;
+      align-items: center;
+      flex-shrink: 0;
+      font-size: 1.05rem;
+      line-height: 1;
+    }
+
+    .nav-links .nav-label {
+      line-height: 1.25;
     }
 
     .nav-links a:hover {
-      background: rgba(255, 255, 255, 0.2);
-      color: #fff;
+      background: rgba(243, 201, 106, 0.28);
+      color: #fffdf7;
       transform: translateX(4px);
     }
 
@@ -75,11 +110,11 @@
     }
 
     .logout form button {
-        background-color: rgba(253, 230, 138, 0.2); 
-        color: #fde68a;
+        background-color: #E8B34B;
+        color: #7A2E1F;
         font-weight: 600;
         font-size: 0.95rem;
-        border: 1px solid rgba(253, 230, 138, 0.5);
+        border: 1px solid #F3C96A;
         border-radius: 8px;
         padding: 0.6rem 1rem;
         cursor: pointer;
@@ -90,9 +125,9 @@
         }
 
         .logout form button:hover {
-        background-color: rgba(253, 230, 138, 0.4);
-        color: #fffbea;
-        border-color: #fde68a;
+        background-color: #F3C96A;
+        color: #7A2E1F;
+        border-color: #E8B34B;
         transform: translateY(-2px);
         }
 
@@ -122,18 +157,19 @@
       <h2>Histaryo</h2>
       <nav class="nav-links">
         @if(session('role') === 'curator')
-          <a href="{{ route('curators.dashboard') }}">🏠 <span>Dashboard</span></a>
-          <a href="{{ route('landmarks.index') }}">📍 <span>Landmarks</span></a>
-          <a href="{{ route('curators.trivia.all') }}">❓ <span>Trivia</span></a>
-          <a href="{{ route('curators.map') }}">🗺️ <span>Map</span></a>
-          <a href="{{ route('curators.qr') }}">📱 QR Codes</a>
+          <a href="{{ route('curators.dashboard') }}"><span class="nav-icon">🏠</span><span class="nav-label">Dashboard</span></a>
+          <a href="{{ route('landmarks.index') }}"><span class="nav-icon">📍</span><span class="nav-label">Landmarks</span></a>
+          <a href="{{ route('curators.trivia.all') }}"><span class="nav-icon">❓</span><span class="nav-label">Trivia</span></a>
+          <a href="{{ route('curators.tips.index') }}"><span class="nav-icon">💡</span><span class="nav-label">Tips Review</span></a>
+          <a href="{{ route('curators.map') }}"><span class="nav-icon">🗺️</span><span class="nav-label">Map</span></a>
+          <a href="{{ route('curators.qr') }}"><span class="nav-icon">📱</span><span class="nav-label">QR Codes</span></a>
         @elseif(session('role') === 'admin')
-          <a href="{{ route('admin.dashboard') }}">🏠 <span>Dashboard</span></a>
-          <a href="{{ route('admin.users') }}">👥 <span>Users</span></a>
+          <a href="{{ route('admin.dashboard') }}"><span class="nav-icon">🏠</span><span class="nav-label">Dashboard</span></a>
+          <a href="{{ route('admin.users') }}"><span class="nav-icon">👥</span><span class="nav-label">Users</span></a>
           <!-- <a href="{{ route('admin.curators') }}">🧑‍🏫 <span>Curators</span></a> -->
-          <a href="{{ route('admin.landmarks') }}">🧭 <span>Landmarks</span></a>
-          <a href="{{ route('admin.logs') }}">📋 <span>Logs</span></a>
-          <a href="{{ route('admin.reports') }}">📊 <span>Reports</span></a>
+          <a href="{{ route('admin.landmarks') }}"><span class="nav-icon">🧭</span><span class="nav-label">Landmarks</span></a>
+          <a href="{{ route('admin.logs') }}"><span class="nav-icon">📋</span><span class="nav-label">Logs</span></a>
+          <a href="{{ route('admin.reports') }}"><span class="nav-icon">📊</span><span class="nav-label">Reports</span></a>
         @endif
       </nav>
     </div>

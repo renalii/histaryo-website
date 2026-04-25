@@ -20,6 +20,24 @@ class LoginController extends Controller
 
     public function showLoginForm()
     {
+        $requestedRedirect = request()->query('redirect');
+        if ($requestedRedirect) {
+            $this->storeCuratorRedirectIfValid($requestedRedirect);
+        }
+
+        if (Session::has('uid') && Session::has('role')) {
+            $role = Session::get('role');
+
+            if ($role === 'curator') {
+                $redirectTo = $this->pullCuratorRedirectOrDefault(false);
+                return redirect()->to($redirectTo);
+            }
+
+            if ($role === 'admin') {
+                return redirect()->route('admin.dashboard');
+            }
+        }
+
         return view('auth.login');
     }
 
@@ -63,7 +81,8 @@ class LoginController extends Controller
             if ($role === 'admin') {
                 return redirect()->route('admin.dashboard')->with('success', 'Welcome Admin!');
             } elseif ($role === 'curator') {
-                return redirect()->route('curators.dashboard')->with('success', 'Welcome Curator!');
+                $redirectTo = $this->pullCuratorRedirectOrDefault();
+                return redirect()->to($redirectTo)->with('success', 'Welcome Curator!');
             } else {
                 return back()->withErrors(['error' => 'Unauthorized role.']);
             }
@@ -89,5 +108,26 @@ class LoginController extends Controller
 
         Session::flush();
         return redirect()->route('login')->with('success', 'Logged out successfully.');
+    }
+
+    private function storeCuratorRedirectIfValid(string $url): void
+    {
+        $path = parse_url($url, PHP_URL_PATH) ?: '';
+        if ($path !== '' && str_starts_with($path, '/curators/') && $path !== '/curators/login') {
+            Session::put('login_redirect', $url);
+        }
+    }
+
+    private function pullCuratorRedirectOrDefault(bool $clear = true): string
+    {
+        $redirectTo = $clear ? Session::pull('login_redirect') : Session::get('login_redirect');
+        if (is_string($redirectTo) && $redirectTo !== '') {
+            $path = parse_url($redirectTo, PHP_URL_PATH) ?: '';
+            if ($path !== '' && str_starts_with($path, '/curators/') && $path !== '/curators/login') {
+                return $redirectTo;
+            }
+        }
+
+        return route('curators.dashboard');
     }
 }

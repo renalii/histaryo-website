@@ -74,8 +74,8 @@ class AdminController extends Controller
 
     public function users(\Illuminate\Http\Request $request)
 {
-    $search = strtolower($request->input('search'));
-    $roleFilter = strtolower($request->input('role'));
+    $search = strtolower(trim((string) $request->input('search', '')));
+    $roleFilter = strtolower(trim((string) $request->input('role', '')));
 
     
     $authUsers = iterator_to_array($this->auth->listUsers());
@@ -108,7 +108,7 @@ class AdminController extends Controller
 
         
         $email = strtolower($user->email ?? '');
-        $matchesSearch = !$search || str_contains($email, $search) || str_contains($uid, $search) || str_contains($role, $search);
+        $matchesSearch = !$search || str_contains($email, $search) || str_contains($uid, $search);
         $matchesRole   = !$roleFilter || $role === $roleFilter;
 
         if ($matchesSearch && $matchesRole) {

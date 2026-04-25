@@ -8,41 +8,113 @@
     $name = $email ? ucfirst(explode('@', $email)[0]) : 'Admin';
 @endphp
 
-<div style="background: linear-gradient(135deg, #7e22ce, #9333ea); color: white; padding: 2rem 2.5rem; border-radius: 1rem; margin-bottom: 2.5rem;">
-    <p style="margin: 0 0 0.3rem 0;">📅 {{ $today }}</p>
-    <h1 style="font-size: 2rem; font-weight: 700; margin: 0;">Welcome back, {{ $name }}!</h1>
-</div>
-
-<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1.5rem; margin-bottom: 2.5rem;">
-    <div style="background: #f3e8ff; padding: 1.5rem; border-radius: 12px;">
-        <h3 style="margin: 0; font-size: 1rem; color: #7e22ce;">👥 Total Users</h3>
-        <p style="font-size: 1.8rem; font-weight: bold;">{{ $userCount ?? 0 }}</p>
-    </div>
-    <div style="background: #fef3c7; padding: 1.5rem; border-radius: 12px;">
-        <h3 style="margin: 0; font-size: 1rem; color: #b45309;">🧑‍🏫 Curators</h3>
-        <p style="font-size: 1.8rem; font-weight: bold;">{{ $curatorCount ?? 0 }}</p>
-    </div>
-    <div style="background: #d1fae5; padding: 1.5rem; border-radius: 12px;">
-        <h3 style="margin: 0; font-size: 1rem; color: #047857;">🧭 Landmarks</h3>
-        <p style="font-size: 1.8rem; font-weight: bold;">{{ $landmarkCount ?? 0 }}</p>
-    </div>
-    <div style="background: #fee2e2; padding: 1.5rem; border-radius: 12px;">
-        <h3 style="margin: 0; font-size: 1rem; color: #b91c1c;">📋 Logs</h3>
-        <p style="font-size: 1.8rem; font-weight: bold;">{{ $logCount ?? 0 }}</p>
-    </div>
-</div>
-
-<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1rem;">
+<style>
+    .admin-wrap { max-width: 2000px; margin: 0 auto; }
+    .admin-kicker { font-size: .82rem; letter-spacing: .04em; text-transform: uppercase; opacity: .9; }
+    .admin-hero {
+        background: linear-gradient(135deg, #7A2E1F, #E8B34B);
+        color: #fffdf7;
+        padding: 1.6rem 2rem;
+        border-radius: 1rem;
+        margin-bottom: 1.2rem;
+        box-shadow: 0 12px 28px rgba(122, 46, 31, 0.22);
+    }
+    .admin-hero h1 { font-size: 2rem; font-weight: 800; margin: 0; line-height: 1.2; }
+    .admin-hero p { margin: 0 0 0.35rem 0; opacity: 0.95; font-weight: 500; }
+    .admin-hero-sub { margin-top: .45rem; opacity: .92; font-size: .95rem; }
+    .admin-grid { display: grid; grid-template-columns: repeat(12, minmax(0,1fr)); gap: 1rem; }
+    .admin-stat {
+        grid-column: span 3;
+        background: #fff;
+        border: 1px solid #eceff3;
+        border-radius: 14px;
+        padding: 1rem 1.1rem;
+        box-shadow: 0 6px 16px rgba(0,0,0,0.05);
+        position: relative;
+        overflow: hidden;
+    }
+    .admin-stat::before {
+        content: "";
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 100%;
+        height: 4px;
+        background: linear-gradient(90deg, #7A2E1F, #E8B34B);
+    }
+    .admin-stat h3 { margin: 0; font-size: .95rem; color: #6b7280; font-weight: 700; }
+    .admin-stat p { margin: .45rem 0 0 0; font-size: 2rem; font-weight: 800; color: #111827; }
+    .admin-stat small { color: #6b7280; font-weight: 600; }
     
-    <div style="background: white; border-radius: 1rem; padding: 1.5rem; box-shadow: 0 4px 20px rgba(0,0,0,0.05);">
-        <h3 style="margin-bottom: 1rem; color: #6b7280;">📈 Visits Overview</h3>
+    .admin-chart {
+        background: #fff;
+        border: 1px solid #eceff3;
+        border-radius: 14px;
+        padding: 1rem 1.1rem;
+        box-shadow: 0 6px 16px rgba(0,0,0,0.05);
+    }
+    .admin-chart h3 { margin: 0 0 .85rem 0; color: #4b5563; font-size: 1rem; font-weight: 700; }
+    .admin-chart p { margin: -0.45rem 0 .8rem 0; color: #6b7280; font-size: .85rem; }
+    .admin-chart-lg { grid-column: span 7; }
+    .admin-chart-sm { grid-column: span 5; }
+    .admin-chart canvas { width: 100% !important; height: 320px !important; }
+    @media (max-width: 1024px) {
+        .admin-stat { grid-column: span 6; }
+        .admin-chart-lg, .admin-chart-sm { grid-column: span 12; }
+    }
+    @media (max-width: 640px) {
+        .admin-stat { grid-column: span 12; }
+        .admin-hero { padding: 1.2rem 1rem; }
+        .admin-hero h1 { font-size: 1.55rem; }
+    }
+</style>
+
+<div class="admin-wrap">
+<div class="admin-hero">
+    <p class="admin-kicker">📅 {{ $today }}</p>
+    <h1>Welcome back, {{ $name }}!</h1>
+    <div class="admin-hero-sub">Here is today’s platform snapshot and recent usage trend.</div>
+</div>
+
+    
+
+<div class="admin-grid" style="margin-bottom: 1rem;">
+    <div class="admin-stat">
+        <h3>👥 Total Users</h3>
+        <p>{{ $userCount ?? 0 }}</p>
+        <small>All registered accounts</small>
+    </div>
+    <div class="admin-stat">
+        <h3>🧑‍🏫 Curators</h3>
+        <p>{{ $curatorCount ?? 0 }}</p>
+        <small>Active content managers</small>
+    </div>
+    <div class="admin-stat">
+        <h3>🧭 Landmarks</h3>
+        <p>{{ $landmarkCount ?? 0 }}</p>
+        <small>Published places</small>
+    </div>
+    <div class="admin-stat">
+        <h3>📋 Logs</h3>
+        <p>{{ $logCount ?? 0 }}</p>
+        <small>Tracked system events</small>
+    </div>
+</div>
+
+<div class="admin-grid">
+    
+    <div class="admin-chart admin-chart-lg">
+        <h3>📈 Visits Overview</h3>
+        <p>Daily visit activity for the current week</p>
         <canvas id="visitsChart" width="400" height="300"></canvas>
     </div>
 
-    <div style="background: white; border-radius: 1rem; padding: 1.5rem; box-shadow: 0 4px 20px rgba(0,0,0,0.05);">
-        <h3 style="margin-bottom: 1rem; color: #6b7280;">📊 Usage by Role</h3>
+    <div class="admin-chart admin-chart-sm">
+        <h3>📊 Usage by Role</h3>
+        <p>Current role distribution</p>
         <canvas id="roleUsageChart" width="400" height="300"></canvas>
     </div>
+</div>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -52,12 +124,12 @@
         datasets: [{
             label: 'Visits',
             data: {!! json_encode($visitsByDay) !!},
-            borderColor: '#7e22ce',
-            backgroundColor: 'rgba(126, 34, 206, 0.1)',
+            borderColor: '#7A2E1F',
+            backgroundColor: 'rgba(122, 46, 31, 0.12)',
             tension: 0.3,
             fill: true,
             pointRadius: 5,
-            pointBackgroundColor: '#9333ea'
+            pointBackgroundColor: '#E8B34B'
         }]
     };
 
@@ -65,7 +137,7 @@
         labels: ['Admins', 'Curators'],
         datasets: [{
             data: [{{ $adminCount ?? 0 }}, {{ $curatorCount ?? 0 }}],
-            backgroundColor: ['#8b5cf6', '#f59e0b'],
+            backgroundColor: ['#7A2E1F', '#E8B34B'],
             borderWidth: 1
         }]
     };
@@ -75,6 +147,8 @@
         data: visitsData,
         options: {
             responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { position: 'top' } },
             scales: {
                 y: { beginAtZero: true }
             }
@@ -86,6 +160,7 @@
         data: usageData,
         options: {
             responsive: true,
+            maintainAspectRatio: false,
             plugins: {
                 legend: { position: 'bottom' }
             }

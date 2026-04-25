@@ -8,16 +8,31 @@
     }
     
     .wrap {
-      max-width:1100px;
+      max-width:2000px;
       margin:0 auto;
       padding:1rem
     }
     
+    .topbar {
+      display:flex;
+      justify-content:space-between;
+      align-items:flex-start;
+      gap:.9rem;
+      flex-wrap:wrap;
+      margin-bottom:.5rem
+    }
+
+    .title-group {
+      display:flex;
+      flex-direction:column;
+      gap:.2rem
+    }
+
     .h1 {
-      font-size:1.8rem;
+      font-size:2rem;
       font-weight:800;
-      color:#4c1d95;
-      margin:0 0 .75rem
+      color:#7A2E1F;
+      margin:0
     }
     
     .muted {
@@ -35,16 +50,19 @@
       padding:.55rem .85rem;
       border:none;
       cursor:pointer;
-      transition:.2s
+      transition:.18s ease;
+      box-shadow:0 2px 8px rgba(15,23,42,.08)
     }
     
     .btn-add {
-      background:#7e22ce;
-      color:#fff
+      background:#E8B34B;
+      color:#7A2E1F;
+      border:1px solid #F3C96A
     }
     
     .btn-add:hover { 
-      background:#6b21a8
+      background:#F3C96A;
+      transform:translateY(-1px)
     }
     
     .btn-edit {
@@ -53,7 +71,8 @@
     }
     
     .btn-edit:hover {
-      background:#f59e0b
+      background:#f59e0b;
+      transform:translateY(-1px)
     }
     
     .btn-del {
@@ -62,7 +81,8 @@
     }
     
     .btn-del:hover {
-      background:#dc2626
+      background:#dc2626;
+      transform:translateY(-1px)
     }
     
     .btn-ghost {
@@ -92,18 +112,25 @@
     .cards {
       display:grid;
       grid-template-columns:repeat(3,minmax(0,1fr));
-      gap:12px;
-      margin-top:.5rem
+      gap:14px;
+      margin-top:.75rem
     }
     
     .card {
       background:#fff;
-      border-radius:12px;
+      border-radius:14px;
+      border:1px solid #edf0f5;
       box-shadow:0 8px 24px rgba(17,24,39,.06);
-      padding:14px;
+      padding:15px;
       display:flex;
       flex-direction:column;
-      gap:10px
+      gap:10px;
+      transition:transform .15s ease, box-shadow .15s ease
+    }
+
+    .card:hover {
+      transform:translateY(-2px);
+      box-shadow:0 14px 30px rgba(17,24,39,.12)
     }
 
     .landmark {
@@ -119,9 +146,9 @@
       display:inline-flex;
       align-items:center;
       gap:.35rem;
-      background:#eef2ff;
-      border:1px solid #c7d2fe;
-      color:#3730a3;
+      background:#fff7ed;
+      border:1px solid #F3C96A;
+      color:#7A2E1F;
       border-radius:999px;
       padding:.2rem .6rem;
       font-size:.8rem;
@@ -130,23 +157,26 @@
     
     .qtext {
       font-weight:700;
-      color:#0f172a
+      color:#111827;
+      line-height:1.35;
+      min-height:4.1rem;
+      font-size:1.02rem
     }
     
     .actions {
       display:flex;
       gap:.4rem;
       flex-wrap:wrap;
-      margin-top:2px
+      margin-top:4px
     }
     
     .link {
-      color:#7e22ce;
+      color:#7A2E1F;
       text-decoration:none;
       font-weight:700
     }
     
-    .link:hover{color:#5b21b6;text-decoration:underline}
+    .link:hover{color:#E8B34B;text-decoration:underline}
 
     /* modal */
     .overlay {
@@ -172,8 +202,21 @@
     .modal h2 {
       font-size:1.2rem;
       font-weight:800;
-      color:#4c1d95;
+      color:#7A2E1F;
       margin:0 0 .5rem
+    }
+
+    .modal-message {
+      margin: 0;
+      color: #374151;
+      line-height: 1.45;
+    }
+
+    .modal-actions {
+      display:flex;
+      gap:.5rem;
+      justify-content:flex-end;
+      margin-top:.9rem;
     }
     
     .row {
@@ -211,29 +254,35 @@
     .page-btn {
       padding:.45rem .7rem;
       border-radius:8px;
-      border:1px solid #ddd6fe;
+      border:1px solid #e5e7eb;
       background:#ffffff;
-      color:#5b21b6;
+      color:#7A2E1F;
       font-weight:700;
       text-decoration:none;
       font-size:.9rem;
       min-width:36px;
       text-align:center;
+      transition:all .15s ease;
     }
 
     .page-btn:hover {
-      background:#f5f3ff;
+      background:#fff7ed;
+      border-color:#F3C96A;
+      transform:translateY(-1px);
     }
 
     .page-btn.active {
-      background:#7e22ce;
-      color:#fff;
-      border-color:#7e22ce;
+      background:#E8B34B;
+      color:#7A2E1F;
+      border-color:#F3C96A;
     }
 
     .page-btn.disabled {
       pointer-events:none;
-      opacity:.45;
+      opacity:.5;
+      background:#f9fafb;
+      color:#9ca3af;
+      border-color:#e5e7eb;
     }
 
     @media (max-width: 980px) {
@@ -243,6 +292,15 @@
     }
 
     @media (max-width: 640px) {
+      .topbar {
+        align-items:stretch
+      }
+      .topbar > div:last-child {
+        width:100%
+      }
+      .topbar .btn-add {
+        width:100%
+      }
       .cards {
         grid-template-columns:1fr;
       }
@@ -250,8 +308,13 @@
 </style>
 
 <div class="wrap">
-  <div style="display:flex;justify-content:space-between;align-items:center;gap:.75rem;flex-wrap:wrap">
-    <h1 class="h1">Question Bank</h1>
+  <div class="topbar">
+    <div class="title-group">
+      <h1 class="h1">Question Bank</h1>
+      @if($triviaPaginator->total() > 0)
+        <p class="muted" style="margin:0;">{{ $triviaPaginator->total() }} question{{ $triviaPaginator->total() > 1 ? 's' : '' }} found</p>
+      @endif
+    </div>
     <div style="display:flex;gap:.5rem;flex-wrap:wrap">
       <button class="btn btn-add" onclick="openAdd()">➕ Add Trivia</button>
     </div>
@@ -286,7 +349,7 @@
             <button class="btn btn-edit" onclick='openEdit(@json($t))'>✏️ Edit</button>
             <form action="{{ route('curators.trivia.destroy', $t['trivia_id']) }}"
                   method="POST"
-                  onsubmit="return confirm('Delete this trivia?');">
+                  class="js-delete-form">
               @csrf @method('DELETE')
               <button class="btn btn-del" type="submit">🗑 Delete</button>
             </form>
@@ -298,7 +361,7 @@
     @if ($triviaPaginator->lastPage() > 1)
       <div class="pager">
         <a href="{{ $triviaPaginator->previousPageUrl() ?: '#' }}"
-           class="page-btn {{ $triviaPaginator->onFirstPage() ? 'disabled' : '' }}">Prev</a>
+           class="page-btn {{ $triviaPaginator->onFirstPage() ? 'disabled' : '' }}">← Prev</a>
 
         @for ($page = 1; $page <= $triviaPaginator->lastPage(); $page++)
           <a href="{{ $triviaPaginator->url($page) }}"
@@ -308,11 +371,11 @@
         @endfor
 
         <a href="{{ $triviaPaginator->hasMorePages() ? $triviaPaginator->nextPageUrl() : '#' }}"
-           class="page-btn {{ $triviaPaginator->hasMorePages() ? '' : 'disabled' }}">Next</a>
+           class="page-btn {{ $triviaPaginator->hasMorePages() ? '' : 'disabled' }}">Next →</a>
       </div>
     @endif
   @else
-    <p class="muted" style="margin-top:1rem">No trivia in the Question Bank yet.</p>
+    <p class="muted" style="margin-top:1rem;background:#fff;border:1px dashed #e5e7eb;border-radius:10px;padding:.8rem 1rem;">No trivia in the Question Bank yet. Add your first question to get started.</p>
   @endif
 </div>
 
@@ -384,12 +447,32 @@
   </div>
 </div>
 
+<div id="deleteOverlay" class="overlay">
+  <div class="modal">
+    <h2>Delete Trivia</h2>
+    <p class="modal-message">Are you sure you want to delete this trivia?</p>
+    <div class="modal-actions">
+      <button type="button" class="btn btn-del" onclick="confirmDelete()">Delete</button>
+      <button type="button" class="btn" onclick="closeDelete()">Cancel</button>
+    </div>
+  </div>
+</div>
+
 <script>
+  let pendingDeleteForm = null;
   
-  function openAdd(){ document.getElementById('addOverlay').style.display='flex'; syncRadios('addChoices'); }
-  function closeAdd(){ document.getElementById('addOverlay').style.display='none'; }
+  function openAdd(){ 
+      document.getElementById('addOverlay').style.display='flex'; 
+      document.body.style.overflow='hidden';
+      syncRadios('addChoices'); 
+  }
+  function closeAdd(){ 
+      document.getElementById('addOverlay').style.display='none'; 
+      document.body.style.overflow='';
+  }
   function openEdit(t){
       document.getElementById('editOverlay').style.display='flex';
+      document.body.style.overflow='hidden';
       const form = document.getElementById('editForm');
       form.action = `/curators/trivia/${t.trivia_id}`;
       document.getElementById('edit_question').value = t.question || '';
@@ -411,7 +494,28 @@
       }
       syncRadios('editChoices');
   }
-  function closeEdit(){ document.getElementById('editOverlay').style.display='none'; }
+  function closeEdit(){ 
+      document.getElementById('editOverlay').style.display='none'; 
+      document.body.style.overflow='';
+  }
+
+  function openDelete(form){
+      pendingDeleteForm = form;
+      document.getElementById('deleteOverlay').style.display='flex';
+      document.body.style.overflow='hidden';
+  }
+
+  function closeDelete(){
+      document.getElementById('deleteOverlay').style.display='none';
+      pendingDeleteForm = null;
+      document.body.style.overflow='';
+  }
+
+  function confirmDelete(){
+      if (pendingDeleteForm) {
+          pendingDeleteForm.submit();
+      }
+  }
 
   function addChoice(containerId){
       const box = document.getElementById(containerId);
@@ -452,6 +556,24 @@
   });
   document.getElementById('editOverlay').addEventListener('click', (e)=>{
       if(e.target.id==='editOverlay') closeEdit();
+  });
+  document.getElementById('deleteOverlay').addEventListener('click', (e)=>{
+      if(e.target.id==='deleteOverlay') closeDelete();
+  });
+
+  document.querySelectorAll('.js-delete-form').forEach((form)=>{
+      form.addEventListener('submit', (e)=>{
+          e.preventDefault();
+          openDelete(form);
+      });
+  });
+
+  window.addEventListener('keydown', (e)=>{
+      if(e.key === 'Escape'){
+          closeAdd();
+          closeEdit();
+          closeDelete();
+      }
   });
 </script>
 @endsection

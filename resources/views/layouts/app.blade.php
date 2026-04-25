@@ -2,6 +2,7 @@
 <html>
 <head>
     <title>HistARyo - Explore Heritage with AR</title>
+    <link rel="icon" type="image/svg+xml" href="{{ asset('favicon.svg') }}">
     <style>
         body {
             margin: 0;
