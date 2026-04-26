@@ -60,6 +60,9 @@
         "test": [
             "@php artisan config:clear --ansi",
             "@php artisan test"
+        ],
+        "sync-ngrok": [
+            "@php artisan ngrok:sync --ansi"
         ]
     },
     "extra": {

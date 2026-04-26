@@ -32,6 +32,12 @@
         border: 1px solid #fecaca; 
     }
 
+    .qr-notice.warn {
+        background: #fffbeb;
+        color: #92400e;
+        border: 1px solid #fde68a;
+    }
+
     .qr-card {
         background: #fff;
         border: 1px solid #eceff3;
@@ -105,7 +111,7 @@
         width: 100%; 
         border-collapse: separate; 
         border-spacing: 0; 
-        min-width: 680px; 
+        min-width: 920px; 
     }
 
     .qr-table thead th {
@@ -190,6 +196,16 @@
 </style>
 <div class="qr-wrap">
     <h1 class="qr-title">QR Codes Manager</h1>
+
+    @if (\App\Support\QrResolveUrl::usesLoopbackHost())
+        <div class="qr-notice warn">
+            <strong>Phone scan:</strong> Ang <code>127.0.0.1</code> / <code>localhost</code> mo-open sa phone mismo — dili mo-konek sa imong PC.
+            Para <strong>bisan unsang network</strong> (dili kinahanglan parehas Wi‑Fi): <code>ngrok http 8000</code>, dayon
+            <code>php artisan ngrok:sync</code> (o <code>composer sync-ngrok</code>) aron ma-set ang <code>QR_PUBLIC_BASE_URL</code> sa tinuod nga <code>https://…ngrok-free.app</code> (ang <code>APP_URL</code> makabilin og local).
+            Ang script mo-run na sa <code>config:clear</code>. I-Preview QR pag-usab. Kinahanglan naka-run ang ngrok samtang gina-scan.
+            Ang “URL phones open” nagpakita sa bag-ong base; i-refresh ang preview aron ma-update ang PNG.
+        </div>
+    @endif
 
     {{-- Success / Error flash --}}
     @if(session('success'))
@@ -278,9 +294,10 @@
                             <div class="qr-actions">
                             <a href="{{ $qr['download_url'] }}"
                                class="qr-action download">Download</a>
-                            <a href="{{ $qr['resolve_url'] }}"
+                            <a href="{{ $qr['preview_url'] }}"
                                class="qr-action open js-open-qr"
-                               data-open-url="{{ $qr['resolve_url'] }}">Open</a>
+                               data-preview-url="{{ e($qr['preview_url']) }}"
+                               data-encoded-url="{{ e($qr['encoded_scan_url']) }}">Preview QR</a>
                             <form method="POST" action="{{ route('curators.qr.destroy', $qr['id']) }}"
                                   style="display:inline;" class="js-delete-qr-form">
                                 @csrf
@@ -309,7 +326,7 @@
 <div id="qr-preview-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.55); z-index:9999; align-items:center; justify-content:center; padding:1rem;">
     <div style="background:#fff; width:min(860px, 96vw); border-radius:12px; overflow:hidden; box-shadow:0 20px 50px rgba(0,0,0,.3); border:1px solid #e5e7eb;">
         <div style="display:flex; justify-content:space-between; align-items:center; padding:.75rem 1rem; border-bottom:1px solid #e5e7eb;">
-            <h3 style="margin:0; font-size:1rem; font-weight:700; color:#7A2E1F;">QR Preview</h3>
+            <h3 style="margin:0; font-size:1rem; font-weight:700; color:#7A2E1F;">QR image preview</h3>
             <button id="qr-preview-close" type="button" style="background:none; border:none; font-size:1.25rem; cursor:pointer; line-height:1;">&times;</button>
         </div>
         <div style="padding:1rem; text-align:center;">
@@ -354,9 +371,9 @@ document.addEventListener('DOMContentLoaded', function () {
     document.querySelectorAll('.js-open-qr').forEach(function (el) {
         el.addEventListener('click', function (e) {
             e.preventDefault();
-            const url = el.getAttribute('data-open-url');
-            if (!url) return;
-            image.src = url;
+            const previewUrl = el.getAttribute('data-preview-url');
+            if (!previewUrl) return;
+            image.src = previewUrl;
             modal.style.display = 'flex';
             document.body.style.overflow = 'hidden';
         });
