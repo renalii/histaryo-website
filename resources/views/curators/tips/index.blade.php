@@ -5,6 +5,23 @@
         <h2 style="margin:0; font-size:1.5rem; color:#7A2E1F;">💡 Tips Review</h2>
     </div>
 
+    <form method="GET" action="{{ route('curators.tips.index') }}" style="display:flex; align-items:center; gap:.55rem; flex-wrap:wrap; margin-bottom:1rem;">
+        <label for="status-filter" style="font-weight:600; color:#374151;">Status:</label>
+        <select id="status-filter" name="status" onchange="this.form.submit()"
+            style="border:1px solid #d1d5db; border-radius:8px; padding:.48rem .62rem; color:#111827; background:#fff;">
+            <option value="pending" @selected(($statusFilter ?? 'pending') === 'pending')>Pending</option>
+            <option value="all" @selected(($statusFilter ?? 'pending') === 'all')>All</option>
+            <option value="accepted" @selected(($statusFilter ?? 'pending') === 'accepted')>Accepted</option>
+            <option value="rejected" @selected(($statusFilter ?? 'pending') === 'rejected')>Rejected</option>
+        </select>
+        <noscript>
+            <button type="submit"
+                style="border:1px solid #d1d5db; border-radius:8px; padding:.48rem .75rem; background:#f9fafb; color:#374151; cursor:pointer;">
+                Apply
+            </button>
+        </noscript>
+    </form>
+
     @if (session('success'))
         <div style="background:#d1fae5; color:#065f46; padding:.9rem 1rem; border-radius:10px; margin-bottom:1rem;">
             {{ session('success') }}
@@ -25,7 +42,13 @@
 
     @if ($tips->isEmpty())
         <div style="background:#fff; border:1px dashed #d1d5db; border-radius:12px; padding:1.2rem; color:#6b7280;">
-            No submitted tips yet.
+            @if (($statusFilter ?? 'pending') === 'pending')
+                No pending tips right now.
+            @elseif (($statusFilter ?? 'pending') === 'all')
+                No submitted tips yet.
+            @else
+                No {{ $statusFilter }} tips found.
+            @endif
         </div>
     @else
         <div style="display:flex; flex-direction:column; gap:1rem;">
@@ -97,6 +120,7 @@
                                 @csrf
                                 <input type="hidden" name="source_collection" value="{{ $tip['source_collection'] ?? 'crowdsourced_tips' }}">
                                 <input type="hidden" name="page" value="{{ $tips->currentPage() }}">
+                                <input type="hidden" name="status_filter" value="{{ $statusFilter ?? 'pending' }}">
                                 <input type="text" name="review_note" placeholder="Optional review note"
                                     style="flex:1 1 230px; min-width:230px; border:1px solid #d1d5db; border-radius:8px; padding:.52rem .7rem;">
 

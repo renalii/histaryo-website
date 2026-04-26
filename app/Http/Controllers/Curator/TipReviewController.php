@@ -18,9 +18,14 @@ class TipReviewController extends Controller
         $this->firestore = $firebaseService->firestore();
     }
 
-    public function index()
+    public function index(Request $request)
     {
-        $tips = $this->fetchTips();
+        $statusFilter = strtolower((string) $request->query('status', 'pending'));
+        if (!in_array($statusFilter, ['all', 'pending', 'accepted', 'rejected'], true)) {
+            $statusFilter = 'pending';
+        }
+
+        $tips = $this->fetchTips($statusFilter);
         $perPage = 5;
         $currentPage = LengthAwarePaginator::resolveCurrentPage();
         $offset = max(0, ($currentPage - 1) * $perPage);
@@ -37,17 +42,22 @@ class TipReviewController extends Controller
             ]
         );
 
-        return view('curators.tips.index', compact('tips'));
+        return view('curators.tips.index', compact('tips', 'statusFilter'));
     }
 
-    public function fetchData()
+    public function fetchData(Request $request)
     {
+        $statusFilter = strtolower((string) $request->query('status', 'all'));
+        if (!in_array($statusFilter, ['all', 'pending', 'accepted', 'rejected'], true)) {
+            $statusFilter = 'all';
+        }
+
         return response()->json([
-            'tips' => $this->fetchTips(),
+            'tips' => $this->fetchTips($statusFilter),
         ]);
     }
 
-    private function fetchTips(): array
+    private function fetchTips(string $statusFilter = 'all'): array
     {
         $tips = [];
         foreach ($this->tipCollections as $collectionName) {
@@ -63,6 +73,11 @@ class TipReviewController extends Controller
 
                 if ($status === '') {
                     $status = 'pending';
+                }
+
+                $status = in_array($status, ['accepted', 'rejected', 'pending'], true) ? $status : 'pending';
+                if ($statusFilter !== 'all' && $status !== $statusFilter) {
+                    continue;
                 }
 
                 $createdAtRaw = $data['created_at'] ?? $data['createdAt'] ?? null;
@@ -89,7 +104,7 @@ class TipReviewController extends Controller
                     'type' => (string) ($data['type'] ?? ''),
                     'submitted_by' => $submittedBy,
                     'submitted_email' => $submittedEmail,
-                    'status' => in_array($status, ['accepted', 'rejected', 'pending'], true) ? $status : 'pending',
+                    'status' => $status,
                     'review_note' => (string) ($data['review_note'] ?? $data['reviewNote'] ?? ''),
                     'reviewed_by' => (string) ($data['reviewed_by'] ?? $data['reviewedBy'] ?? ''),
                     'created_at' => $this->formatDate($createdAtRaw),
@@ -118,6 +133,7 @@ class TipReviewController extends Controller
             'review_note' => 'nullable|string|max:500',
             'source_collection' => 'nullable|in:crowdsourced_tips,tips,user_tips',
             'page' => 'nullable|integer|min:1',
+            'status_filter' => 'nullable|in:all,pending,accepted,rejected',
         ]);
 
         $collection = $payload['source_collection'] ?? 'crowdsourced_tips';
@@ -148,6 +164,7 @@ class TipReviewController extends Controller
 
         return redirect()->route('curators.tips.index', [
                 'page' => $payload['page'] ?? 1,
+                'status' => $payload['status_filter'] ?? 'pending',
             ])
             ->with('success', 'Tip has been ' . $decision . '.');
     }
