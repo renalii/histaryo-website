@@ -134,78 +134,11 @@ class TriviaController extends Controller
         return back()->with('success', 'Trivia deleted.');
     }
 
-    
-    public function play(string $landmarkId)
-    {
-        $lm = $this->firebase->getLandmarkById($landmarkId);
-        if (!$lm->exists()) abort(404);
-
-        return view('quiz.play', [
-            'landmark' => [
-                'id'   => $landmarkId,
-                'name' => $lm['name'] ?? 'Untitled',
-            ],
-        ]);
-    }
+   
 
     
-    public function getQuiz(Request $request)
-    {
-        $landmarkId = (string) $request->query('landmark_id', '');
-        $limit      = (int) $request->query('limit', 5);
-
-        if ($landmarkId === '') {
-            return response()->json(['error' => 'landmark_id is required'], 422);
-        }
-
-        $docs = $this->firebase->getTriviaByLandmarkId($landmarkId);
-
-        $pool = [];
-        foreach ($docs as $doc) {
-            if (!$doc->exists()) continue;
-            $d = $doc->data();
-            $choices = array_values($d['choices'] ?? []);
-            shuffle($choices);
-            $pool[] = [
-                'id'       => $doc->id(),
-                'question' => (string) ($d['question'] ?? ''),
-                'choices'  => $choices,
-            ];
-        }
-
-        shuffle($pool);
-        $items = array_slice($pool, 0, max(1, $limit));
-
-        return response()->json([
-            'landmark_id' => $landmarkId,
-            'count'       => count($items),
-            'items'       => $items,
-        ]);
-    }
+    
 
     
-    public function getQuizKey(Request $request)
-    {
-        $landmarkId = (string) $request->query('landmark_id', '');
-        if ($landmarkId === '') {
-            return response()->json(['error' => 'landmark_id is required'], 422);
-        }
-
-        $docs = $this->firebase->getTriviaByLandmarkId($landmarkId);
-
-        $key = [];
-        foreach ($docs as $doc) {
-            if (!$doc->exists()) continue;
-            $d = $doc->data();
-            $key[] = [
-                'id'              => $doc->id(),
-                'correct_answer'  => (string)($d['correct_answer'] ?? ''),
-            ];
-        }
-
-        return response()->json([
-            'landmark_id' => $landmarkId,
-            'items'       => $key,
-        ]);
-    }
+    
 }

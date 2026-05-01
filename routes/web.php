@@ -50,17 +50,10 @@ Route::prefix('curators')->middleware('curator.auth')->group(function () {
     Route::get('/tips', [TipReviewController::class, 'index'])->name('curators.tips.index');
     Route::get('/tips/data', [TipReviewController::class, 'fetchData'])->name('curators.tips.data');
     Route::post('/tips/{tipId}/review', [TipReviewController::class, 'review'])->name('curators.tips.review');
-});
+}); 
 
 
 Route::get('/qr/resolve/{code}', [QrController::class, 'resolve'])->name('qr.resolve');
-
-
-Route::get('/quiz/{landmarkId}', [TriviaController::class, 'play'])->name('quiz.play');
-Route::get('/api/quiz', [TriviaController::class, 'getQuiz'])->name('quiz.fetch');
-
-
-Route::get('/api/quiz-key', [TriviaController::class, 'getQuizKey'])->name('quiz.key');
 
 
 Route::prefix('admin')->middleware(['web'])->group(function () {
