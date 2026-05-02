@@ -13,6 +13,8 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->alias([
             'curator.auth' => \App\Http\Middleware\EnsureCuratorSession::class,
+            'panel.admin' => \App\Http\Middleware\EnsureAdminPanelSession::class,
+            'panel.landmarkmanager' => \App\Http\Middleware\EnsureLandmarkManagerPanelSession::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

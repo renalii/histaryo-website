@@ -257,7 +257,7 @@
                 </div>
             </div>
             <div style="margin-top:1rem;">
-                <button type="submit" class="qr-btn qr-btn-primary">+ Create QR</button>
+                <button type="submit" class="qr-btn qr-btn-primary">Create QR</button>
             </div>
         </form>
     </div>
@@ -345,10 +345,10 @@
         </div>
         <div style="display:flex; justify-content:flex-end; gap:.6rem; padding:0 1rem 1rem;">
             <button id="qr-delete-cancel" type="button" class="qr-btn" style="background:#f8fafc; color:#374151; border:1px solid #d1d5db;">
-                ❌ Cancel
+                Cancel
             </button>
             <button id="qr-delete-confirm" type="button" class="qr-btn" style="background:#b91c1c; color:#fff; border:1px solid #991b1b;">
-                🗑️ Delete
+                Delete
             </button>
         </div>
     </div>

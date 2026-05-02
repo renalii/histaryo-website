@@ -8,6 +8,7 @@ use App\Http\Controllers\Curator\TriviaController;
 use App\Http\Controllers\Curator\DashboardController;
 use App\Http\Controllers\Curator\TipReviewController;
 use App\Http\Controllers\Admin\AdminController;
+use App\Http\Controllers\LandmarkManager\LandmarkManageController;
 use App\Http\Controllers\QrController;
 use App\Http\Controllers\Admin\ReportController;
 
@@ -22,14 +23,16 @@ Route::post('/login', [LoginController::class, 'login']);
 Route::get('/curators/login', [LoginController::class, 'showLoginForm'])->name('curators.login');
 Route::post('/curators/login', [LoginController::class, 'login'])->name('curators.login.submit');
 
-Route::post('/logout', [LoginController::class, 'logout'])->name('logout');
+// GET allows safe sign-out when the session/CSRF token is stale (POST still CSRF-protected).
+Route::match(['get', 'post'], '/logout', [LoginController::class, 'logout'])->name('logout');
 
 
 Route::prefix('curators')->middleware('curator.auth')->group(function () {
+    Route::get('/pending-assignment', [DashboardController::class, 'pendingAssignment'])->name('curators.pending-assignment');
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('curators.dashboard');
 
     Route::get('/map', [LandmarkController::class, 'map'])->name('curators.map');
-    Route::resource('landmarks', LandmarkController::class);
+    Route::resource('landmarks', LandmarkController::class)->except(['create', 'store', 'show']);
 
     
     Route::get('/qr',                 [QrController::class, 'index'])->name('curators.qr');
@@ -56,14 +59,24 @@ Route::prefix('curators')->middleware('curator.auth')->group(function () {
 Route::get('/qr/resolve/{code}', [QrController::class, 'resolve'])->name('qr.resolve');
 
 
-Route::prefix('admin')->middleware(['web'])->group(function () {
+Route::prefix('admin')->middleware(['web', 'panel.admin'])->group(function () {
     Route::get('/', [AdminController::class, 'dashboard'])->name('admin.dashboard');
     Route::get('/users', [AdminController::class, 'users'])->name('admin.users');
-    Route::get('/curators', [AdminController::class, 'curators'])->name('admin.curators');
+    Route::post('/users/{uid}/approve', [AdminController::class, 'approveUser'])->name('admin.users.approve');
+    Route::post('/users/{uid}/reject', [AdminController::class, 'rejectUser'])->name('admin.users.reject');
     Route::get('/landmarks', [AdminController::class, 'landmarks'])->name('admin.landmarks');
     Route::get('/logs', [AdminController::class, 'logs'])->name('admin.logs');
     Route::delete('/logs/clear', [AdminController::class, 'clearLogs'])->name('admin.logs.clear');
-
     Route::get('/reports', [ReportController::class, 'index'])->name('admin.reports');
     Route::get('/reports/export/{any?}', [ReportController::class, 'export'])->name('admin.reports.export');
+});
+
+Route::prefix('landmarkmanager')->middleware(['web', 'panel.landmarkmanager'])->group(function () {
+    Route::get('/', [AdminController::class, 'dashboard'])->name('landmarkmanager.dashboard');
+    Route::get('/curators', [AdminController::class, 'users'])->name('landmarkmanager.curators');
+    Route::post('/curators/{uid}/approve', [AdminController::class, 'approveUser'])->name('landmarkmanager.curators.approve');
+    Route::post('/curators/{uid}/reject', [AdminController::class, 'rejectUser'])->name('landmarkmanager.curators.reject');
+    Route::get('/landmarks', [AdminController::class, 'landmarks'])->name('landmarkmanager.landmarks');
+    Route::get('/landmarks/create', [LandmarkManageController::class, 'create'])->name('landmarkmanager.landmarks.create');
+    Route::post('/landmarks', [LandmarkManageController::class, 'store'])->name('landmarkmanager.landmarks.store');
 });

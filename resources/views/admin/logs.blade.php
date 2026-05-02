@@ -141,7 +141,7 @@
             @csrf
             @method('DELETE')
             <button type="button" id="openClearLogsModal" class="logs-clear">
-                🗑️ Clear Logs
+                Clear Logs
             </button>
         </form>
     </div>

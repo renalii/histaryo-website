@@ -3,116 +3,176 @@
 namespace App\Http\Controllers\Curator;
 
 use App\Http\Controllers\Controller;
+use App\Services\ActiveLandmarksCatalog;
+use App\Services\CuratorAccessibleLandmarks;
 use App\Services\FirebaseService;
+use App\Support\CuratorAssignedLandmark;
 use Carbon\Carbon;
+use Illuminate\Http\Request;
 
 class DashboardController extends Controller
 {
     protected $firestore;
 
-    public function __construct(FirebaseService $firebase)
+    public function __construct(protected FirebaseService $firebase)
     {
         $this->firestore = $firebase->firestore();
+    }
+
+    public function pendingAssignment(Request $request)
+    {
+        $uid = $request->session()->get('uid');
+        if (! is_string($uid) || $uid === '') {
+            return redirect()->route('login');
+        }
+
+        $userDoc = $this->firestore->collection('users')->document($uid)->snapshot();
+        $raw = $userDoc->exists() ? ($userDoc['assigned_landmark_id'] ?? null) : null;
+        $trimmed = is_string($raw) ? trim($raw) : '';
+
+        if ($trimmed !== '') {
+            $request->session()->put('assigned_landmark_id', $trimmed);
+            $request->session()->put('browseable_landmark_ids', ActiveLandmarksCatalog::documentIds($this->firebase));
+            $request->session()->put('writable_landmark_ids', CuratorAccessibleLandmarks::resolveIds($this->firebase, $trimmed));
+
+            return redirect()->route('curators.dashboard')->with(
+                'success',
+                'Your landmark assignment is now active. Welcome to your dashboard.'
+            );
+        }
+
+        return view('curators.pending-assignment');
     }
 
     public function index()
     {
         $db = $this->firestore;
 
-        
-        $landmarksCount = $this->countDocuments($db->collection('landmarks')->documents());
-        $triviaCount    = $this->countDocuments($db->collectionGroup('question_bank')->documents());
+        $browseableIds = CuratorAssignedLandmark::browseableIds();
 
-        
+        $landmarksCount = count($browseableIds);
+
+        $triviaCount = 0;
+        foreach ($browseableIds as $lid) {
+            $triviaCount += iterator_count($db->collection('question_bank')
+                ->where('landmark_id', '==', $lid)
+                ->documents());
+        }
+
         $weeks = collect(range(7, 0))->map(function ($i) {
             return Carbon::now()->startOfWeek()->subWeeks($i);
         });
 
         $weekLabels = [];
         $landmarksPerWeek = [];
-        $triviaPerWeek    = [];
+        $triviaPerWeek = [];
 
-        
-        $landmarksDocs = $db->collection('landmarks')->documents();
-        $triviaDocs    = $db->collectionGroup('question_bank')->documents();
+        $scopedLandmarkDocs = [];
+        foreach ($browseableIds as $lid) {
+            $snap = $db->collection('landmarks')->document($lid)->snapshot();
+            if ($snap->exists()) {
+                $scopedLandmarkDocs[] = $snap;
+            }
+        }
+
+        $triviaForWeeksDocs = [];
+        foreach ($browseableIds as $lid) {
+            $triviaForWeeksDocs = array_merge(
+                $triviaForWeeksDocs,
+                iterator_to_array($db->collection('question_bank')->where('landmark_id', '==', $lid)->documents())
+            );
+        }
 
         foreach ($weeks as $startOfWeek) {
             $endOfWeek = $startOfWeek->copy()->endOfWeek();
 
-            
-            $weekLabels[] = $startOfWeek->format('M d') . '–' . $endOfWeek->format('M d');
+            $weekLabels[] = $startOfWeek->format('M d').'–'.$endOfWeek->format('M d');
 
-            
             $lCount = 0;
-            foreach ($landmarksDocs as $doc) {
-                $d = $doc->data();
-                if (!empty($d['created_at'])) {
-                    $createdAt = Carbon::parse((string)$d['created_at']);
+            foreach ($scopedLandmarkDocs as $scopedLandmarkDoc) {
+                if (! $scopedLandmarkDoc->exists()) {
+                    continue;
+                }
+                $d = $scopedLandmarkDoc->data();
+                if (empty($d['created_at'])) {
+                    continue;
+                }
+                try {
+                    $createdAt = Carbon::parse((string) $d['created_at']);
                     if ($createdAt->between($startOfWeek, $endOfWeek)) {
                         $lCount++;
                     }
+                } catch (\Exception $e) {
                 }
             }
             $landmarksPerWeek[] = $lCount;
 
-            
             $tCount = 0;
-            foreach ($triviaDocs as $doc) {
-                $d = $doc->data();
-                if (!empty($d['created_at'])) {
-                    $createdAt = Carbon::parse((string)$d['created_at']);
+            foreach ($triviaForWeeksDocs as $doc) {
+                if (! $doc->exists()) {
+                    continue;
+                }
+                $td = $doc->data();
+                if (empty($td['created_at'])) {
+                    continue;
+                }
+                try {
+                    $createdAt = Carbon::parse((string) $td['created_at']);
                     if ($createdAt->between($startOfWeek, $endOfWeek)) {
                         $tCount++;
                     }
+                } catch (\Exception $e) {
                 }
             }
             $triviaPerWeek[] = $tCount;
         }
 
-        
         $recentLogs = [];
-        $logsSnap = $db->collection('logs')
-            ->orderBy('timestamp', 'DESC')
-            ->limit(10)
-            ->documents();
-
-        foreach ($logsSnap as $doc) {
+        foreach ($db->collection('logs')->orderBy('timestamp', 'DESC')->limit(10)->documents() as $doc) {
+            if (! $doc->exists()) {
+                continue;
+            }
             $d = $doc->data();
             $recentLogs[] = [
-                'action'    => $d['action'] ?? 'Action',
-                'email'     => $d['email'] ?? 'user@example.com',
+                'action' => $d['action'] ?? 'Action',
+                'email' => $d['email'] ?? 'user@example.com',
                 'timestamp' => $this->formatRelativeTime($d['timestamp'] ?? null),
             ];
         }
 
-        
         $recentLandmarks = [];
-        $landmarksRecentSnap = $db->collection('landmarks')
-            ->orderBy('created_at', 'DESC')
-            ->limit(5)
-            ->documents();
-
-        foreach ($landmarksRecentSnap as $doc) {
-            $d = $doc->data();
+        foreach ($scopedLandmarkDocs as $scopedLandmarkDoc) {
+            if (! $scopedLandmarkDoc->exists()) {
+                continue;
+            }
+            $ld = $scopedLandmarkDoc->data();
             $recentLandmarks[] = [
-                'id'         => $doc->id(),
-                'name'       => $d['name'] ?? 'Untitled',
-                'location'   => $d['location'] ?? null,
-                'latitude'   => $d['latitude'] ?? null,
-                'longitude'  => $d['longitude'] ?? null,
-                'created_at' => $this->formatRelativeTime($d['created_at'] ?? null),
+                'id' => $scopedLandmarkDoc->id(),
+                'name' => $ld['name'] ?? 'Untitled',
+                'location' => $ld['location'] ?? null,
+                'latitude' => $ld['latitude'] ?? null,
+                'longitude' => $ld['longitude'] ?? null,
+                'created_at' => $this->formatRelativeTime($ld['created_at'] ?? null),
             ];
         }
 
+        $writableSet = $this->tipLandmarkKeySet(CuratorAssignedLandmark::writableIds());
+        $browseableSet = $this->tipLandmarkKeySet($browseableIds);
+
         $pending = 0;
         foreach (['crowdsourced_tips', 'tips', 'user_tips'] as $tipsCollection) {
-            $tipsSnapshot = $db->collection($tipsCollection)->documents();
-            foreach ($tipsSnapshot as $tipDoc) {
-                if (!$tipDoc->exists()) {
+            $scopeSet = $tipsCollection === 'crowdsourced_tips' ? $browseableSet : $writableSet;
+            foreach ($db->collection($tipsCollection)->documents() as $tipDoc) {
+                if (! $tipDoc->exists()) {
                     continue;
                 }
-
                 $tipData = $tipDoc->data();
+                $lid = trim((string) ($tipData['landmark_id'] ?? $tipData['landmarkId'] ?? ''));
+                if ($scopeSet !== []) {
+                    if ($lid === '' || ! isset($scopeSet[$lid])) {
+                        continue;
+                    }
+                }
                 $status = strtolower((string) ($tipData['status'] ?? 'pending'));
                 if ($status === '' || $status === 'pending') {
                     $pending++;
@@ -123,37 +183,34 @@ class DashboardController extends Controller
         return view('curators.dashboard', [
             'stats' => [
                 'landmarks' => $landmarksCount,
-                'trivia'    => $triviaCount,
-                'pending'   => $pending,
-                'logs'      => count($recentLogs),
+                'trivia' => $triviaCount,
+                'pending' => $pending,
+                'logs' => count($recentLogs),
             ],
             'recentLandmarks' => $recentLandmarks,
-            'recentLogs'      => $recentLogs,
-
-            
-            'weekLabels'       => $weekLabels,
+            'recentLogs' => $recentLogs,
+            'weekLabels' => $weekLabels,
             'landmarksPerWeek' => $landmarksPerWeek,
-            'triviaPerWeek'    => $triviaPerWeek,
+            'triviaPerWeek' => $triviaPerWeek,
         ]);
     }
 
-    
-    private function countDocuments($snapshot): int
+    /**
+     * @param  list<string>  $ids
+     * @return array<string, true>
+     */
+    private function tipLandmarkKeySet(array $ids): array
     {
-        if (is_object($snapshot) && method_exists($snapshot, 'size')) {
-            return (int) $snapshot->size();
+        $set = [];
+        foreach ($ids as $id) {
+            $k = trim((string) $id);
+            if ($k !== '') {
+                $set[$k] = true;
+            }
         }
 
-        if (is_object($snapshot) && method_exists($snapshot, 'rows')) {
-            $rows = $snapshot->rows();
-            return is_array($rows) ? count($rows) : (int) iterator_count($rows);
-        }
-
-        $count = 0;
-        foreach ($snapshot as $_) { $count++; }
-        return $count;
+        return $set;
     }
-
 
     private function formatRelativeTime($value): string
     {

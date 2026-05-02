@@ -161,7 +161,7 @@ document.addEventListener("DOMContentLoaded", function () {
                 ${thumbSrc ? `<img class="histaryo-popup-thumb" src="${escapeAttr(thumbSrc)}" alt="">` : ''}
                 <strong>${escapeHtml(l.name ?? 'Untitled')}</strong><br>
                 ${l.description ? escapeHtml(l.description) + '<br>' : ''}
-                ${l.video_url ? `<a href="${escapeAttr(l.video_url)}" target="_blank" rel="noopener">🎥 Watch Video</a><br>` : ''}
+                ${l.video_url ? `<a href="${escapeAttr(l.video_url)}" target="_blank" rel="noopener">Watch Video</a><br>` : ''}
             </div>
         `;
 

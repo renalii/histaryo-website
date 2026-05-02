@@ -117,6 +117,7 @@
     }
     
     .card {
+      position:relative;
       background:#fff;
       border-radius:14px;
       border:1px solid #edf0f5;
@@ -128,18 +129,63 @@
       transition:transform .15s ease, box-shadow .15s ease
     }
 
+    .card--editable {
+      padding-right:10.75rem
+    }
+
+    @media (max-width:420px) {
+      .card--editable {
+        padding-right:8.25rem
+      }
+    }
+
     .card:hover {
       transform:translateY(-2px);
       box-shadow:0 14px 30px rgba(17,24,39,.12)
     }
 
-    .landmark {
+    .card-actions-abs {
+      position:absolute;
+      top:.75rem;
+      right:.75rem;
       display:flex;
-      flex-direction:column;
-      align-items:flex-start;
-      gap:.35rem;
-      font-weight:700;
-      color:#4c1d95
+      gap:.5rem;
+      align-items:center;
+      z-index:2
+    }
+
+    .card-actions-abs .js-delete-form {
+      display:inline-flex;
+      margin:0
+    }
+
+    .btn-trivia {
+      font-size:.875rem;
+      line-height:1.25;
+      padding:.25rem .75rem;
+      border-radius:.375rem;
+      border:none;
+      cursor:pointer;
+      font-weight:600;
+      transition:background .15s ease, filter .15s ease
+    }
+
+    .btn-trivia-edit {
+      background:#3b82f6;
+      color:#fff
+    }
+
+    .btn-trivia-edit:hover {
+      background:#2563eb
+    }
+
+    .btn-trivia-del {
+      background:#ef4444;
+      color:#fff
+    }
+
+    .btn-trivia-del:hover {
+      background:#dc2626
     }
 
     .pill {
@@ -161,13 +207,6 @@
       line-height:1.35;
       min-height:4.1rem;
       font-size:1.02rem
-    }
-    
-    .actions {
-      display:flex;
-      gap:.4rem;
-      flex-wrap:wrap;
-      margin-top:4px
     }
     
     .link {
@@ -316,7 +355,9 @@
       @endif
     </div>
     <div style="display:flex;gap:.5rem;flex-wrap:wrap">
-      <button class="btn btn-add" onclick="openAdd()">➕ Add Trivia</button>
+      @if(count($landmarkList) > 0)
+      <button class="btn btn-add" onclick="openAdd()">Add Trivia</button>
+      @endif
     </div>
   </div>
 
@@ -336,24 +377,28 @@
   @if($triviaPaginator->total() > 0)
     <div class="cards">
       @foreach ($triviaPaginator as $t)
-        <div class="card">
-          <div class="landmark">
-            <span class="pill">🏷 {{ $t['landmark_name'] }}</span>
-          </div>
+        @php
+          $triviaLmKey = trim((string) ($t['landmark_id'] ?? ''));
+          $canEditTrivia = isset($writableLandmarkIdSet[$triviaLmKey]);
+        @endphp
+        <div class="card{{ $canEditTrivia ? ' card--editable' : '' }}">
+            @if ($canEditTrivia)
+                <div class="card-actions-abs">
+                    <button type="button" class="btn-trivia btn-trivia-edit" onclick='openEdit(@json($t))'>Edit</button>
+                    <form action="{{ route('curators.trivia.destroy', $t['trivia_id']) }}"
+                          method="POST"
+                          class="js-delete-form">
+                        @csrf @method('DELETE')
+                        <button type="submit" class="btn-trivia btn-trivia-del">Delete</button>
+                    </form>
+                </div>
+            @endif
 
-          <div class="qtext">
-            {{ $t['question'] }}
-          </div>
+            <span class="pill">{{ $t['landmark_name'] }}</span>
 
-          <div class="actions">
-            <button class="btn btn-edit" onclick='openEdit(@json($t))'>✏️ Edit</button>
-            <form action="{{ route('curators.trivia.destroy', $t['trivia_id']) }}"
-                  method="POST"
-                  class="js-delete-form">
-              @csrf @method('DELETE')
-              <button class="btn btn-del" type="submit">🗑 Delete</button>
-            </form>
-          </div>
+            <div class="qtext">
+                {{ $t['question'] }}
+            </div>
         </div>
       @endforeach
     </div>
@@ -361,7 +406,7 @@
     @if ($triviaPaginator->lastPage() > 1)
       <div class="pager">
         <a href="{{ $triviaPaginator->previousPageUrl() ?: '#' }}"
-           class="page-btn {{ $triviaPaginator->onFirstPage() ? 'disabled' : '' }}">← Prev</a>
+           class="page-btn {{ $triviaPaginator->onFirstPage() ? 'disabled' : '' }}">Prev</a>
 
         @for ($page = 1; $page <= $triviaPaginator->lastPage(); $page++)
           <a href="{{ $triviaPaginator->url($page) }}"
@@ -371,7 +416,7 @@
         @endfor
 
         <a href="{{ $triviaPaginator->hasMorePages() ? $triviaPaginator->nextPageUrl() : '#' }}"
-           class="page-btn {{ $triviaPaginator->hasMorePages() ? '' : 'disabled' }}">Next →</a>
+           class="page-btn {{ $triviaPaginator->hasMorePages() ? '' : 'disabled' }}">Next</a>
       </div>
     @endif
   @else
@@ -410,7 +455,7 @@
           </div>
           @endfor
         </div>
-        <button type="button" class="btn btn-ghost" onclick="addChoice('addChoices')">＋ Add Choice</button>
+        <button type="button" class="btn btn-ghost" onclick="addChoice('addChoices')">Add Choice</button>
       </div>
 
       <div style="display:flex;gap:.5rem;justify-content:flex-end;margin-top:.75rem">
@@ -436,7 +481,7 @@
       <div class="row">
         <label>Choices (select one correct)</label>
         <div id="editChoices"></div>
-        <button type="button" class="btn btn-ghost" onclick="addChoice('editChoices')">＋ Add Choice</button>
+        <button type="button" class="btn btn-ghost" onclick="addChoice('editChoices')">Add Choice</button>
       </div>
 
       <div style="display:flex;gap:.5rem;justify-content:flex-end;margin-top:.75rem">

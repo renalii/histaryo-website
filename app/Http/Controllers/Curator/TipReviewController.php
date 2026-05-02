@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Curator;
 
 use App\Http\Controllers\Controller;
+use App\Support\CuratorAssignedLandmark;
 use App\Services\FirebaseService;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Http\Request;
@@ -59,6 +60,9 @@ class TipReviewController extends Controller
 
     private function fetchTips(string $statusFilter = 'all'): array
     {
+        $writableSet = $this->landmarkIdKeySet(CuratorAssignedLandmark::writableIds());
+        $browseableSet = $this->landmarkIdKeySet(CuratorAssignedLandmark::browseableIds());
+
         $tips = [];
         foreach ($this->tipCollections as $collectionName) {
             $tipsSnapshot = $this->firestore->collection($collectionName)->documents();
@@ -80,6 +84,19 @@ class TipReviewController extends Controller
                     continue;
                 }
 
+                $tipLandmarkId = trim((string) ($data['landmark_id'] ?? $data['landmarkId'] ?? ''));
+
+                // crowdsourced_tips: show any tip tied to an active (browseable) landmark.
+                // tips / user_tips: still scoped to landmarks this curator may edit.
+                $scopeSet = $collectionName === 'crowdsourced_tips' ? $browseableSet : $writableSet;
+                if ($scopeSet !== []) {
+                    if ($tipLandmarkId === '' || ! isset($scopeSet[$tipLandmarkId])) {
+                        continue;
+                    }
+                }
+
+                $canModerate = $tipLandmarkId !== '' && isset($writableSet[$tipLandmarkId]);
+
                 $createdAtRaw = $data['created_at'] ?? $data['createdAt'] ?? null;
                 $reviewedAtRaw = $data['reviewed_at'] ?? $data['reviewedAt'] ?? null;
 
@@ -94,13 +111,19 @@ class TipReviewController extends Controller
                     $submittedBy = 'Unknown User';
                 }
 
+                $title = (string) ($data['title'] ?? '');
+                if ($title === '' && is_array($data['tags'] ?? null)) {
+                    $title = (string) (($data['tags']['title'] ?? '') ?: '');
+                }
+
                 $tips[] = [
                     'id' => $doc->id(),
                     'source_collection' => $collectionName,
-                    'landmark_id' => (string) ($data['landmark_id'] ?? $data['landmarkId'] ?? ''),
+                    'landmark_id' => $tipLandmarkId,
                     'landmark_name' => (string) ($data['landmark_name'] ?? $data['landmarkName'] ?? ''),
                     'content' => (string) ($data['content'] ?? $data['message'] ?? ''),
-                    'title' => (string) ($data['title'] ?? ''),
+                    'title' => $title,
+                    'can_moderate' => $canModerate,
                     'type' => (string) ($data['type'] ?? ''),
                     'submitted_by' => $submittedBy,
                     'submitted_email' => $submittedEmail,
@@ -143,6 +166,12 @@ class TipReviewController extends Controller
             return redirect()->route('curators.tips.index')->with('error', 'Tip not found.');
         }
 
+        $tipData = $tipDoc->data();
+        $tipLm = trim((string) ($tipData['landmark_id'] ?? $tipData['landmarkId'] ?? ''));
+        if (! CuratorAssignedLandmark::canAccess($tipLm)) {
+            abort(403);
+        }
+
         $decision = $payload['decision'];
         $tipRef->set([
             'status' => $decision,
@@ -167,6 +196,23 @@ class TipReviewController extends Controller
                 'status' => $payload['status_filter'] ?? 'pending',
             ])
             ->with('success', 'Tip has been ' . $decision . '.');
+    }
+
+    /**
+     * @param  list<string>  $ids
+     * @return array<string, true>
+     */
+    private function landmarkIdKeySet(array $ids): array
+    {
+        $set = [];
+        foreach ($ids as $id) {
+            $k = trim((string) $id);
+            if ($k !== '') {
+                $set[$k] = true;
+            }
+        }
+
+        return $set;
     }
 
     private function formatDate($value): string

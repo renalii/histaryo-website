@@ -24,9 +24,12 @@
 <body>
 
     <h2>Landmark Details</h2>
-    <a href="{{ route('landmarks.index') }}">← Back to Landmarks</a>
+    <a href="{{ route('landmarks.index') }}">Back to Landmarks</a>
 
     <p><strong>Name:</strong> {{ $landmark['name'] ?? 'N/A' }}</p>
+    @if (! empty($landmark['landmarkcode'] ?? ''))
+        <p><strong>Landmark code:</strong> {{ $landmark['landmarkcode'] }}</p>
+    @endif
     <p><strong>Description:</strong> {{ $landmark['description'] ?? 'N/A' }}</p>
     <p><strong>Latitude:</strong> {{ $landmark['latitude'] ?? 'N/A' }}</p>
     <p><strong>Longitude:</strong> {{ $landmark['longitude'] ?? 'N/A' }}</p>

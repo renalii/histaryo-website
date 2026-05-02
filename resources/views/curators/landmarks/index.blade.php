@@ -2,12 +2,27 @@
 
 @section('content')
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
-        <h2 style="font-size: 1.5rem; font-weight: 700; color: #7A2E1F; margin: 0;">📦 Landmarks</h2>
-
-        <button onclick="openModal('createModal')" style="background-color: #E8B34B; color: #7A2E1F; padding: 10px 16px; font-weight: 700; border-radius: 6px; border: 1px solid #F3C96A; cursor: pointer;">
-            + Add New Landmark
-        </button>
+        <div>
+            <h2 style="font-size: 1.5rem; font-weight: 700; color: #7A2E1F; margin: 0;">
+                {{ ($landmarks->total() ?? 0) === 1 ? 'Landmark' : 'Landmarks' }}
+            </h2>
+        </div>
     </div>
+
+    @if (! empty($landmarkManagerAttribution ?? null))
+        <div role="status" style="margin-bottom: 1.35rem; padding: 1rem 1.15rem; border-radius: 12px; border: 1px solid #fde68a; background: linear-gradient(135deg, #fffbeb, #fffdf5); color: #78350f;">
+            <p style="margin: 0; font-size: 0.92rem; line-height: 1.5;">
+                <strong style="font-weight: 700;">Landmark Manager.</strong>
+                @if (($landmarks->total() ?? 0) === 1)
+                    This landmark is created and managed in the Landmark Manager panel by
+                @else
+                    These landmarks are created and managed in the Landmark Manager panel by
+                @endif
+                <strong style="font-weight: 700;">{{ $landmarkManagerAttribution }}</strong>.
+                You joined with a curator join code they provided; you can work on {{ ($landmarks->total() ?? 0) === 1 ? 'the site record' : 'these site records' }} they own.
+            </p>
+        </div>
+    @endif
 
     {{-- Flash --}}
     @if (session('success'))
@@ -31,7 +46,7 @@
                             appearance: none;
                             -webkit-appearance: none;
                             -moz-appearance: none;
-                            padding: .6rem 2.5rem .6rem 1rem;
+                            padding: .6rem 1rem;
                             border: 1px solid #d1d5db;
                             border-radius: 10px;
                             font-size: .95rem;
@@ -52,17 +67,6 @@
                     <option value="Modern" {{ ($selectedCategory ?? '') == 'Modern' ? 'selected' : '' }}>Modern</option>
                 </select>
 
-                {{-- Custom arrow --}}
-                <span style="
-                    position: absolute;
-                    right: 1rem;
-                    top: 50%;
-                    transform: translateY(-50%);
-                    pointer-events: none;
-                    font-size: .85rem;
-                    color: #6b7280;">
-                    ▼
-                </span>
             </div>
         </form>
     </div>
@@ -71,7 +75,7 @@
     @if ($landmarks->total() === 0)
         <p style="color: #6b7280;">No landmarks available.</p>
     @else
-        <div class="lm-landmark-grid" style="display: flex; flex-wrap: wrap; gap: 1.5rem; align-items: stretch;">
+        <div class="lm-landmark-grid" style="display: grid; width: 100%; grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr)); gap: 1.5rem; align-items: stretch;">
             @foreach ($landmarks as $landmark)
                 @php
                     $data = $landmark->data();
@@ -94,14 +98,19 @@
                     }
                 @endphp
 
-                <div class="lm-landmark-card" style="background: white; border-radius: 10px; padding: 1.5rem; box-shadow: 0 2px 8px rgba(0,0,0,0.05); width: 100%; max-width: 420px;">
+                <div class="lm-landmark-card" style="background: white; border-radius: 10px; padding: 1.5rem; box-shadow: 0 2px 8px rgba(0,0,0,0.05); width: 100%; min-width: 0;">
                     <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 0.75rem;">
                         <div style="min-width: 0; flex: 1;">
                             <strong style="font-size: 1.2rem; color: #7A2E1F; display: block;">{{ $data['name'] ?? 'Unnamed Landmark' }}</strong>
                             {{-- Category --}}
                             <p style="margin: 0.25rem 0 0; font-size: 0.85rem; color: #2563eb; font-weight: 600;">
-                                🏷️ {{ $data['category'] ?? 'Uncategorized' }}
+                                {{ $data['category'] ?? 'Uncategorized' }}
                             </p>
+                            @if (! empty($data['landmarkcode'] ?? ''))
+                                <p style="margin: 0.35rem 0 0; font-size: 0.8rem; color: #6b7280; font-family: ui-monospace, monospace;">
+                                    Landmark code: <strong style="color: #374151;">{{ $data['landmarkcode'] }}</strong>
+                                </p>
+                            @endif
                         </div>
                         <div class="lm-card-menu-wrap" style="position: relative; flex-shrink: 0;">
                             <button type="button"
@@ -119,16 +128,12 @@
                                    role="menuitem"
                                    class="lm-card-menu-item lm-card-menu-item--qr"
                                    onclick="closeLandmarkMenus()">Download QR</a>
-                                <form id="deleteLandmarkForm{{ $loop->index }}" action="{{ route('landmarks.destroy', ['landmark' => $landmark->id()]) }}" method="POST" class="lm-card-menu-form">
-                                    @csrf
-                                    @method('DELETE')
-                                    <button type="button"
-                                            role="menuitem"
-                                            class="lm-card-menu-item lm-card-menu-item--delete"
-                                            data-delete-form="deleteLandmarkForm{{ $loop->index }}"
-                                            data-landmark-name="{{ $data['name'] ?? 'Unnamed Landmark' }}"
-                                            onclick="closeLandmarkMenus(); openDeleteLandmarkModal(this)">Delete</button>
-                                </form>
+                                <button type="button"
+                                        role="menuitem"
+                                        class="lm-card-menu-item lm-card-menu-item--delete"
+                                        data-delete-url="{{ route('landmarks.destroy', $landmark->id()) }}"
+                                        data-delete-name="{{ e($data['name'] ?? 'this landmark') }}"
+                                        onclick="closeLandmarkMenus(); openLandmarkDeleteModal(this)">Delete</button>
                             </div>
                         </div>
                     </div>
@@ -152,6 +157,9 @@
                         <span class="close" onclick="closeModal('showModal{{ $loop->index }}')">&times;</span>
                         <h3>{{ $data['name'] ?? 'Unnamed Landmark' }}</h3>
                         <p><strong>Category:</strong> {{ $data['category'] ?? 'Uncategorized' }}</p>
+                        @if (! empty($data['landmarkcode'] ?? ''))
+                            <p><strong>Landmark code:</strong> {{ $data['landmarkcode'] }}</p>
+                        @endif
                         <p>{{ $data['description'] ?? 'No description.' }}</p>
                         <p>Latitude: {{ $data['latitude'] ?? 'N/A' }}</p>
                         <p>Longitude: {{ $data['longitude'] ?? 'N/A' }}</p>
@@ -177,10 +185,16 @@
                             @method('PUT')
 
                             <label>Name:</label>
-                            <input type="text" name="name" value="{{ $data['name'] }}" required>
+                            <input type="text" name="name" value="{{ $data['name'] ?? '' }}" required>
+
+                            @if (! empty($data['landmarkcode'] ?? ''))
+                                <label>Landmark code</label>
+                                <p style="margin: -0.5rem 0 0.75rem 0; font-size: 0.875rem; color: #4b5563; font-family: ui-monospace, monospace;">{{ $data['landmarkcode'] }}</p>
+                            @endif
 
                             <label>Category:</label>
                             <select name="category" required>
+                                <option value="Unspecified" {{ ($data['category'] ?? '') == 'Unspecified' ? 'selected' : '' }}>Unspecified</option>
                                 <option value="Historical" {{ ($data['category'] ?? '') == 'Historical' ? 'selected' : '' }}>Historical</option>
                                 <option value="Natural" {{ ($data['category'] ?? '') == 'Natural' ? 'selected' : '' }}>Natural</option>
                                 <option value="Cultural" {{ ($data['category'] ?? '') == 'Cultural' ? 'selected' : '' }}>Cultural</option>
@@ -189,13 +203,13 @@
                             </select>
 
                             <label>Description:</label>
-                            <textarea name="description">{{ $data['description'] }}</textarea>
+                            <textarea name="description">{{ $data['description'] ?? '' }}</textarea>
 
                             <label>Latitude:</label>
-                            <input type="text" name="latitude" value="{{ $data['latitude'] }}" required>
+                            <input type="text" name="latitude" value="{{ $data['latitude'] ?? '' }}" inputmode="decimal" placeholder="Optional — e.g. 10.2925">
 
                             <label>Longitude:</label>
-                            <input type="text" name="longitude" value="{{ $data['longitude'] }}" required>
+                            <input type="text" name="longitude" value="{{ $data['longitude'] ?? '' }}" inputmode="decimal" placeholder="Optional — e.g. 123.9022">
 
                             <label>Video URL:</label>
                             <input type="url" name="video_url" value="{{ $data['video_url'] ?? '' }}">
@@ -210,14 +224,31 @@
             @endforeach
         </div>
 
+        {{-- Delete landmark (shared; outside card grid) --}}
+        <div id="landmarkDeleteModal" class="modal">
+            <div class="modal-content" style="max-width: 420px;">
+                <span class="close" onclick="closeModal('landmarkDeleteModal')">&times;</span>
+                <h3 style="margin-top: 0;">Delete landmark?</h3>
+                <p style="color: #4b5563; font-size: 0.95rem; line-height: 1.5;">
+                    This will permanently remove <strong id="landmarkDeleteNameDisplay"></strong> and related QR mappings and trivia in the question bank.
+                </p>
+                <form id="landmarkDeleteForm" method="POST" style="margin-top: 1.25rem; display: flex; gap: 0.75rem; flex-wrap: wrap; justify-content: flex-end;">
+                    @csrf
+                    @method('DELETE')
+                    <button type="button" onclick="closeModal('landmarkDeleteModal')" style="padding: 0.5rem 1rem; border-radius: 8px; border: 1px solid #d1d5db; background: #fff; color: #374151; font-weight: 600; cursor: pointer;">Cancel</button>
+                    <button type="submit" style="padding: 0.5rem 1rem; border-radius: 8px; border: 1px solid #fecaca; background: #fee2e2; color: #991b1b; font-weight: 700; cursor: pointer;">Delete</button>
+                </form>
+            </div>
+        </div>
+
         {{-- Pagination --}}
         @if ($landmarks->hasPages())
             <div style="display:flex; justify-content:flex-end; margin-top:1.4rem;">
                 <div style="display:flex; align-items:center; gap:.5rem; padding:.2rem;">
                     @if ($landmarks->onFirstPage())
-                        <span aria-disabled="true" style="padding:.42rem .7rem; border-radius:7px; background:#f3f4f6; color:#c0c4cc; cursor:not-allowed; font-weight:600; border:1px solid #eef1f5;">← Prev</span>
+                        <span aria-disabled="true" style="padding:.42rem .7rem; border-radius:7px; background:#f3f4f6; color:#c0c4cc; cursor:not-allowed; font-weight:600; border:1px solid #eef1f5;">Prev</span>
                     @else
-                        <a href="{{ $landmarks->previousPageUrl() }}" aria-label="Go to previous page" style="padding:.42rem .7rem; border-radius:7px; background:#f8fafc; color:#6b7280; text-decoration:none; border:1px solid #e5e7eb; font-weight:600;">← Prev</a>
+                        <a href="{{ $landmarks->previousPageUrl() }}" aria-label="Go to previous page" style="padding:.42rem .7rem; border-radius:7px; background:#f8fafc; color:#6b7280; text-decoration:none; border:1px solid #e5e7eb; font-weight:600;">Prev</a>
                     @endif
 
                     <span style="color:#6b7280; font-weight:600; padding:0 .15rem;">
@@ -225,66 +256,14 @@
                     </span>
 
                     @if ($landmarks->hasMorePages())
-                        <a href="{{ $landmarks->nextPageUrl() }}" aria-label="Go to next page" style="padding:.42rem .7rem; border-radius:7px; background:#E8B34B; color:#7A2E1F; text-decoration:none; border:1px solid #F3C96A; font-weight:700;">Next →</a>
+                        <a href="{{ $landmarks->nextPageUrl() }}" aria-label="Go to next page" style="padding:.42rem .7rem; border-radius:7px; background:#E8B34B; color:#7A2E1F; text-decoration:none; border:1px solid #F3C96A; font-weight:700;">Next</a>
                     @else
-                        <span aria-disabled="true" style="padding:.42rem .7rem; border-radius:7px; background:#f3f4f6; color:#c0c4cc; cursor:not-allowed; font-weight:600; border:1px solid #eef1f5;">Next →</span>
+                        <span aria-disabled="true" style="padding:.42rem .7rem; border-radius:7px; background:#f3f4f6; color:#c0c4cc; cursor:not-allowed; font-weight:600; border:1px solid #eef1f5;">Next</span>
                     @endif
                 </div>
             </div>
         @endif
     @endif
-
-    {{-- Delete confirmation --}}
-    <div id="deleteLandmarkModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="deleteLandmarkModalTitle">
-        <div class="modal-content lm-delete-modal-content">
-            <span class="close" onclick="closeModal('deleteLandmarkModal')" aria-label="Close">&times;</span>
-            <h3 id="deleteLandmarkModalTitle" class="lm-delete-modal-title">Delete Landmark</h3>
-            <p id="deleteLandmarkModalMessage" class="lm-delete-modal-message"></p>
-            <div class="lm-delete-modal-actions">
-                <button type="button" class="lm-delete-confirm-btn" id="deleteLandmarkConfirmBtn">Delete</button>
-                <button type="button" class="lm-delete-cancel-btn" onclick="closeModal('deleteLandmarkModal')">Cancel</button>
-            </div>
-        </div>
-    </div>
-
-    {{-- Create Modal --}}
-    <div id="createModal" class="modal">
-        <div class="modal-content">
-            <span class="close" onclick="closeModal('createModal')">&times;</span>
-            <form method="POST" action="{{ route('landmarks.store') }}" enctype="multipart/form-data">
-                @csrf
-
-                <label>Landmark Name:</label>
-                <input type="text" name="name" required>
-
-                <label>Category:</label>
-                <select name="category" required>
-                    <option value="Historical">Historical</option>
-                    <option value="Natural">Natural</option>
-                    <option value="Cultural">Cultural</option>
-                    <option value="Religious">Religious</option>
-                    <option value="Modern">Modern</option>
-                </select>
-
-                <label>Description:</label>
-                <textarea name="description" rows="4" cols="50"></textarea>
-
-                <label>Latitude:</label>
-                <input type="text" name="latitude" placeholder="e.g., 10.3157" required>
-
-                <label>Longitude:</label>
-                <input type="text" name="longitude" placeholder="e.g., 123.8854" required>
-
-                <label>Video URL:</label>
-                <input type="url" name="video_url">
-
-                <label>Upload Old Photo:</label>
-                <input type="file" name="image" accept="image/*">
-
-                <button type="submit">Save</button>
-            </form>
-        </div>
-    </div>
 
     {{-- Styles --}}
     <style>
@@ -375,26 +354,28 @@
             padding: 0;
             border: 1px solid #e5e7eb;
             border-radius: 8px;
-            background: #f9fafb;
-            color: #4b5563;
-            font-size: 1.25rem;
-            line-height: 1;
+            background: #fff;
+            color: #6b7280;
             cursor: pointer;
             display: flex;
             align-items: center;
             justify-content: center;
+            font-size: 1.25rem;
+            line-height: 1;
+            letter-spacing: 0;
             transition: background 0.15s, border-color 0.15s, color 0.15s;
         }
         .lm-card-menu-btn:hover {
-            background: #f3f4f6;
+            background: #f9fafb;
             border-color: #d1d5db;
-            color: #111827;
+            color: #374151;
         }
         .lm-card-menu {
             position: absolute;
             top: calc(100% + 4px);
             right: 0;
-            min-width: 11rem;
+            min-width: 12.5rem;
+            max-width: 16rem;
             padding: 0.35rem 0;
             margin: 0;
             background: #fff;
@@ -423,14 +404,16 @@
             font-family: inherit;
             box-sizing: border-box;
             transition: background 0.12s;
+            color: #374151;
         }
         .lm-card-menu-item:hover {
             background: #f3f4f6;
         }
-        .lm-card-menu-item--view { color: #2563eb; }
-        .lm-card-menu-item--edit { color: #92400e; }
-        .lm-card-menu-item--qr { color: #16a34a; }
-        .lm-card-menu-item--delete { color: #dc2626; }
+        .lm-card-menu-item--view { color: #374151; }
+        .lm-card-menu-item--edit { color: #374151; }
+        .lm-card-menu-item--qr { color: #374151; }
+        .lm-card-menu-item--delete { color: #b91c1c; }
+        .lm-card-menu-item--delete:hover { background: #fef2f2; }
         .lm-card-menu-form {
             margin: 0;
             padding: 0;
@@ -447,65 +430,10 @@
             padding-top: 0.5rem;
         }
 
-        .lm-delete-modal-content {
-            max-width: 440px;
-        }
-        .modal-content .lm-delete-modal-title {
-            color: #7A2E1F;
-            font-size: 1.35rem;
-            margin-bottom: 0.75rem;
-        }
-        .lm-delete-modal-message {
-            color: #4b5563;
-            line-height: 1.55;
-            margin: 0;
-            font-size: 0.95rem;
-        }
-        .lm-delete-modal-actions {
-            display: flex;
-            flex-wrap: wrap;
-            align-items: center;
-            gap: 0.65rem;
-            margin-top: 1.35rem;
-        }
-        .lm-delete-confirm-btn {
-            background-color: #dc2626;
-            color: #fff;
-            border: 1px solid #b91c1c;
-            padding: 0.5rem 1.15rem;
-            border-radius: 8px;
-            font-weight: 700;
-            font-size: 0.9rem;
-            cursor: pointer;
-            font-family: inherit;
-            transition: background-color 0.15s, border-color 0.15s;
-        }
-        .lm-delete-confirm-btn:hover {
-            background-color: #b91c1c;
-            border-color: #991b1b;
-        }
-        .lm-delete-cancel-btn {
-            background: #fff;
-            color: #374151;
-            border: 1px solid #d1d5db;
-            padding: 0.5rem 1.15rem;
-            border-radius: 8px;
-            font-weight: 600;
-            font-size: 0.9rem;
-            cursor: pointer;
-            font-family: inherit;
-            transition: background 0.15s, border-color 0.15s;
-        }
-        .lm-delete-cancel-btn:hover {
-            background: #f9fafb;
-            border-color: #9ca3af;
-        }
     </style>
 
     {{-- Scripts --}}
     <script>
-        var pendingDeleteLandmarkForm = null;
-
         function openModal(id) {
             document.getElementById(id).style.display = 'flex';
             document.body.style.overflow = 'hidden';
@@ -513,28 +441,6 @@
         function closeModal(id) {
             document.getElementById(id).style.display = 'none';
             document.body.style.overflow = '';
-            if (id === 'deleteLandmarkModal') {
-                pendingDeleteLandmarkForm = null;
-            }
-        }
-        function openDeleteLandmarkModal(btn) {
-            var formId = btn.getAttribute('data-delete-form');
-            var form = formId ? document.getElementById(formId) : null;
-            if (!form) return;
-            pendingDeleteLandmarkForm = form;
-            var name = btn.getAttribute('data-landmark-name') || 'Unnamed Landmark';
-            var msgEl = document.getElementById('deleteLandmarkModalMessage');
-            if (msgEl) {
-                msgEl.textContent = 'Are you sure you want to delete \u201c' + name + '\u201d?';
-            }
-            openModal('deleteLandmarkModal');
-        }
-        function confirmDeleteLandmark() {
-            if (pendingDeleteLandmarkForm) {
-                pendingDeleteLandmarkForm.submit();
-            }
-            pendingDeleteLandmarkForm = null;
-            closeModal('deleteLandmarkModal');
         }
         function closeLandmarkMenus() {
             document.querySelectorAll('.lm-card-menu').forEach(function (menu) {
@@ -556,6 +462,19 @@
                 btn.setAttribute('aria-expanded', 'true');
             }
         }
+        function openLandmarkDeleteModal(btn) {
+            var url = btn.getAttribute('data-delete-url');
+            var name = btn.getAttribute('data-delete-name') || 'this landmark';
+            var form = document.getElementById('landmarkDeleteForm');
+            var label = document.getElementById('landmarkDeleteNameDisplay');
+            if (form && url) {
+                form.action = url;
+            }
+            if (label) {
+                label.textContent = name;
+            }
+            openModal('landmarkDeleteModal');
+        }
         window.onclick = function(event) {
             if (!event.target.closest('.lm-card-menu-wrap')) {
                 closeLandmarkMenus();
@@ -565,16 +484,8 @@
                 if (event.target === modal) {
                     modal.style.display = "none";
                     document.body.style.overflow = '';
-                    if (modal.id === 'deleteLandmarkModal') {
-                        pendingDeleteLandmarkForm = null;
-                    }
                 }
             });
         };
-
-        var deleteConfirmBtn = document.getElementById('deleteLandmarkConfirmBtn');
-        if (deleteConfirmBtn) {
-            deleteConfirmBtn.addEventListener('click', confirmDeleteLandmark);
-        }
     </script>
 @endsection

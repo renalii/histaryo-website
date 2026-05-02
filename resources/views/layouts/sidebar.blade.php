@@ -5,16 +5,24 @@
 
   if (request()->routeIs('admin.dashboard')) {
     $pageTitle = 'Admin Dashboard';
+  } elseif (request()->routeIs('landmarkmanager.dashboard')) {
+    $pageTitle = 'Landmark Manager';
   } elseif (request()->routeIs('admin.users')) {
     $pageTitle = 'Admin Users';
-  } elseif (request()->routeIs('admin.landmarks')) {
-    $pageTitle = 'Admin Landmarks';
+  } elseif (request()->routeIs('landmarkmanager.curators')) {
+    $pageTitle = 'Curators';
+  } elseif (request()->routeIs('landmarkmanager.landmarks.create')) {
+    $pageTitle = 'Create landmark';
+  } elseif (request()->routeIs('admin.landmarks') || request()->routeIs('landmarkmanager.landmarks')) {
+    $pageTitle = 'Landmarks';
   } elseif (request()->routeIs('admin.logs')) {
     $pageTitle = 'Admin Logs';
   } elseif (request()->routeIs('admin.reports')) {
     $pageTitle = 'Admin Reports';
   } elseif (request()->routeIs('curators.dashboard')) {
     $pageTitle = 'Curator Dashboard';
+  } elseif (request()->routeIs('curators.pending-assignment')) {
+    $pageTitle = 'Assignment pending';
   } elseif (request()->routeIs('curators.tips.*')) {
     $pageTitle = 'Curator Tips Review';
   }
@@ -133,6 +141,7 @@
 
     .main-content {
       flex: 1;
+      min-width: 0;
       padding: 2.5rem;
       height: 100vh;        
       overflow-y: auto;     
@@ -157,19 +166,30 @@
       <h2>Histaryo</h2>
       <nav class="nav-links">
         @if(session('role') === 'curator')
-          <a href="{{ route('curators.dashboard') }}"><span class="nav-icon">🏠</span><span class="nav-label">Dashboard</span></a>
-          <a href="{{ route('landmarks.index') }}"><span class="nav-icon">📍</span><span class="nav-label">Landmarks</span></a>
-          <a href="{{ route('curators.trivia.all') }}"><span class="nav-icon">❓</span><span class="nav-label">Trivia</span></a>
-          <a href="{{ route('curators.tips.index') }}"><span class="nav-icon">💡</span><span class="nav-label">Tips Review</span></a>
-          <a href="{{ route('curators.map') }}"><span class="nav-icon">🗺️</span><span class="nav-label">Map</span></a>
-          <a href="{{ route('curators.qr') }}"><span class="nav-icon">📱</span><span class="nav-label">QR Codes</span></a>
+          @php
+            $curatorHasLandmark = is_string(session('assigned_landmark_id')) && trim(session('assigned_landmark_id')) !== '';
+          @endphp
+          @if($curatorHasLandmark)
+            <a href="{{ route('curators.dashboard') }}"><span class="nav-label">Dashboard</span></a>
+            <a href="{{ route('landmarks.index') }}"><span class="nav-label">Landmarks</span></a>
+            <a href="{{ route('curators.trivia.all') }}"><span class="nav-label">Trivia</span></a>
+            <a href="{{ route('curators.tips.index') }}"><span class="nav-label">Tips Review</span></a>
+            <a href="{{ route('curators.map') }}"><span class="nav-label">Map</span></a>
+            <a href="{{ route('curators.qr') }}"><span class="nav-label">QR Codes</span></a>
+          @else
+            <a href="{{ route('curators.pending-assignment') }}"><span class="nav-label">Assignment pending</span></a>
+          @endif
         @elseif(session('role') === 'admin')
-          <a href="{{ route('admin.dashboard') }}"><span class="nav-icon">🏠</span><span class="nav-label">Dashboard</span></a>
-          <a href="{{ route('admin.users') }}"><span class="nav-icon">👥</span><span class="nav-label">Users</span></a>
-          <!-- <a href="{{ route('admin.curators') }}">🧑‍🏫 <span>Curators</span></a> -->
-          <a href="{{ route('admin.landmarks') }}"><span class="nav-icon">🧭</span><span class="nav-label">Landmarks</span></a>
-          <a href="{{ route('admin.logs') }}"><span class="nav-icon">📋</span><span class="nav-label">Logs</span></a>
-          <a href="{{ route('admin.reports') }}"><span class="nav-icon">📊</span><span class="nav-label">Reports</span></a>
+          <a href="{{ route('admin.dashboard') }}"><span class="nav-label">Dashboard</span></a>
+          <a href="{{ route('admin.users') }}"><span class="nav-label">Users</span></a>
+          <a href="{{ route('admin.landmarks') }}"><span class="nav-label">Landmarks</span></a>
+          <a href="{{ route('admin.logs') }}"><span class="nav-label">Logs</span></a>
+          <a href="{{ route('admin.reports') }}"><span class="nav-label">Reports</span></a>
+        @elseif(session('role') === 'landmark_manager')
+          <a href="{{ route('landmarkmanager.dashboard') }}"><span class="nav-label">Dashboard</span></a>
+          <a href="{{ route('landmarkmanager.curators') }}"><span class="nav-label">Curators</span></a>
+          <a href="{{ route('landmarkmanager.landmarks') }}"><span class="nav-label">Landmarks</span></a>
+          <a href="{{ route('landmarkmanager.landmarks.create') }}"><span class="nav-label">Create landmark</span></a>
         @endif
       </nav>
     </div>
@@ -177,7 +197,7 @@
     <div class="logout">
       <form method="POST" action="{{ route('logout') }}">
         @csrf
-        <button type="submit">🚪 Logout</button>
+        <button type="submit">Logout</button>
       </form>
     </div>
   </aside>

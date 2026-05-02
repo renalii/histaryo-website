@@ -73,8 +73,8 @@
 
         .register-box {
             display: flex;
-            width: min(820px, 100%);
-            height: min(460px, calc(100vh - 120px));
+            width: min(920px, 100%);
+            height: min(630px, calc(100vh - 120px));
             background: var(--card);
             border-radius: 20px;
             overflow: hidden;
@@ -84,11 +84,65 @@
 
         .form-side {
             flex: 0.95;
+            min-height: 0;
             padding: 1.25rem 1.35rem;
             display: flex;
             flex-direction: column;
             justify-content: center;
+            overflow-y: auto;
             background: linear-gradient(180deg, #fff 0%, #fef9f4 100%);
+        }
+
+        .role-summary {
+            border: 1px solid var(--input-border);
+            border-radius: 8px;
+            padding: 0.5rem 0.62rem;
+            background: #fff;
+        }
+
+        .role-summary h3 {
+            margin: 0 0 0.25rem;
+            font-size: 0.72rem;
+            font-weight: 700;
+            color: var(--brand-dark);
+            letter-spacing: 0.02em;
+            text-transform: uppercase;
+        }
+
+        .role-summary p.role-summary-intro {
+            margin: 0 0 0.45rem;
+            font-size: 0.68rem;
+            color: var(--muted);
+            line-height: 1.35;
+        }
+
+        .role-summary .perms-label {
+            margin: 0 0 0.2rem;
+            font-size: 0.62rem;
+            font-weight: 700;
+            color: #654a39;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }
+
+        .role-summary ul {
+            margin: 0;
+            padding-left: 1rem;
+            font-size: 0.67rem;
+            color: #5c5048;
+            line-height: 1.45;
+        }
+
+        .role-summary li {
+            margin-bottom: 0.12rem;
+        }
+
+        .role-summary li:last-child {
+            margin-bottom: 0;
+        }
+
+        #landmark-manager-info .helper-note {
+            margin-top: 0.35rem;
         }
 
         .eyebrow {
@@ -126,14 +180,29 @@
             gap: 0.42rem;
         }
 
+        .name-row {
+            display: flex;
+            gap: 0.45rem;
+        }
+
+        .name-row .field {
+            flex: 1;
+            min-width: 0;
+        }
+
         .field label {
             font-size: 0.7rem;
             font-weight: 600;
             color: #654a39;
         }
 
+        .hidden {
+            display: none;
+        }
+
         form input,
-        form select {
+        form select,
+        form textarea {
             width: 100%;
             padding: 0.52rem 0.66rem;
             border-radius: 8px;
@@ -144,14 +213,73 @@
             background-color: #fff;
         }
 
-        form input::placeholder {
+        form textarea {
+            resize: vertical;
+            min-height: 4.5rem;
+            line-height: 1.45;
+            font-family: inherit;
+        }
+
+        form input::placeholder,
+        form textarea::placeholder {
             color: #9f938a;
         }
 
         form input:focus,
-        form select:focus {
+        form select:focus,
+        form textarea:focus {
             border-color: #b17853;
             box-shadow: 0 0 0 4px var(--focus-ring);
+        }
+
+        .choice-grid {
+            display: flex;
+            flex-direction: column;
+            gap: 0.42rem;
+            margin-top: 0.1rem;
+        }
+
+        .choice-card {
+            display: flex;
+            align-items: flex-start;
+            gap: 0.48rem;
+            padding: 0.52rem 0.62rem;
+            margin: 0;
+            border: 1px solid var(--input-border);
+            border-radius: 8px;
+            background: #fff;
+            cursor: pointer;
+            transition: border-color 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .choice-card:focus-within {
+            border-color: #b17853;
+            box-shadow: 0 0 0 3px var(--focus-ring);
+        }
+
+        .choice-card input[type="radio"] {
+            width: auto;
+            margin: 0.2rem 0 0;
+            accent-color: var(--brand-dark);
+            flex-shrink: 0;
+        }
+
+        .choice-card > span {
+            display: flex;
+            flex-direction: column;
+            gap: 0.18rem;
+        }
+
+        .choice-card strong {
+            font-size: 0.75rem;
+            color: var(--brand-dark);
+        }
+
+        .choice-card small {
+            font-size: 0.65rem;
+            color: var(--muted);
+            line-height: 1.35;
+            font-weight: 500;
         }
 
         form button {
@@ -336,6 +464,11 @@
                 gap: 0.42rem;
             }
 
+            .name-row {
+                flex-direction: column;
+                gap: 0.42rem;
+            }
+
             .overlay-card {
                 display: none;
             }
@@ -373,9 +506,15 @@
 
             <form method="POST" action="{{ route('register') }}" enctype="multipart/form-data">
                 @csrf
-                <div class="field">
-                    <label for="name">Full name</label>
-                    <input id="name" type="text" name="name" placeholder="Enter your full name" value="{{ old('name') }}" autocomplete="name" required autofocus>
+                <div class="name-row">
+                    <div class="field">
+                        <label for="first_name">First name</label>
+                        <input id="first_name" type="text" name="first_name" placeholder="First name" value="{{ old('first_name') }}" autocomplete="given-name" required autofocus>
+                    </div>
+                    <div class="field">
+                        <label for="last_name">Last name</label>
+                        <input id="last_name" type="text" name="last_name" placeholder="Last name" value="{{ old('last_name') }}" autocomplete="family-name" required>
+                    </div>
                 </div>
                 <div class="field">
                     <label for="email">Email</label>
@@ -391,7 +530,60 @@
                         <option value="">Select role</option>
                         <option value="admin" {{ old('role') == 'admin' ? 'selected' : '' }}>Admin</option>
                         <option value="curator" {{ old('role') == 'curator' ? 'selected' : '' }}>Curator</option>
+                        <option value="landmark_manager" {{ old('role') == 'landmark_manager' ? 'selected' : '' }}>Landmark Manager</option>
                     </select>
+                </div>
+
+                <div class="field {{ old('role') === 'landmark_manager' ? '' : 'hidden' }}" id="landmark-manager-info" aria-live="polite">
+                    <div class="role-summary">
+                        <h3>Landmark Manager role</h3>
+                        <p class="role-summary-intro">A Landmark Manager can manage multiple curators. That is their main responsibility—overseeing and managing curators.</p>
+                        <p class="perms-label">Permissions</p>
+                        <ul>
+                            <li>Manage and monitor curators</li>
+                            <li>Add displays (items within the landmark)</li>
+                            <li>Edit landmark details</li>
+                        </ul>
+                    </div>
+                    <p class="helper-note">Landmark Manager accounts require admin approval after registration.</p>
+                </div>
+
+                <div class="field {{ old('role') === 'curator' ? '' : 'hidden' }}" id="curator-options">
+                    <label>Register as Curator</label>
+                    <div class="choice-grid">
+                        <label class="choice-card" for="curator_registration_type_new_landmark">
+                            <input
+                                id="curator_registration_type_new_landmark"
+                                type="radio"
+                                name="curator_registration_type"
+                                value="new_landmark"
+                                {{ old('curator_registration_type', 'new_landmark') === 'new_landmark' ? 'checked' : '' }}
+                            >
+                            <span>
+                                <strong>New Landmark</strong>
+                                <small>If selected, registration requires admin approval.</small>
+                            </span>
+                        </label>
+
+                        <label class="choice-card" for="curator_registration_type_existing_landmark">
+                            <input
+                                id="curator_registration_type_existing_landmark"
+                                type="radio"
+                                name="curator_registration_type"
+                                value="existing_landmark"
+                                {{ old('curator_registration_type') === 'existing_landmark' ? 'checked' : '' }}
+                            >
+                            <span>
+                                <strong>Existing Landmark</strong>
+                                <small>Join with the curator code from your Landmark Manager—approval stays pending until they confirm.</small>
+                            </span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="field {{ old('role') === 'curator' && old('curator_registration_type', 'new_landmark') === 'existing_landmark' ? '' : 'hidden' }}" id="landmark-code-field">
+                    <label for="landmark_code">Landmark code</label>
+                    <input id="landmark_code" type="text" name="landmark_code" placeholder="Enter landmark code (e.g. LM-ABC123)" value="{{ old('landmark_code') }}">
                 </div>
 
                 <button type="submit">Register</button>
@@ -412,6 +604,62 @@
         </div>
     </div>
 </div>
+
+<script>
+    (function () {
+        const roleSelect = document.getElementById('role');
+        const landmarkManagerInfo = document.getElementById('landmark-manager-info');
+        const curatorOptions = document.getElementById('curator-options');
+        const landmarkCodeField = document.getElementById('landmark-code-field');
+        const landmarkCodeInput = document.getElementById('landmark_code');
+        const curatorTypeInputs = document.querySelectorAll('input[name="curator_registration_type"]');
+
+        function getSelectedCuratorType() {
+            for (const input of curatorTypeInputs) {
+                if (input.checked) {
+                    return input.value;
+                }
+            }
+            return '';
+        }
+
+        function updateCuratorFields() {
+            const isCurator = roleSelect && roleSelect.value === 'curator';
+            const isLandmarkManager = roleSelect && roleSelect.value === 'landmark_manager';
+            const selectedType = getSelectedCuratorType();
+            const needsLandmarkCode = isCurator && selectedType === 'existing_landmark';
+
+            if (landmarkManagerInfo) {
+                landmarkManagerInfo.classList.toggle('hidden', !isLandmarkManager);
+            }
+
+            if (curatorOptions) {
+                curatorOptions.classList.toggle('hidden', !isCurator);
+            }
+
+            if (landmarkCodeField) {
+                landmarkCodeField.classList.toggle('hidden', !needsLandmarkCode);
+            }
+
+            if (landmarkCodeInput) {
+                landmarkCodeInput.required = needsLandmarkCode;
+                if (!needsLandmarkCode) {
+                    landmarkCodeInput.value = '';
+                }
+            }
+        }
+
+        if (roleSelect) {
+            roleSelect.addEventListener('change', updateCuratorFields);
+        }
+
+        curatorTypeInputs.forEach((input) => {
+            input.addEventListener('change', updateCuratorFields);
+        });
+
+        updateCuratorFields();
+    })();
+</script>
 
 </body>
 </html>

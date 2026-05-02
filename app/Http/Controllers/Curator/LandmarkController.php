@@ -4,8 +4,7 @@ namespace App\Http\Controllers\Curator;
 
 use App\Http\Controllers\Controller;
 use App\Services\FirebaseService;
-use App\Support\QrResolveUrl;
-use Google\Cloud\Firestore\FieldValue;
+use App\Support\CuratorAssignedLandmark;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\Session;
@@ -22,11 +21,13 @@ class LandmarkController extends Controller
 
     public function map(Request $request)
     {
-        $landmarksRef = $this->firestore->collection('landmarks');
-        $documents = $landmarksRef->documents();
-
         $landmarks = [];
-        foreach ($documents as $doc) {
+
+        foreach (CuratorAssignedLandmark::browseableIds() as $lid) {
+            $doc = $this->firestore->collection('landmarks')->document($lid)->snapshot();
+            if (! $doc->exists()) {
+                continue;
+            }
             $data = $doc->data();
             $lat = $data['latitude'] ?? $data['lati'] ?? null;
             $lng = $data['longitude'] ?? $data['longti'] ?? null;
@@ -46,9 +47,28 @@ class LandmarkController extends Controller
 
     public function index(Request $request)
     {
-        $snapshot = $this->firestore->collection('landmarks')->documents();
+        $assignedId = CuratorAssignedLandmark::id();
+        $docs = [];
+        $landmarkManagerAttribution = null;
 
-        $items = collect(iterator_to_array($snapshot));
+        foreach (CuratorAssignedLandmark::browseableIds() as $lid) {
+            $snapshot = $this->firestore->collection('landmarks')->document($lid)->snapshot();
+            if (! $snapshot->exists()) {
+                continue;
+            }
+            $docs[] = $snapshot;
+            if ($landmarkManagerAttribution === null && $assignedId !== null && $lid === $assignedId) {
+                $landmarkManagerAttribution = $this->resolveLandmarkManagerAttributionLabel($snapshot->data());
+            }
+        }
+        if ($landmarkManagerAttribution === null && $assignedId !== null) {
+            $prim = $this->firestore->collection('landmarks')->document($assignedId)->snapshot();
+            if ($prim->exists()) {
+                $landmarkManagerAttribution = $this->resolveLandmarkManagerAttributionLabel($prim->data());
+            }
+        }
+
+        $items = collect($docs);
 
         if ($request->filled('category')) {
             $items = $items->filter(function ($doc) use ($request) {
@@ -72,80 +92,14 @@ class LandmarkController extends Controller
         return view('curators.landmarks.index', [
             'landmarks' => $paginated,
             'selectedCategory' => $request->category,
+            'landmarkManagerAttribution' => $landmarkManagerAttribution,
         ]);
-    }
-
-    public function create()
-    {
-        return view('curators.landmarks.create');
-    }
-
-    public function store(Request $request)
-    {
-        $request->validate([
-            'name' => 'required|string',
-            'category' => 'required|string',
-            'description' => 'nullable|string',
-            'latitude' => 'nullable|numeric',
-            'longitude' => 'nullable|numeric',
-            'video_url' => 'nullable|url',
-            'image' => 'nullable|image|max:512',
-        ]);
-
-        $imageBase64 = null;
-        $imageMime = null;
-        if ($request->hasFile('image')) {
-            [$imageBase64, $imageMime] = $this->encodeImageToBase64($request->file('image')->getRealPath(), $request->file('image')->getMimeType());
-        }
-
-        $ref = $this->firestore->collection('landmarks')->add([
-            'name' => $request->name,
-            'category' => $request->category,
-            'description' => $request->description,
-            'latitude' => is_numeric($request->latitude) ? (float) $request->latitude : null,
-            'longitude' => is_numeric($request->longitude) ? (float) $request->longitude : null,
-            'video_url' => $request->video_url,
-            'image_base64' => $imageBase64,
-            'image_mime' => $imageMime,
-            'created_at' => now(),
-        ]);
-
-        $landmarkId = $ref->id();
-
-        if (! empty($imageBase64)) {
-            $this->persistLandmarkImageFile($landmarkId, $imageBase64, $imageMime);
-        }
-
-        $code = 'LM-'.substr($landmarkId, 0, 6);
-
-        $exists = $this->firestore->collection('qr_codes')->where('code', '==', $code)->limit(1)->documents();
-        foreach ($exists as $ex) {
-            if ($ex->exists()) {
-                $code = 'LM-'.substr(sha1($landmarkId.microtime(true)), 0, 6);
-                break;
-            }
-        }
-
-        $this->firestore->collection('qr_codes')->add([
-            'code' => $code,
-            'landmark_id' => $landmarkId,
-            'is_auto' => true,
-            'created_at' => FieldValue::serverTimestamp(),
-        ]);
-
-        $this->generateQrImage($code, 'png');
-
-        $this->firestore->collection('logs')->add([
-            'email' => Session::get('email'),
-            'action' => 'Added a Landmark',
-            'timestamp' => now()->toISOString(),
-        ]);
-
-        return redirect()->route('landmarks.index')->with('success', 'Landmark added!');
     }
 
     public function edit($id)
     {
+        CuratorAssignedLandmark::assertMatches((string) $id);
+
         $doc = $this->firestore->collection('landmarks')->document($id)->snapshot();
         if (! $doc->exists()) {
             abort(404);
@@ -156,6 +110,8 @@ class LandmarkController extends Controller
 
     public function update(Request $request, $id)
     {
+        CuratorAssignedLandmark::assertMatches((string) $id);
+
         $request->validate([
             'name' => 'required|string',
             'category' => 'required|string',
@@ -209,69 +165,71 @@ class LandmarkController extends Controller
         return redirect()->route('landmarks.index')->with('success', 'Landmark updated.');
     }
 
-    public function destroy($id)
+    public function destroy(string $id)
     {
-        $doc = $this->firestore->collection('landmarks')->document($id)->snapshot();
-        if ($doc->exists()) {
-            $this->firestore->collection('landmarks')->document($id)->delete();
-            $this->deleteLandmarkImageFiles((string) $id);
+        CuratorAssignedLandmark::assertMatches((string) $id);
 
-            $this->firestore->collection('logs')->add([
-                'email' => Session::get('email'),
-                'action' => 'Deleted a Landmark',
-                'timestamp' => now()->toISOString(),
-            ]);
+        $docRef = $this->firestore->collection('landmarks')->document($id);
+        $doc = $docRef->snapshot();
+        if (! $doc->exists()) {
+            abort(404);
         }
+
+        foreach ($this->firestore->collection('qr_codes')->where('landmark_id', '==', $id)->documents() as $qrDoc) {
+            if (! $qrDoc->exists()) {
+                continue;
+            }
+            $code = (string) ($qrDoc->data()['code'] ?? '');
+            $qrDoc->reference()->delete();
+            if ($code !== '') {
+                foreach (['png', 'svg'] as $ext) {
+                    try {
+                        Storage::disk('public')->delete("qrcodes/{$code}.{$ext}");
+                    } catch (\Throwable $e) {
+                    }
+                }
+            }
+        }
+
+        foreach ($this->firestore->collection('question_bank')->where('landmark_id', '=', $id)->documents() as $triviaDoc) {
+            if ($triviaDoc->exists()) {
+                $triviaDoc->reference()->delete();
+            }
+        }
+
+        $this->deleteLandmarkImageFiles($id);
+        $docRef->delete();
+
+        $this->firestore->collection('logs')->add([
+            'email' => Session::get('email'),
+            'action' => 'Deleted a Landmark',
+            'timestamp' => now()->toISOString(),
+        ]);
 
         return redirect()->route('landmarks.index')->with('success', 'Landmark deleted.');
     }
 
-    private function generateQrImage(string $code, string $format = 'png'): bool
+    private function resolveLandmarkManagerAttributionLabel(array $landmarkData): ?string
     {
-
-        $dir = 'qrcodes';
-        $ext = in_array($format, ['png', 'svg']) ? $format : 'png';
-        $path = "{$dir}/{$code}.{$ext}";
-
-        try {
-            if (! Storage::disk('public')->exists($dir)) {
-                Storage::disk('public')->makeDirectory($dir);
-            }
-
-            $url = QrResolveUrl::forCode($code);
-
-            if (class_exists(\SimpleSoftwareIO\QrCode\Facades\QrCode::class)) {
-                $qr = \SimpleSoftwareIO\QrCode\Facades\QrCode::format($ext)
-                    ->size(600)->margin(1)->generate($url);
-
-                Storage::disk('public')->put($path, $qr);
-
-                return true;
-            }
-
-            if ($ext === 'svg') {
-                $safe = htmlspecialchars($url, ENT_QUOTES, 'UTF-8');
-                $svg = <<<SVG
-                    <svg xmlns="http://www.w3.org/2000/svg" width="600" height="600">
-                    <rect width="100%" height="100%" fill="#ffffff"/>
-                    <rect x="10" y="10" width="580" height="580" fill="none" stroke="#000" stroke-width="6"/>
-                    <text x="50%" y="50%" font-family="monospace" font-size="18" text-anchor="middle">
-                        {$safe}
-                    </text>
-                    <text x="50%" y="570" font-family="monospace" font-size="14" text-anchor="middle" fill="#666">
-                        (Install simple-qrcode for scannable codes)
-                    </text>
-                    </svg>
-                    SVG;
-                Storage::disk('public')->put($path, $svg);
-
-                return true;
-            }
-
-            return false;
-        } catch (\Throwable $e) {
-            return false;
+        $managerUid = isset($landmarkData['manager_uid']) ? trim((string) $landmarkData['manager_uid']) : '';
+        if ($managerUid === '') {
+            return null;
         }
+
+        $prof = $this->firestore->collection('users')->document($managerUid)->snapshot();
+        if (! $prof->exists()) {
+            return null;
+        }
+
+        $pd = $prof->data();
+        $name = trim((string) ($pd['name'] ?? ''));
+        if ($name !== '') {
+            return $name;
+        }
+
+        $email = trim((string) ($pd['email'] ?? ''));
+
+        return $email !== '' ? $email : null;
     }
 
     private function encodeImageToBase64(string $filePath, ?string $mimeType = null): array

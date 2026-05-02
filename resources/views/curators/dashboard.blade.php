@@ -31,9 +31,9 @@
         box-shadow: 0 12px 24px rgba(122, 46, 31, 0.2);
         display: flex; flex-direction: column; gap: 0.5rem;">
         <p style="margin: 0; font-size: 0.9rem; opacity: 0.85;">{{ $today }}</p>
-        <h2 style="font-size: 2rem; font-weight: 700; margin: 0;">Welcome back, {{ $name }} 👋</h2>
+        <h2 style="font-size: 2rem; font-weight: 700; margin: 0;">Welcome back, {{ $name }}</h2>
         <p style="margin: 0; font-size: 1rem; opacity: 0.95;">
-            You can manage <strong>landmarks</strong> and <strong>trivia</strong> from your dashboard.
+            You manage content for your <strong>assigned landmark</strong> only—display QR codes and trivia scoped to it.
         </p>
     </div>
 
@@ -78,16 +78,9 @@
                 <h4 style="margin:0; color:#111827;">Quick Actions</h4>
             </div>
             <div style="display:flex; flex-direction:column; gap:.5rem;">
-                <button onclick="openModal('createModal')" 
-                    style="background-color: #E8B34B; color: #7A2E1F; padding: 10px 16px; font-weight: 700; border-radius: 10px; border: 1px solid #F3C96A; cursor: pointer;">
-                    + Add Landmark
-                </button>
-
-                <a href="{{ route('landmarks.index') }}" style="text-decoration:none; background:#f3f4f6; color:#111827; padding:.75rem 1rem; border-radius:10px; font-weight:600; text-align:center; border:1px solid #e5e7eb;">Manage Landmarks</a>
-                @if (Route::has('trivia.index'))
-                    <a href="{{ route('trivia.index') }}" style="text-decoration:none; background:#f3f4f6; color:#111827; padding:.75rem 1rem; border-radius:10px; font-weight:600; text-align:center; border:1px solid #e5e7eb;">Manage Trivia</a>
-                @endif
-                <a href="{{ route('curators.map') }}" style="text-decoration:none; background:#F3C96A; color:#7A2E1F; padding:.75rem 1rem; border-radius:10px; font-weight:700; text-align:center; border:1px solid #E8B34B;">🗺️ View Map</a>
+                <a href="{{ route('landmarks.index') }}" style="text-decoration:none; background:#E8B34B; color:#7A2E1F; padding:.75rem 1rem; border-radius:10px; font-weight:700; text-align:center; border:1px solid #F3C96A;">Your Landmark</a>
+                <a href="{{ route('curators.trivia.all') }}" style="text-decoration:none; background:#f3f4f6; color:#111827; padding:.75rem 1rem; border-radius:10px; font-weight:600; text-align:center; border:1px solid #e5e7eb;">Displays / Trivia</a>
+                <a href="{{ route('curators.map') }}" style="text-decoration:none; background:#F3C96A; color:#7A2E1F; padding:.75rem 1rem; border-radius:10px; font-weight:700; text-align:center; border:1px solid #E8B34B;">View Map</a>
             </div>
         </div>
 
@@ -107,11 +100,11 @@
         <div class="card" style="grid-column: span 7; background:#fff; border-radius:14px; padding:1rem; box-shadow: 0 4px 16px rgba(0,0,0,0.06);">
             <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:.75rem;">
                 <h4 style="margin:0; color:#111827;">Recent Landmarks</h4>
-                <a href="{{ route('landmarks.index') }}" style="font-size:.9rem; color:#7A2E1F; text-decoration:none; font-weight:700;">View all →</a>
+                <a href="{{ route('landmarks.index') }}" style="font-size:.9rem; color:#7A2E1F; text-decoration:none; font-weight:700;">View all</a>
             </div>
 
             @if (empty($recentLandmarks))
-                <p style="color:#6b7280; margin:.5rem 0; background:#f9fafb; border:1px dashed #e5e7eb; border-radius:10px; padding:.8rem;">No recent landmarks yet. Add one using Quick Actions.</p>
+                <p style="color:#6b7280; margin:.5rem 0; background:#f9fafb; border:1px dashed #e5e7eb; border-radius:10px; padding:.8rem;">Your assigned landmark will appear here after your account is fully approved.</p>
             @else
                 <div style="overflow:auto;">
                     <table style="width:100%; border-collapse:collapse;">
@@ -144,8 +137,8 @@
             </div>
             <canvas id="donutChart" height="180"></canvas>
             <div style="display:flex; justify-content:center; gap:1rem; margin-top:.5rem; color:#374151; font-size:.9rem;">
-                <span>🗺️ Landmarks</span>
-                <span>🧠 Trivia</span>
+                <span>Landmarks</span>
+                <span>Trivia</span>
             </div>
         </div>
     </div>
@@ -164,8 +157,7 @@
             @else
                 <ul style="list-style:none; padding:0; margin:0; display:flex; flex-direction:column; gap:.75rem;">
                     @foreach ($recentLogs as $log)
-                        <li style="display:flex; gap:.75rem; align-items:flex-start;">
-                            <div style="width:10px; height:10px; border-radius:999px; background:#7A2E1F; margin-top:.4rem;"></div>
+                        <li style="display:flex; align-items:flex-start;">
                             <div>
                                 <div style="font-weight:600; color:#111827;">{{ $log['action'] ?? 'Action' }}</div>
                                 <div style="color:#6b7280; font-size:.9rem;">{{ $log['email'] ?? 'user' }} • {{ $log['timestamp'] ?? '' }}</div>
@@ -225,13 +217,13 @@
                 data: {
                     labels: weeks,
                     datasets: [
-                        { label: 'Landmarks', data: sampleLandmarks, tension: 0.35, borderWidth: 2, borderColor: '#7A2E1F', backgroundColor: '#7A2E1F', fill: false },
-                        { label: 'Trivia', data: sampleTrivia, tension: 0.35, borderWidth: 2, borderColor: '#E8B34B', backgroundColor: '#E8B34B', fill: false },
+                        { label: 'Landmarks', data: sampleLandmarks, tension: 0.35, borderWidth: 2, borderColor: '#7A2E1F', backgroundColor: '#7A2E1F', fill: false, pointRadius: 0, pointHoverRadius: 0 },
+                        { label: 'Trivia', data: sampleTrivia, tension: 0.35, borderWidth: 2, borderColor: '#E8B34B', backgroundColor: '#E8B34B', fill: false, pointRadius: 0, pointHoverRadius: 0 },
                     ]
                 },
                 options: {
                     responsive: true,
-                    plugins: { legend: { position: 'top' }, tooltip: { mode: 'index', intersect: false } },
+                    plugins: { legend: { display: false }, tooltip: { mode: 'index', intersect: false } },
                     interaction: { mode: 'nearest', axis: 'x', intersect: false },
                     scales: { x: { grid: { display: false } }, y: { beginAtZero: true, ticks: { stepSize: 1 } } }
                 }
@@ -250,72 +242,4 @@
         });
     </script>
 
-    
-    <div id="createModal" class="modal">
-        <div class="modal-content">
-            <span class="close" onclick="closeModal('createModal')">&times;</span>
-            <form method="POST" action="{{ route('landmarks.store') }}" enctype="multipart/form-data">
-                @csrf
-
-                <label>Landmark Name:</label>
-                <input type="text" name="name" required>
-
-                <label>Description:</label>
-                <textarea name="description" rows="4" cols="50"></textarea>
-
-                <label>Latitude:</label>
-                <input type="text" name="latitude" placeholder="e.g., 10.3157" required>
-
-                <label>Longitude:</label>
-                <input type="text" name="longitude" placeholder="e.g., 123.8854" required>
-
-                <label>Video URL:</label>
-                <input type="url" name="video_url">
-
-                <label>Upload Old Photo:</label>
-                <input type="file" name="image" accept="image/*">
-
-                <button type="submit">Save</button>
-            </form>
-        </div>
-    </div>
-
-    
-    <style>
-        .modal { display:none; position:fixed; z-index:1000; left:0; top:0; width:100%; height:100%; overflow:auto; background:rgba(0,0,0,0.6); }
-        .modal-content { background:#fff; margin:5% auto; padding:20px; border-radius:10px; width:90%; max-width:500px; position:relative; }
-        .close { position:absolute; top:10px; right:15px; font-size:24px; cursor:pointer; }
-        .modal-content label { display:block; margin-top:10px; font-weight:600; }
-        .modal-content input, .modal-content textarea { width:100%; padding:8px; margin-top:4px; border:1px solid #ccc; border-radius:6px; }
-        .modal-content button { margin-top:15px; padding:10px 16px; background:#E8B34B; color:#7A2E1F; font-weight:700; border:1px solid #F3C96A; border-radius:6px; cursor:pointer; }
-        .modal-content button:hover { background:#F3C96A; }
-    </style>
-
-   
-    <script>
-        function openModal(id) { 
-            document.getElementById(id).style.display = 'block';
-            document.body.style.overflow = 'hidden';
-        }
-        function closeModal(id) { 
-            document.getElementById(id).style.display = 'none';
-            document.body.style.overflow = '';
-        }
-        window.onclick = function(event) {
-            document.querySelectorAll('.modal').forEach(modal => {
-                if (event.target == modal) {
-                    modal.style.display = 'none';
-                    document.body.style.overflow = '';
-                }
-            });
-        }
-        window.addEventListener('keydown', function (event) {
-            if (event.key === 'Escape') {
-                document.querySelectorAll('.modal').forEach(modal => {
-                    modal.style.display = 'none';
-                });
-                document.body.style.overflow = '';
-            }
-        });
-    </script>
 @endsection

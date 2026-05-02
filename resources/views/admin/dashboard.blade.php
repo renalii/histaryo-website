@@ -45,6 +45,10 @@
     .admin-stat h3 { margin: 0; font-size: .95rem; color: #6b7280; font-weight: 700; }
     .admin-stat p { margin: .45rem 0 0 0; font-size: 2rem; font-weight: 800; color: #111827; }
     .admin-stat small { color: #6b7280; font-weight: 600; }
+    @media (min-width: 641px) {
+        .admin-stat.lm-stat-3col { grid-column: span 4 !important; }
+        .admin-stat.lm-stat-2col { grid-column: span 6 !important; }
+    }
     
     .admin-chart {
         background: #fff;
@@ -70,53 +74,68 @@
 </style>
 
 <div class="admin-wrap">
+@if (session('panel_error'))
+    <div style="background:#fef2f2;color:#991b1b;border:1px solid #fecaca;border-radius:10px;padding:.85rem 1rem;margin-bottom:1rem;font-weight:600;">
+        {{ session('panel_error') }}
+    </div>
+@endif
 <div class="admin-hero">
-    <p class="admin-kicker">📅 {{ $today }}</p>
+    <p class="admin-kicker">{{ $today }}</p>
     <h1>Welcome back, {{ $name }}!</h1>
     <div class="admin-hero-sub">Here is today’s platform snapshot and recent usage trend.</div>
 </div>
 
-    
+@php
+    $showInsights = ($showSystemInsights ?? false);
+    $isLandmarkManager = session('role') === 'landmark_manager';
+    $statColClass = $isLandmarkManager ? 'lm-stat-2col' : ($showInsights ? '' : 'lm-stat-3col');
+@endphp
 
 <div class="admin-grid" style="margin-bottom: 1rem;">
-    <div class="admin-stat">
-        <h3>👥 Total Users</h3>
+    @if (! $isLandmarkManager)
+    <div class="admin-stat {{ $statColClass }}">
+        <h3>Total Users</h3>
         <p>{{ $userCount ?? 0 }}</p>
         <small>All registered accounts</small>
     </div>
-    <div class="admin-stat">
-        <h3>🧑‍🏫 Curators</h3>
+    @endif
+    <div class="admin-stat {{ $statColClass }}">
+        <h3>Curators</h3>
         <p>{{ $curatorCount ?? 0 }}</p>
-        <small>Active content managers</small>
+        <small>{{ $isLandmarkManager ? 'Linked to your landmarks' : 'Active content managers' }}</small>
     </div>
-    <div class="admin-stat">
-        <h3>🧭 Landmarks</h3>
+    <div class="admin-stat {{ $statColClass }}">
+        <h3>Landmarks</h3>
         <p>{{ $landmarkCount ?? 0 }}</p>
-        <small>Published places</small>
+        <small>{{ $isLandmarkManager ? 'In your portfolio' : 'Published places' }}</small>
     </div>
+    @if ($showInsights)
     <div class="admin-stat">
-        <h3>📋 Logs</h3>
+        <h3>Logs</h3>
         <p>{{ $logCount ?? 0 }}</p>
         <small>Tracked system events</small>
     </div>
+    @endif
 </div>
 
+@if ($showInsights)
 <div class="admin-grid">
-    
     <div class="admin-chart admin-chart-lg">
-        <h3>📈 Visits Overview</h3>
+        <h3>Visits Overview</h3>
         <p>Daily visit activity for the current week</p>
         <canvas id="visitsChart" width="400" height="300"></canvas>
     </div>
 
     <div class="admin-chart admin-chart-sm">
-        <h3>📊 Usage by Role</h3>
+        <h3>Usage by Role</h3>
         <p>Current role distribution</p>
         <canvas id="roleUsageChart" width="400" height="300"></canvas>
     </div>
 </div>
+@endif
 </div>
 
+@if ($showInsights)
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
     const visitsData = {
@@ -167,4 +186,5 @@
         }
     });
 </script>
+@endif
 @endsection

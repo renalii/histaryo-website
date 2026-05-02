@@ -4,9 +4,24 @@
     use Illuminate\Support\Str;
     $currentView = request()->get('view', 'card');
     $landmarkCount = method_exists($landmarks, 'total') ? $landmarks->total() : $landmarks->count();
+    $panelRoutePrefix = session('role') === 'landmark_manager' ? 'landmarkmanager' : 'admin';
 @endphp
 
 @section('content')
+    @if (session('status'))
+        <style>
+            .flash-ok-lm {
+                max-width: 2000px; margin: 0 auto .75rem;
+                padding: .75rem 1rem;
+                border-radius: 10px;
+                background: #ecfdf5;
+                color: #166534;
+                border: 1px solid #bbf7d0;
+                font-weight: 600;
+            }
+        </style>
+        <div class="flash-ok-lm">{{ session('status') }}</div>
+    @endif
     <style>
         .land-wrap { max-width: 2000px; margin: 0 auto; }
         .land-header {
@@ -215,18 +230,29 @@
     <div class="land-header">
         <div class="land-header-main">
             <h2 class="land-title">All Landmarks</h2>
-            <p class="land-sub">{{ $landmarkCount }} landmark{{ $landmarkCount !== 1 ? 's' : '' }} available</p>
+            <p class="land-sub">
+                @if ($panelRoutePrefix === 'landmarkmanager')
+                    {{ $landmarkCount }} landmark{{ $landmarkCount !== 1 ? 's' : '' }} in your portfolio — add sites with Create landmark to raise this total.
+                @else
+                    {{ $landmarkCount }} landmark{{ $landmarkCount !== 1 ? 's' : '' }} available
+                @endif
+            </p>
         </div>
 
-        <div class="view-switch">
-            <a href="{{ route('admin.landmarks', ['view' => 'card']) }}"
-               class="view-btn {{ $currentView === 'card' ? 'active' : '' }}">
-                Card View
-            </a>
-            <a href="{{ route('admin.landmarks', ['view' => 'list']) }}"
-               class="view-btn {{ $currentView === 'list' ? 'active' : '' }}">
-                List View
-            </a>
+        <div style="display:flex;flex-wrap:wrap;gap:.5rem;align-items:center;">
+            @if ($panelRoutePrefix === 'landmarkmanager')
+                <a href="{{ route('landmarkmanager.landmarks.create') }}" class="view-btn active">Create landmark</a>
+            @endif
+            <div class="view-switch">
+                <a href="{{ route($panelRoutePrefix . '.landmarks', ['view' => 'card']) }}"
+                   class="view-btn {{ $currentView === 'card' ? 'active' : '' }}">
+                    Card View
+                </a>
+                <a href="{{ route($panelRoutePrefix . '.landmarks', ['view' => 'list']) }}"
+                   class="view-btn {{ $currentView === 'list' ? 'active' : '' }}">
+                    List View
+                </a>
+            </div>
         </div>
     </div>
 
@@ -266,10 +292,13 @@
                         <h3>
                             {{ $data['name'] ?? 'Unnamed Landmark' }}
                         </h3>
+                        @if (! empty($data['landmarkcode'] ?? ''))
+                            <p class="meta" style="font-family:ui-monospace,monospace;font-weight:600;color:#92400e;">{{ $data['landmarkcode'] }}</p>
+                        @endif
 
                         <p class="meta">
-                            📍 Lat: {{ $data['latitude'] ?? 'N/A' }}<br>
-                            📍 Lng: {{ $data['longitude'] ?? 'N/A' }}
+                            Lat: {{ $data['latitude'] ?? 'N/A' }}<br>
+                            Lng: {{ $data['longitude'] ?? 'N/A' }}
                         </p>
 
                         @if (!empty($imageSrc))
@@ -287,7 +316,7 @@
 
                         @if (!empty($data['description']))
                             <p class="desc">
-                                📝 {{ $data['description'] }}
+                                {{ $data['description'] }}
                             </p>
                         @endif
                     </div>
@@ -303,6 +332,7 @@
                     <thead>
                         <tr>
                             <th>Name</th>
+                            <th>Code</th>
                             <th>Coordinates</th>
                             <th>Description</th>
                         </tr>
@@ -335,11 +365,12 @@
 
                             <tr class="row-main" onclick="toggleRow({{ $index }})">
                                 <td>{{ $data['name'] ?? 'Unnamed Landmark' }}</td>
-                                <td>📍 {{ $data['latitude'] ?? 'N/A' }}, {{ $data['longitude'] ?? 'N/A' }}</td>
+                                <td style="font-family:ui-monospace,monospace;">{{ $data['landmarkcode'] ?? '—' }}</td>
+                                <td>{{ $data['latitude'] ?? 'N/A' }}, {{ $data['longitude'] ?? 'N/A' }}</td>
                                 <td class="expand-text">Click to expand</td>
                             </tr>
                             <tr id="expand-{{ $index }}" class="row-expanded" style="display: none;">
-                                <td colspan="3">
+                                <td colspan="4">
                                     <div class="row-content">
                                     @if (!empty($imageSrc) || !empty($embedUrl))
                                         <div class="{{ !empty($imageSrc) && !empty($embedUrl) ? 'list-media-row' : '' }}">

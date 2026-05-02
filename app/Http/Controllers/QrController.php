@@ -3,11 +3,13 @@
 namespace App\Http\Controllers;
 
 use App\Services\FirebaseService;
+use App\Support\CuratorAssignedLandmark;
 use App\Support\QrResolveUrl;
 use BaconQrCode\Common\ErrorCorrectionLevel;
 use BaconQrCode\Encoder\Encoder as BaconQrEncoder;
 use Google\Cloud\Firestore\FieldValue;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Session;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
@@ -25,6 +27,9 @@ class QrController extends Controller
 
     public function index(Request $request)
     {
+        $accessibleLandmarkIds = Session::get('role') === 'curator'
+            ? CuratorAssignedLandmark::browseableIds()
+            : null;
 
         $qrDocs = $this->fs()->collection('qr_codes')->orderBy('code')->documents();
         $qrs = [];
@@ -33,6 +38,11 @@ class QrController extends Controller
                 continue;
             }
             $d = $doc->data();
+            $lmId = (string) ($d['landmark_id'] ?? '');
+            if ($accessibleLandmarkIds !== null && ! in_array($lmId, $accessibleLandmarkIds, true)) {
+                continue;
+            }
+
             $code = (string) ($d['code'] ?? '');
             // Hide landmark system-generated QR entries from manager list.
             if (preg_match('/^LM-[a-f0-9]{6}$/i', $code)) {
@@ -56,6 +66,9 @@ class QrController extends Controller
         $landmarks = [];
         foreach ($lmSnap as $lm) {
             if (! $lm->exists()) {
+                continue;
+            }
+            if ($accessibleLandmarkIds !== null && ! in_array($lm->id(), $accessibleLandmarkIds, true)) {
                 continue;
             }
             $landmarks[] = [
@@ -91,6 +104,10 @@ class QrController extends Controller
             return back()->withErrors(['error' => 'Selected landmark does not exist.'])->withInput();
         }
 
+        if (Session::get('role') === 'curator') {
+            CuratorAssignedLandmark::assertMatches($landmarkId);
+        }
+
         $qrRef = $this->fs()->collection('qr_codes')->add([
             'code' => $code,
             'landmark_id' => $landmarkId,
@@ -109,6 +126,12 @@ class QrController extends Controller
         $docRef = $this->fs()->collection('qr_codes')->document($id);
         $doc = $docRef->snapshot();
         $deletedCode = '';
+
+        if (Session::get('role') === 'curator' && $doc->exists()) {
+            $linkedLm = (string) ($doc->data()['landmark_id'] ?? '');
+            CuratorAssignedLandmark::assertMatches($linkedLm);
+        }
+
         if ($doc->exists()) {
             $code = (string) ($doc['code'] ?? '');
             $deletedCode = $code;
@@ -138,6 +161,11 @@ class QrController extends Controller
             abort(404);
         }
 
+        if (Session::get('role') === 'curator') {
+            $linkedLm = (string) ($doc->data()['landmark_id'] ?? '');
+            CuratorAssignedLandmark::assertMatches($linkedLm);
+        }
+
         $code = (string) ($doc['code'] ?? '');
         if ($code === '') {
             abort(404);
@@ -164,6 +192,11 @@ class QrController extends Controller
         $doc = $this->fs()->collection('qr_codes')->document($id)->snapshot();
         if (! $doc->exists()) {
             abort(404);
+        }
+
+        if (Session::get('role') === 'curator') {
+            $linkedLm = (string) ($doc->data()['landmark_id'] ?? '');
+            CuratorAssignedLandmark::assertMatches($linkedLm);
         }
 
         $code = (string) ($doc['code'] ?? '');
@@ -393,6 +426,10 @@ class QrController extends Controller
 
     public function downloadByLandmark(string $landmarkId)
     {
+        if (Session::get('role') === 'curator') {
+            CuratorAssignedLandmark::assertMatches($landmarkId);
+        }
+
         $firestore = app(\App\Services\FirebaseService::class)->firestore();
 
         // find QR linked to this landmark

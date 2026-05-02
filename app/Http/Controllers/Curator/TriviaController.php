@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Curator;
 
 use App\Http\Controllers\Controller;
+use App\Support\CuratorAssignedLandmark;
 use Illuminate\Http\Request;
 use App\Services\FirebaseService;
 use Carbon\Carbon;
@@ -24,27 +25,32 @@ class TriviaController extends Controller
     
     public function all(Request $request)
     {
-        
-        $landmarkDocs = $this->firebase->getAllLandmarks();
-        $landmarkMap  = [];
+        $landmarkMap = [];
         $landmarkList = [];
+        $triviaDocs = [];
 
-        foreach ($landmarkDocs as $ld) {
-            if (!$ld->exists()) continue;
-            $id   = $ld->id();
-            $name = $ld['name'] ?? 'Unnamed';
-            $landmarkMap[$id] = $name;
-            $landmarkList[]   = ['id' => $id, 'name' => $name];
+        foreach (CuratorAssignedLandmark::browseableIds() as $lid) {
+            $lid = trim((string) $lid);
+            $snap = $this->firebase->getLandmarkById($lid);
+            if ($snap->exists()) {
+                $landmarkMap[$lid] = $snap['name'] ?? 'Unnamed';
+            }
+            $triviaDocs = array_merge($triviaDocs, iterator_to_array($this->firebase->getTriviaByLandmarkId($lid)));
         }
 
-        
-        $triviaDocs = $this->firebase->getAllTrivia();
+        foreach ($landmarkMap as $lid => $name) {
+            $landmarkList[] = ['id' => $lid, 'name' => $name];
+        }
+
+        usort($landmarkList, fn (array $a, array $b) => strcasecmp($a['name'], $b['name']));
 
         $allTrivia = [];
         foreach ($triviaDocs as $doc) {
-            if (!$doc->exists()) continue;
+            if (! $doc->exists()) {
+                continue;
+            }
             $d = $doc->data();
-            $landmarkId   = $d['landmark_id'] ?? '';
+            $landmarkId = trim((string) ($d['landmark_id'] ?? ''));
             $landmarkName = $landmarkMap[$landmarkId] ?? 'Unknown Landmark';
 
             $allTrivia[] = [
@@ -76,7 +82,12 @@ class TriviaController extends Controller
             ]
         );
 
-        return view('curators.trivia.all', compact('triviaPaginator', 'landmarkList'));
+        $writableLandmarkIdSet = [];
+        foreach (array_keys($landmarkMap) as $id) {
+            $writableLandmarkIdSet[trim((string) $id)] = true;
+        }
+
+        return view('curators.trivia.all', compact('triviaPaginator', 'landmarkList', 'writableLandmarkIdSet'));
     }
 
     public function store(Request $request)
@@ -95,6 +106,8 @@ class TriviaController extends Controller
                 ->withInput();
         }
 
+        CuratorAssignedLandmark::assertMatches((string) $request->landmark_id);
+
         $this->firebase->addTrivia([
             'landmark_id'    => (string) $request->landmark_id,
             'question'       => (string) $request->question,
@@ -107,6 +120,12 @@ class TriviaController extends Controller
 
     public function update(Request $request, string $triviaId)
     {
+        $snap = $this->firebase->firestore()->collection('question_bank')->document($triviaId)->snapshot();
+        if (! $snap->exists()) {
+            abort(404);
+        }
+        CuratorAssignedLandmark::assertMatches((string) ($snap['landmark_id'] ?? ''));
+
         $request->validate([
             'question'       => 'required|string',
             'choices'        => 'required|array|min:2',
@@ -130,6 +149,12 @@ class TriviaController extends Controller
 
     public function destroy(string $triviaId)
     {
+        $snap = $this->firebase->firestore()->collection('question_bank')->document($triviaId)->snapshot();
+        if (! $snap->exists()) {
+            abort(404);
+        }
+        CuratorAssignedLandmark::assertMatches((string) ($snap['landmark_id'] ?? ''));
+
         $this->firebase->deleteTrivia($triviaId);
         return back()->with('success', 'Trivia deleted.');
     }

@@ -2,7 +2,7 @@
 
 @section('content')
     <div style="display:flex; align-items:center; margin-bottom:1.25rem;">
-        <h2 style="margin:0; font-size:1.5rem; color:#7A2E1F;">💡 Tips Review</h2>
+        <h2 style="margin:0; font-size:1.5rem; color:#7A2E1F;">Tips Review</h2>
     </div>
 
     <form method="GET" action="{{ route('curators.tips.index') }}" style="display:flex; align-items:center; gap:.55rem; flex-wrap:wrap; margin-bottom:1rem;">
@@ -116,24 +116,30 @@
                         @endif
 
                         @if ($status === 'pending')
-                            <form method="POST" action="{{ route('curators.tips.review', ['tipId' => $tip['id']]) }}" style="display:flex; flex-wrap:wrap; gap:.6rem; align-items:center;">
-                                @csrf
-                                <input type="hidden" name="source_collection" value="{{ $tip['source_collection'] ?? 'crowdsourced_tips' }}">
-                                <input type="hidden" name="page" value="{{ $tips->currentPage() }}">
-                                <input type="hidden" name="status_filter" value="{{ $statusFilter ?? 'pending' }}">
-                                <input type="text" name="review_note" placeholder="Optional review note"
-                                    style="flex:1 1 230px; min-width:230px; border:1px solid #d1d5db; border-radius:8px; padding:.52rem .7rem;">
+                            @if (! empty($tip['can_moderate']))
+                                <form method="POST" action="{{ route('curators.tips.review', ['tipId' => $tip['id']]) }}" style="display:flex; flex-wrap:wrap; gap:.6rem; align-items:center;">
+                                    @csrf
+                                    <input type="hidden" name="source_collection" value="{{ $tip['source_collection'] ?? 'crowdsourced_tips' }}">
+                                    <input type="hidden" name="page" value="{{ $tips->currentPage() }}">
+                                    <input type="hidden" name="status_filter" value="{{ $statusFilter ?? 'pending' }}">
+                                    <input type="text" name="review_note" placeholder="Optional review note"
+                                        style="flex:1 1 230px; min-width:230px; border:1px solid #d1d5db; border-radius:8px; padding:.52rem .7rem;">
 
-                                <button type="submit" name="decision" value="accepted"
-                                    style="border:1px solid #86efac; background:#dcfce7; color:#166534; font-weight:700; border-radius:8px; padding:.52rem .9rem; cursor:pointer;">
-                                    Accept
-                                </button>
+                                    <button type="submit" name="decision" value="accepted"
+                                        style="border:1px solid #86efac; background:#dcfce7; color:#166534; font-weight:700; border-radius:8px; padding:.52rem .9rem; cursor:pointer;">
+                                        Accept
+                                    </button>
 
-                                <button type="submit" name="decision" value="rejected"
-                                    style="border:1px solid #fca5a5; background:#fee2e2; color:#991b1b; font-weight:700; border-radius:8px; padding:.52rem .9rem; cursor:pointer;">
-                                    Reject
-                                </button>
-                            </form>
+                                    <button type="submit" name="decision" value="rejected"
+                                        style="border:1px solid #fca5a5; background:#fee2e2; color:#991b1b; font-weight:700; border-radius:8px; padding:.52rem .9rem; cursor:pointer;">
+                                        Reject
+                                    </button>
+                                </form>
+                            @else
+                                <p style="margin:0; padding:.65rem .75rem; background:#f9fafb; border:1px solid #e5e7eb; border-radius:8px; color:#6b7280; font-size:.88rem;">
+                                    This tip is for a landmark outside your managed portfolio. Only curators assigned to that site (or the same Landmark Manager portfolio) can accept or reject it.
+                                </p>
+                            @endif
                         @endif
                     </div>
                 </details>

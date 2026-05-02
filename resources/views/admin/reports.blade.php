@@ -23,6 +23,22 @@
             border: 1px solid #d1d5db;
             background: #fff;
         }
+        select.input {
+            appearance: none;
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            background-image: none;
+            padding-right: .7rem;
+        }
+        select.input::-ms-expand {
+            display: none;
+        }
+        input[type="date"].input::-webkit-calendar-picker-indicator {
+            opacity: 0;
+            width: 0;
+            height: 0;
+            display: none;
+        }
         .input:focus {
             outline: none;
             border-color: #E8B34B;
@@ -64,18 +80,18 @@
             <div class="field">
             <label for="reportType" class="label">Choose Report Type</label>
             <select name="type" id="reportType" class="input">
-                <option value="users">👤 Users</option>
-                <option value="landmarks">🏞️ Landmarks</option>
-                <option value="visits">📈 Visits / Logs</option>
-                <option value="trivia">🎯 Trivia Engagement</option>
+                <option value="users">Users</option>
+                <option value="landmarks">Landmarks</option>
+                <option value="visits">Visits / Logs</option>
+                <option value="trivia">Trivia Engagement</option>
             </select>
             </div>
 
             <div class="field">
             <label for="format" class="label">Export Format</label>
             <select name="format" id="format" class="input">
-                <option value="pdf">📄 PDF</option>
-                <option value="excel">📊 Excel</option>
+                <option value="pdf">PDF</option>
+                <option value="excel">Excel</option>
             </select>
             </div>
 
@@ -95,7 +111,7 @@
             <div class="field">
             <div class="actions">
                 <button type="submit" class="btn-export">
-                    📥 Export Report
+                    Export Report
                 </button>
             </div>
             </div>
