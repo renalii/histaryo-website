@@ -44,8 +44,7 @@ class QrController extends Controller
             }
 
             $code = (string) ($d['code'] ?? '');
-            // Hide landmark system-generated QR entries from manager list.
-            if (preg_match('/^LM-[a-f0-9]{6}$/i', $code)) {
+            if ($d['is_landmark_join_code'] ?? false) {
                 continue;
             }
 
@@ -84,12 +83,14 @@ class QrController extends Controller
     {
         $data = $request->validate([
             'code' => 'required|string|max:120',
-            'landmark_id' => 'required|string',
+            'landmark_id' => 'nullable|string',
             'format' => 'nullable|in:png,svg',
         ]);
 
         $code = trim($data['code']);
-        $landmarkId = $data['landmark_id'];
+        $landmarkId = Session::get('role') === 'curator'
+            ? (CuratorAssignedLandmark::id() ?? '')
+            : trim((string) ($data['landmark_id'] ?? ''));
         $format = $data['format'] ?? 'png';
 
         $existing = $this->fs()->collection('qr_codes')->where('code', '==', $code)->limit(1)->documents();
@@ -97,6 +98,10 @@ class QrController extends Controller
             if ($ex->exists()) {
                 return back()->withErrors(['error' => 'QR code already exists. Choose another value.'])->withInput();
             }
+        }
+
+        if ($landmarkId === '') {
+            return back()->withErrors(['error' => 'Site is required.'])->withInput();
         }
 
         $lm = $this->fs()->collection('landmarks')->document($landmarkId)->snapshot();
@@ -262,6 +267,7 @@ class QrController extends Controller
             'mapUrl' => ($lat !== null && $lng !== null)
                 ? 'https://www.openstreetmap.org/?mlat='.$lat.'&mlon='.$lng.'#map=16/'.$lat.'/'.$lng
                 : null,
+            'mapboxToken' => config('services.mapbox.token'),
         ]);
     }
 
@@ -323,6 +329,17 @@ class QrController extends Controller
         }
 
         $landmark = $landmarkDoc->data();
+        $activation = strtolower((string) ($landmark['activation_status'] ?? 'active'));
+        if ($activation === 'pending' || $activation === 'rejected') {
+            return [
+                'ok' => false,
+                'status' => 403,
+                'json' => [
+                    'message' => 'This landmark is not yet available to the public.',
+                    'code' => $normalizedCode,
+                ],
+            ];
+        }
 
         return [
             'ok' => true,
@@ -440,10 +457,11 @@ class QrController extends Controller
 
         $qrDoc = null;
         foreach ($snap as $doc) {
-            if ($doc->exists()) {
-                $qrDoc = $doc;
-                break;
+            if (! $doc->exists() || ($doc->data()['is_landmark_join_code'] ?? false)) {
+                continue;
             }
+            $qrDoc = $doc;
+            break;
         }
 
         if (! $qrDoc) {

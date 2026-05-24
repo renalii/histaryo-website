@@ -93,7 +93,7 @@ class ReportController extends Controller
                 case 'visits':
                     $results[] = [
                         'User ID'   => $data['user_id'] ?? '',
-                        'Landmark'  => $data['landmark'] ?? '',
+                        'Site'  => $data['landmark'] ?? '',
                         'Visited At'=> $data['timestamp'] ?? '',
                     ];
                     break;

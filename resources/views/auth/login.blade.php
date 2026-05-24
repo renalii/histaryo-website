@@ -2,9 +2,8 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>HistARyo – Login</title>
+    <title>{{ $pageTitle ?? 'HistARyo – Login' }}</title>
     <link rel="icon" type="image/svg+xml" href="{{ asset('favicon.svg') }}">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
     <style>
         * {
             box-sizing: border-box;
@@ -151,6 +150,67 @@
         form input:focus {
             border-color: #b17853;
             box-shadow: 0 0 0 4px var(--focus-ring);
+        }
+
+        .password-wrap {
+            position: relative;
+            width: 100%;
+        }
+
+        .password-wrap > input {
+            padding-right: 2.55rem;
+        }
+
+        form .password-toggle {
+            position: absolute;
+            right: 0.35rem;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 2.15rem;
+            height: 2.15rem;
+            margin-top: 0;
+            padding: 0;
+            border: none;
+            background: transparent;
+            border-radius: 6px;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            color: #8a7a70;
+            transition: color 0.2s ease, background-color 0.2s ease;
+        }
+
+        form .password-toggle:hover {
+            color: var(--brand-dark);
+            background: rgba(140, 92, 58, 0.1);
+        }
+
+        form .password-toggle:focus-visible {
+            outline: 2px solid var(--brand);
+            outline-offset: 2px;
+        }
+
+        form .password-toggle:active {
+            transform: translateY(-50%);
+        }
+
+        .password-toggle svg {
+            width: 1.12rem;
+            height: 1.12rem;
+            flex-shrink: 0;
+        }
+
+        .password-toggle .pw-icon-hide {
+            display: none;
+        }
+
+        .password-toggle[aria-pressed="true"] .pw-icon-show {
+            display: none;
+        }
+
+        .password-toggle[aria-pressed="true"] .pw-icon-hide {
+            display: block;
         }
 
         form button {
@@ -350,23 +410,28 @@
     </style>
 </head>
 <body>
+@php($isAdminPanel = ($panel ?? null) === 'admin')
 
 <header>
-    <div class="logo">Histaryo</div>
+    <div class="logo">{{ $isAdminPanel ? 'Histaryo Admin' : 'Histaryo' }}</div>
     <nav>
         <a href="{{ route('home') }}">Home</a>
         <a href="{{ route('about') }}">About</a>
-        <a href="{{ route('login') }}">Login</a>
-        <a href="{{ route('register') }}">Register</a>
+        @if ($isAdminPanel)
+            <a href="{{ route('admin.landing') }}">Admin home</a>
+        @else
+            <a href="{{ route('login') }}">Login</a>
+            <a href="{{ route('register') }}">Register</a>
+        @endif
     </nav>
 </header>
 
 <div class="container">
     <div class="login-box">
         <div class="form-side">
-            <p class="eyebrow">Welcome back</p>
-            <h2>Login</h2>
-            <p class="subtitle">Sign in to continue exploring Cebu's landmarks, stories, and AR experiences.</p>
+            <p class="eyebrow">{{ $isAdminPanel ? 'Administrator' : 'Welcome back' }}</p>
+            <h2>{{ $isAdminPanel ? 'Admin sign in' : 'Login' }}</h2>
+            <p class="subtitle">{{ $isAdminPanel ? 'Sign in with your administrator account to open the admin dashboard and tools.' : "Sign in to continue exploring Cebu's landmarks, stories, and AR experiences." }}</p>
 
             <!-- {{-- ✅ Greeting if logged in --}}
             @if(session('name'))
@@ -389,7 +454,7 @@
                 </div>
             @endif
 
-            <form method="POST" action="{{ route('login') }}">
+            <form method="POST" action="{{ $formAction ?? route('login') }}">
                 @csrf
                 <div class="field">
                     <label for="email">Email</label>
@@ -397,15 +462,23 @@
                 </div>
                 <div class="field">
                     <label for="password">Password</label>
-                    <input id="password" type="password" name="password" placeholder="Enter your password" autocomplete="current-password" required>
+                    <div class="password-wrap">
+                        <input id="password" type="password" name="password" placeholder="Enter your password" autocomplete="current-password" required>
+                        <button type="button" class="password-toggle" aria-label="Show password" aria-pressed="false" data-label-show="Show password" data-label-hide="Hide password">
+                            <svg class="pw-icon pw-icon-show" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.75" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 5 12 5c4.638 0 8.573 2.51 9.964 6.322.053.158.053.33 0 .488C20.577 16.49 16.64 19 12 19c-4.638 0-8.573-2.51-9.964-6.322z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                            <svg class="pw-icon pw-icon-hide" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.75" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M3.98 8.223A10.477 10.477 0 001.934 12C3.226 16.338 7.244 19 12 19c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.45 10.45 0 0112 5c4.756 0 8.773 2.663 10.065 7.022a10.522 10.522 0 01-4.293 5.774M6.228 6.228L3 3m3.228 3.228l3.65 3.65m7.894 7.894L21 21m-3.228-3.228l-3.65-3.65m0 0a3 3 0 10-4.243-4.243m4.242 4.242L9.88 9.88"/></svg>
+                        </button>
+                    </div>
                 </div>
 
                 <button type="submit">Login</button>
             </form>
 
+            @unless ($isAdminPanel)
             <div class="register-link">
                 Don't have an account? <a href="{{ route('register') }}">Register here</a>
             </div>
+            @endunless
             
         </div>
 
@@ -414,6 +487,26 @@
         </div>
     </div>
 </div>
+
+<script>
+    (function () {
+        document.querySelectorAll('.password-wrap').forEach((wrap) => {
+            const input = wrap.querySelector('input');
+            const btn = wrap.querySelector('.password-toggle');
+            if (!input || !btn) {
+                return;
+            }
+            const showLabel = btn.dataset.labelShow || 'Show password';
+            const hideLabel = btn.dataset.labelHide || 'Hide password';
+            btn.addEventListener('click', () => {
+                const willShow = input.type === 'password';
+                input.type = willShow ? 'text' : 'password';
+                btn.setAttribute('aria-pressed', willShow ? 'true' : 'false');
+                btn.setAttribute('aria-label', willShow ? hideLabel : showLabel);
+            });
+        });
+    })();
+</script>
 
 </body>
 </html>

@@ -2,17 +2,31 @@
 
 namespace App\Services;
 
-use Kreait\Firebase\Factory;
 use Kreait\Firebase\Auth;
+use Kreait\Firebase\Factory;
 use Illuminate\Support\Facades\Http;
 
 class FirebaseService
 {
     protected $auth;
+
     protected $firestore;
 
+    /**
+     * Google Firestore defaults to gRPC; on Windows (e.g. XAMPP), streams often fail with
+     * `"Stream removed"` / UNKNOWN. Setting FIRESTORE_TRANSPORT=rest uses HTTP REST instead.
+     *
+     * @see https://cloud.google.com/php/docs/reference/main#grpc-or-rest
+     */
     public function __construct()
     {
+        $transport = strtolower(trim((string) config('services.firebase.firestore_transport', 'grpc')));
+        if (in_array($transport, ['rest', 'http'], true)) {
+            // Read by google/cloud-php clients before opening gRPC connections.
+            putenv('GOOGLE_CLOUD_DISABLE_GRPC=true');
+            $_ENV['GOOGLE_CLOUD_DISABLE_GRPC'] = 'true';
+        }
+
         $factory = (new Factory)->withServiceAccount(
             storage_path('app/firebase_credentials.json')
         );

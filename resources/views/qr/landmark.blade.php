@@ -3,14 +3,20 @@
     /** @var array $landmark */
     /** @var string $videoEmbedUrl */
     /** @var string|null $mapUrl */
+    /** @var string|null $mapboxToken */
     $lm = $payload['landmark'] ?? [];
     $name = $lm['name'] ?? 'Landmark';
     $description = trim((string) ($lm['description'] ?? ''));
     $category = trim((string) ($lm['category'] ?? ''));
     $videoUrl = trim((string) ($lm['video_url'] ?? ''));
     $locationLabel = trim((string) ($landmark['location'] ?? ''));
-    $lat = $lm['latitude'] ?? null;
-    $lng = $lm['longitude'] ?? null;
+    $latRaw = $landmark['latitude'] ?? $landmark['lati'] ?? null;
+    $lngRaw = $landmark['longitude'] ?? $landmark['longti'] ?? null;
+    $lat = isset($latRaw) && is_numeric($latRaw) ? (float) $latRaw : null;
+    $lng = isset($lngRaw) && is_numeric($lngRaw) ? (float) $lngRaw : null;
+    $showMapEmbed = $lat !== null && $lng !== null;
+    $mapboxEmbedToken = isset($mapboxToken) ? trim((string) $mapboxToken) : '';
+    $useLeafletFallback = $showMapEmbed && $mapboxEmbedToken === '';
     $imageSrc = null;
     if (!empty($landmark['image_base64'])) {
         $imageMime = $landmark['image_mime'] ?? 'image/jpeg';
@@ -138,7 +144,28 @@
             color: #6e4b3a;
             font-weight: 600;
         }
+        .qr-map-card {
+            margin-top: 22px;
+            border-radius: 14px;
+            overflow: hidden;
+            border: 1px solid rgba(110, 75, 58, 0.15);
+            background: #e8ecf1;
+            min-height: 200px;
+        }
+        #qr-landmark-map,
+        #qr-landmark-map-osm { width: 100%; height: 240px; z-index: 0; }
+        .qr-map-caption {
+            font-size: 13px;
+            color: #555;
+            margin-top: 8px;
+        }
+        .mapboxgl-ctrl-attrib-inner { font-size: 10px; }
     </style>
+    @if ($showMapEmbed && $mapboxEmbedToken !== '')
+        <link href="https://api.mapbox.com/mapbox-gl-js/v3.3.0/mapbox-gl.css" rel="stylesheet"/>
+    @elseif ($useLeafletFallback)
+        <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
+    @endif
 </head>
 <body>
 <header>
@@ -164,13 +191,31 @@
             <p class="meta">📍 <strong>Location:</strong> {{ $locationLabel }}</p>
         @elseif ($mapUrl)
             <p class="meta">📍 <strong>Location:</strong>
-                <a href="{{ $mapUrl }}" rel="noopener noreferrer" target="_blank">View on map</a>
-                @if ($lat !== null && $lng !== null)
-                    <span style="color:#666;font-weight:400"> ({{ number_format((float) $lat, 5) }}, {{ number_format((float) $lng, 5) }})</span>
-                @endif
+                <a href="{{ $mapUrl }}" rel="noopener noreferrer" target="_blank">Open larger map</a>
+                <span style="color:#666;font-weight:400"> ({{ number_format((float) $lat, 5) }}, {{ number_format((float) $lng, 5) }})</span>
             </p>
         @elseif ($lat !== null && $lng !== null)
             <p class="meta">📍 <strong>Coordinates:</strong> {{ number_format((float) $lat, 5) }}, {{ number_format((float) $lng, 5) }}</p>
+        @endif
+
+        @if ($showMapEmbed && $mapboxEmbedToken !== '')
+            <div class="video-block">
+                <h2>Map</h2>
+                <div class="qr-map-card"><div id="qr-landmark-map" aria-label="{{ $name }} on map"></div></div>
+                @if (!$mapUrl)
+                    <p class="qr-map-caption">Coordinates {{ number_format((float) $lat, 6) }}, {{ number_format((float) $lng, 6) }}</p>
+                @endif
+            </div>
+        @elseif ($useLeafletFallback)
+            <div class="video-block">
+                <h2>Map</h2>
+                <div class="qr-map-card"><div id="qr-landmark-map-osm" aria-label="{{ $name }} on map"></div></div>
+                @if ($mapUrl)
+                    <p class="qr-map-caption"><a href="{{ $mapUrl }}" rel="noopener noreferrer" target="_blank">Open larger map</a></p>
+                @else
+                    <p class="qr-map-caption">Coordinates {{ number_format((float) $lat, 6) }}, {{ number_format((float) $lng, 6) }}</p>
+                @endif
+            </div>
         @endif
 
         @if (!empty($imageSrc))
@@ -194,5 +239,37 @@
         @endif
     </article>
 </main>
+@if ($showMapEmbed && $mapboxEmbedToken !== '')
+<script src="https://api.mapbox.com/mapbox-gl-js/v3.3.0/mapbox-gl.js"></script>
+<script>
+(function () {
+    mapboxgl.accessToken = @json($mapboxEmbedToken);
+    var lng = @json((float) $lng);
+    var lat = @json((float) $lat);
+    var map = new mapboxgl.Map({
+        container: 'qr-landmark-map',
+        style: 'mapbox://styles/mapbox/streets-v12',
+        center: [lng, lat],
+        zoom: 14,
+    });
+    map.addControl(new mapboxgl.NavigationControl(), 'top-right');
+    new mapboxgl.Marker({ color: '#6e4b3a' }).setLngLat([lng, lat]).addTo(map);
+})();
+</script>
+@elseif ($useLeafletFallback)
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+<script>
+(function () {
+    var lat = @json((float) $lat);
+    var lng = @json((float) $lng);
+    var map = L.map('qr-landmark-map-osm').setView([lat, lng], 14);
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+    }).addTo(map);
+    L.marker([lat, lng]).addTo(map);
+})();
+</script>
+@endif
 </body>
 </html>

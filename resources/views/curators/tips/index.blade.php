@@ -67,7 +67,7 @@
                                 {{ $tip['landmark_name'] !== '' ? $tip['landmark_name'] : 'General Tip' }}
                             </div>
                             <div style="color:#6b7280; font-size:.88rem; margin-top:.15rem;">
-                                Landmark ID: {{ $tip['landmark_id'] !== '' ? $tip['landmark_id'] : '-' }}
+                                Site ID: {{ $tip['landmark_id'] !== '' ? $tip['landmark_id'] : '-' }}
                             </div>
                         </div>
                         <span style="background:{{ $badgeBg }}; color:{{ $badgeColor }}; font-size:.82rem; font-weight:700; padding:.28rem .62rem; border-radius:999px;">
@@ -137,7 +137,7 @@
                                 </form>
                             @else
                                 <p style="margin:0; padding:.65rem .75rem; background:#f9fafb; border:1px solid #e5e7eb; border-radius:8px; color:#6b7280; font-size:.88rem;">
-                                    This tip is for a landmark outside your managed portfolio. Only curators assigned to that site (or the same Landmark Manager portfolio) can accept or reject it.
+                                    This tip is for a landmark outside your managed portfolio. Only curators assigned to that landmark (or the same Site Manager portfolio) can accept or reject it.
                                 </p>
                             @endif
                         @endif

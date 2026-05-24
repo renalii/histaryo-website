@@ -117,7 +117,6 @@
     }
     
     .card {
-      position:relative;
       background:#fff;
       border-radius:14px;
       border:1px solid #edf0f5;
@@ -125,18 +124,16 @@
       padding:15px;
       display:flex;
       flex-direction:column;
-      gap:10px;
+      gap:12px;
+      min-height:0;
       transition:transform .15s ease, box-shadow .15s ease
     }
 
-    .card--editable {
-      padding-right:10.75rem
-    }
-
-    @media (max-width:420px) {
-      .card--editable {
-        padding-right:8.25rem
-      }
+    .card-body {
+      display:flex;
+      flex-direction:column;
+      gap:10px;
+      flex:1;
     }
 
     .card:hover {
@@ -144,22 +141,31 @@
       box-shadow:0 14px 30px rgba(17,24,39,.12)
     }
 
-    .card-actions-abs {
-      position:absolute;
-      top:.75rem;
-      right:.75rem;
+    .card--editing {
+      border-color:#F3C96A;
+      box-shadow:0 0 0 2px rgba(232,179,75,.35), 0 8px 24px rgba(17,24,39,.06);
+    }
+
+    .card-footer {
       display:flex;
       gap:.5rem;
       align-items:center;
-      z-index:2
+      justify-content:flex-end;
+      flex-wrap:wrap;
+      margin-top:auto;
+      padding-top:.65rem;
+      border-top:1px solid #f1f5f9;
     }
 
-    .card-actions-abs .js-delete-form {
+    .card-footer .js-delete-form {
       display:inline-flex;
       margin:0
     }
 
     .btn-trivia {
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
       font-size:.875rem;
       line-height:1.25;
       padding:.25rem .75rem;
@@ -167,7 +173,9 @@
       border:none;
       cursor:pointer;
       font-weight:600;
-      transition:background .15s ease, filter .15s ease
+      text-decoration:none;
+      transition:background .15s ease, filter .15s ease;
+      box-sizing:border-box;
     }
 
     .btn-trivia-edit {
@@ -204,18 +212,10 @@
     .qtext {
       font-weight:700;
       color:#111827;
-      line-height:1.35;
-      min-height:4.1rem;
-      font-size:1.02rem
+      line-height:1.45;
+      font-size:1.02rem;
+      word-break:break-word;
     }
-    
-    .link {
-      color:#7A2E1F;
-      text-decoration:none;
-      font-weight:700
-    }
-    
-    .link:hover{color:#E8B34B;text-decoration:underline}
 
     /* modal */
     .overlay {
@@ -379,12 +379,21 @@
       @foreach ($triviaPaginator as $t)
         @php
           $triviaLmKey = trim((string) ($t['landmark_id'] ?? ''));
-          $canEditTrivia = isset($writableLandmarkIdSet[$triviaLmKey]);
+          $canEditTrivia = isset($writableLandmarkIdSet[$triviaLmKey])
+              || ($assignedLandmarkId !== '' && $triviaLmKey === $assignedLandmarkId);
+          $isEditingThis = !empty($autoOpenTrivia) && ($autoOpenTrivia['trivia_id'] ?? '') === ($t['trivia_id'] ?? '');
         @endphp
-        <div class="card{{ $canEditTrivia ? ' card--editable' : '' }}">
+        <div class="card{{ $isEditingThis ? ' card--editing' : '' }}">
+            <div class="card-body">
+                <span class="pill">{{ $t['landmark_name'] }}</span>
+                <div class="qtext">{{ $t['question'] }}</div>
+            </div>
             @if ($canEditTrivia)
-                <div class="card-actions-abs">
-                    <button type="button" class="btn-trivia btn-trivia-edit" onclick='openEdit(@json($t))'>Edit</button>
+                <div class="card-footer">
+                    <a href="{{ route('curators.trivia.show', $t['trivia_id']) }}"
+                       class="btn-trivia btn-trivia-edit">
+                        Edit
+                    </a>
                     <form action="{{ route('curators.trivia.destroy', $t['trivia_id']) }}"
                           method="POST"
                           class="js-delete-form">
@@ -393,12 +402,6 @@
                     </form>
                 </div>
             @endif
-
-            <span class="pill">{{ $t['landmark_name'] }}</span>
-
-            <div class="qtext">
-                {{ $t['question'] }}
-            </div>
         </div>
       @endforeach
     </div>
@@ -430,15 +433,19 @@
     <h2>Add Trivia (Question Bank)</h2>
     <form action="{{ route('curators.trivia.store') }}" method="POST">
       @csrf
+      @if(count($landmarkList) === 1)
+        <input type="hidden" name="landmark_id" value="{{ $landmarkList[0]['id'] }}">
+      @else
       <div class="row">
-        <label>Landmark</label>
+        <label>Site</label>
         <select name="landmark_id" required>
-          <option value="">-- Select Landmark --</option>
+          <option value="">-- Select site --</option>
           @foreach($landmarkList as $lm)
             <option value="{{ $lm['id'] }}">{{ $lm['name'] }}</option>
           @endforeach
         </select>
       </div>
+      @endif
 
       <div class="row">
         <label>Question</label>
@@ -505,7 +512,9 @@
 
 <script>
   let pendingDeleteForm = null;
-  
+  const triviaUpdateRouteTemplate = @json(route('curators.trivia.update', ['id' => '__TRIVIA_ID__']));
+  const triviaIndexUrl = @json(route('curators.trivia.all'));
+
   function openAdd(){ 
       document.getElementById('addOverlay').style.display='flex'; 
       document.body.style.overflow='hidden';
@@ -515,11 +524,12 @@
       document.getElementById('addOverlay').style.display='none'; 
       document.body.style.overflow='';
   }
+
   function openEdit(t){
       document.getElementById('editOverlay').style.display='flex';
       document.body.style.overflow='hidden';
       const form = document.getElementById('editForm');
-      form.action = `/curators/trivia/${t.trivia_id}`;
+      form.action = triviaUpdateRouteTemplate.replace('__TRIVIA_ID__', encodeURIComponent(t.trivia_id || ''));
       document.getElementById('edit_question').value = t.question || '';
 
       const box = document.getElementById('editChoices');
@@ -539,9 +549,13 @@
       }
       syncRadios('editChoices');
   }
-  function closeEdit(){ 
-      document.getElementById('editOverlay').style.display='none'; 
+  function closeEdit(){
+      document.getElementById('editOverlay').style.display='none';
       document.body.style.overflow='';
+      const path = window.location.pathname.replace(/\/+$/, '');
+      if (/^\/curators\/trivia\/[^/]+$/.test(path)) {
+          window.location.assign(triviaIndexUrl);
+      }
   }
 
   function openDelete(form){
@@ -595,7 +609,6 @@
         .replace(/'/g,'&#039;');
   }
 
- 
   document.getElementById('addOverlay').addEventListener('click', (e)=>{
       if(e.target.id==='addOverlay') closeAdd();
   });
@@ -612,6 +625,15 @@
           openDelete(form);
       });
   });
+
+  @if (!empty($autoOpenTrivia))
+  document.addEventListener('DOMContentLoaded', ()=>{
+      const t = @json($autoOpenTrivia);
+      if (t && t.trivia_id) {
+          openEdit(t);
+      }
+  });
+  @endif
 
   window.addEventListener('keydown', (e)=>{
       if(e.key === 'Escape'){

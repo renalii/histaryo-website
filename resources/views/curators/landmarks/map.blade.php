@@ -12,6 +12,11 @@
         background-color: #fef2f2; color: #b91c1c; padding: 1rem; border-radius: 0.5rem;
         z-index: 1000; box-shadow: 0 4px 12px rgba(0,0,0,.1);
     }
+    .map-flash {
+        position: absolute; top: 1rem; left: 1rem;
+        background-color: #fef2f2; color: #991b1b; padding: 0.75rem 1rem; border-radius: 0.5rem;
+        z-index: 1002; box-shadow: 0 4px 12px rgba(0,0,0,.1); max-width: min(440px, 92vw); font-size: 14px;
+    }
     .mapboxgl-popup { max-width: 300px; font: 14px/1.4 system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial; }
     .mapboxgl-popup-content a { text-decoration: underline; }
 
@@ -79,6 +84,11 @@
 {{-- Mapbox CSS --}}
 <link href="https://api.mapbox.com/mapbox-gl-js/v3.3.0/mapbox-gl.css" rel="stylesheet" />
 
+@php
+    $_mapPath = parse_url(route('curators.map', [], false), PHP_URL_PATH);
+    $curatorMapBasePath = is_string($_mapPath) && $_mapPath !== '' ? rtrim($_mapPath, '/') : '/curators/map';
+@endphp
+
 <div id="map">
     <div class="landmark-search">
         <input id="landmarkSearch"
@@ -88,6 +98,10 @@
         <button id="landmarkGo">Go</button>
     </div>
 </div>
+
+@if(session('error'))
+    <div class="map-flash" role="alert">{{ session('error') }}</div>
+@endif
 
 @if(count($landmarks) === 0)
     <div class="no-landmarks">No landmarks found with valid coordinates. Please add some!</div>
@@ -113,6 +127,21 @@ document.addEventListener("DOMContentLoaded", function () {
 
     map.addControl(new mapboxgl.NavigationControl(), 'top-right');
     map.addControl(new mapboxgl.FullscreenControl(), 'top-right');
+
+    const MAP_BASE_PATH = @json($curatorMapBasePath);
+
+    let selectedLandmarkId = @json($focusId ?? null);
+
+    function curatorMapPathForLandmark(id) {
+        return id ? (MAP_BASE_PATH + '/' + encodeURIComponent(id)) : MAP_BASE_PATH;
+    }
+
+    function syncMapUrlToLandmark(id) {
+        const path = curatorMapPathForLandmark(id || null);
+        if (window.location.pathname !== path) {
+            window.history.replaceState({}, '', path);
+        }
+    }
 
     const landmarks = @json(array_values($landmarks));
 
@@ -151,6 +180,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
     const markersById = new Map();
     const bounds = new mapboxgl.LngLatBounds();
+    const focusIdFromUrl = @json($focusId ?? null);
 
     landmarks.forEach(l => {
         if (typeof l.longitude !== 'number' || typeof l.latitude !== 'number') return;
@@ -165,20 +195,31 @@ document.addEventListener("DOMContentLoaded", function () {
             </div>
         `;
 
+        const popup = new mapboxgl.Popup({ offset: 28, maxWidth: '320px' }).setHTML(popupHtml);
+        popup.on('open', () => {
+            selectedLandmarkId = l.id;
+            syncMapUrlToLandmark(l.id);
+        });
+        popup.on('close', () => {
+            if (selectedLandmarkId === l.id) {
+                selectedLandmarkId = null;
+                syncMapUrlToLandmark(null);
+            }
+        });
+
         const marker = new mapboxgl.Marker({ element: createMarkerElement(l), anchor: 'bottom' })
             .setLngLat([l.longitude, l.latitude])
-            .setPopup(new mapboxgl.Popup({ offset: 28, maxWidth: '320px' }).setHTML(popupHtml))
+            .setPopup(popup)
             .addTo(map);
 
         markersById.set(l.id, { marker, data: l });
         bounds.extend([l.longitude, l.latitude]);
     });
 
-    if (!bounds.isEmpty()) map.fitBounds(bounds, { padding: 60, maxZoom: 15 });
+    if (!bounds.isEmpty() && !focusIdFromUrl) map.fitBounds(bounds, { padding: 60, maxZoom: 15 });
 
-    const focusId = @json($focusId ?? null);
-    if (focusId) {
-        const lm = landmarks.find(x => x.id === focusId);
+    if (focusIdFromUrl) {
+        const lm = landmarks.find(x => x.id === focusIdFromUrl);
         if (lm && typeof lm.longitude === 'number' && typeof lm.latitude === 'number') {
             map.flyTo({ center: [lm.longitude, lm.latitude], zoom: 16 });
             const ref = markersById.get(lm.id);
@@ -223,10 +264,12 @@ document.addEventListener("DOMContentLoaded", function () {
         const { longitude: lng, latitude: lat } = lm;
         if (typeof lng !== 'number' || typeof lat !== 'number') return;
         map.flyTo({ center: [lng, lat], zoom: 16 });
-        if (lm.id !== '__coords__') {
-            const ref = markersById.get(lm.id);
-            if (ref && ref.marker) ref.marker.togglePopup();
+        if (lm.id === '__coords__') {
+            syncMapUrlToLandmark(null);
+            return;
         }
+        const ref = markersById.get(lm.id);
+        if (ref && ref.marker) ref.marker.togglePopup();
     }
 
     btnGo.addEventListener('click', () => {

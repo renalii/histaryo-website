@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <title>HistARyo – Register</title>
     <link rel="icon" type="image/svg+xml" href="{{ asset('favicon.svg') }}">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
     <style>
         * {
             box-sizing: border-box;
@@ -74,7 +73,7 @@
         .register-box {
             display: flex;
             width: min(920px, 100%);
-            height: min(630px, calc(100vh - 120px));
+            height: min(760px, calc(100vh - 140px));
             background: var(--card);
             border-radius: 20px;
             overflow: hidden;
@@ -141,8 +140,24 @@
             margin-bottom: 0;
         }
 
-        #landmark-manager-info .helper-note {
-            margin-top: 0.35rem;
+        .role-summary-wrap {
+            margin-top: 0.05rem;
+        }
+
+        .role-summary-wrap.hidden {
+            display: none;
+        }
+
+        .role-summary-panel.hidden {
+            display: none;
+        }
+
+        .role-summary-intro code {
+            font-size: 0.68em;
+            padding: 0.08rem 0.28rem;
+            border-radius: 4px;
+            background: rgba(140, 92, 58, 0.08);
+            color: var(--brand-dark);
         }
 
         .eyebrow {
@@ -230,6 +245,87 @@
         form textarea:focus {
             border-color: #b17853;
             box-shadow: 0 0 0 4px var(--focus-ring);
+        }
+
+        .password-wrap {
+            position: relative;
+            width: 100%;
+        }
+
+        .password-wrap > input {
+            padding-right: 2.55rem;
+        }
+
+        form .password-toggle {
+            position: absolute;
+            right: 0.35rem;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 2.15rem;
+            height: 2.15rem;
+            margin-top: 0;
+            padding: 0;
+            border: none;
+            background: transparent;
+            border-radius: 6px;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            color: #8a7a70;
+            transition: color 0.2s ease, background-color 0.2s ease;
+        }
+
+        form .password-toggle:hover {
+            color: var(--brand-dark);
+            background: rgba(140, 92, 58, 0.1);
+        }
+
+        form .password-toggle:focus-visible {
+            outline: 2px solid var(--brand);
+            outline-offset: 2px;
+        }
+
+        form .password-toggle:active {
+            transform: translateY(-50%);
+        }
+
+        .password-toggle svg {
+            width: 1.12rem;
+            height: 1.12rem;
+            flex-shrink: 0;
+        }
+
+        .password-toggle .pw-icon-hide {
+            display: none;
+        }
+
+        .password-toggle[aria-pressed="true"] .pw-icon-show {
+            display: none;
+        }
+
+        .password-toggle[aria-pressed="true"] .pw-icon-hide {
+            display: block;
+        }
+
+        .field-hint {
+            margin: -0.15rem 0 0;
+            font-size: 0.65rem;
+            line-height: 1.35;
+            color: #991b1b;
+        }
+
+        .field-hint[hidden] {
+            display: none;
+        }
+
+        form input.input-invalid {
+            border-color: #dc2626;
+        }
+
+        form input.input-invalid:focus {
+            border-color: #dc2626;
+            box-shadow: 0 0 0 4px rgba(220, 38, 38, 0.15);
         }
 
         .choice-grid {
@@ -448,7 +544,7 @@
             }
 
             .register-box {
-                height: min(430px, calc(100vh - 100px));
+                height: min(640px, calc(100vh - 110px));
             }
 
             .form-side {
@@ -522,68 +618,29 @@
                 </div>
                 <div class="field">
                     <label for="password">Password</label>
-                    <input id="password" type="password" name="password" placeholder="Choose a secure password" autocomplete="new-password" required>
+                    <div class="password-wrap">
+                        <input id="password" type="password" name="password" placeholder="Choose a secure password" autocomplete="new-password" required>
+                        <button type="button" class="password-toggle" aria-label="Show password" aria-pressed="false" data-label-show="Show password" data-label-hide="Hide password">
+                            <svg class="pw-icon pw-icon-show" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.75" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 5 12 5c4.638 0 8.573 2.51 9.964 6.322.053.158.053.33 0 .488C20.577 16.49 16.64 19 12 19c-4.638 0-8.573-2.51-9.964-6.322z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                            <svg class="pw-icon pw-icon-hide" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.75" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M3.98 8.223A10.477 10.477 0 001.934 12C3.226 16.338 7.244 19 12 19c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.45 10.45 0 0112 5c4.756 0 8.773 2.663 10.065 7.022a10.522 10.522 0 01-4.293 5.774M6.228 6.228L3 3m3.228 3.228l3.65 3.65m7.894 7.894L21 21m-3.228-3.228l-3.65-3.65m0 0a3 3 0 10-4.243-4.243m4.242 4.242L9.88 9.88"/></svg>
+                        </button>
+                    </div>
                 </div>
                 <div class="field">
-                    <label for="role">Role</label>
-                    <select id="role" name="role" required>
-                        <option value="">Select role</option>
-                        <option value="admin" {{ old('role') == 'admin' ? 'selected' : '' }}>Admin</option>
-                        <option value="curator" {{ old('role') == 'curator' ? 'selected' : '' }}>Curator</option>
-                        <option value="landmark_manager" {{ old('role') == 'landmark_manager' ? 'selected' : '' }}>Landmark Manager</option>
-                    </select>
-                </div>
-
-                <div class="field {{ old('role') === 'landmark_manager' ? '' : 'hidden' }}" id="landmark-manager-info" aria-live="polite">
-                    <div class="role-summary">
-                        <h3>Landmark Manager role</h3>
-                        <p class="role-summary-intro">A Landmark Manager can manage multiple curators. That is their main responsibility—overseeing and managing curators.</p>
-                        <p class="perms-label">Permissions</p>
-                        <ul>
-                            <li>Manage and monitor curators</li>
-                            <li>Add displays (items within the landmark)</li>
-                            <li>Edit landmark details</li>
-                        </ul>
+                    <label for="password_confirmation">Confirm password</label>
+                    <div class="password-wrap">
+                        <input id="password_confirmation" type="password" name="password_confirmation" placeholder="Re-enter your password" autocomplete="new-password" required aria-describedby="password-confirm-hint">
+                        <button type="button" class="password-toggle" aria-label="Show confirm password" aria-pressed="false" data-label-show="Show confirm password" data-label-hide="Hide confirm password">
+                            <svg class="pw-icon pw-icon-show" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.75" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 5 12 5c4.638 0 8.573 2.51 9.964 6.322.053.158.053.33 0 .488C20.577 16.49 16.64 19 12 19c-4.638 0-8.573-2.51-9.964-6.322z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                            <svg class="pw-icon pw-icon-hide" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.75" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M3.98 8.223A10.477 10.477 0 001.934 12C3.226 16.338 7.244 19 12 19c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.45 10.45 0 0112 5c4.756 0 8.773 2.663 10.065 7.022a10.522 10.522 0 01-4.293 5.774M6.228 6.228L3 3m3.228 3.228l3.65 3.65m7.894 7.894L21 21m-3.228-3.228l-3.65-3.65m0 0a3 3 0 10-4.243-4.243m4.242 4.242L9.88 9.88"/></svg>
+                        </button>
                     </div>
-                    <p class="helper-note">Landmark Manager accounts require admin approval after registration.</p>
+                    <p id="password-confirm-hint" class="field-hint" role="alert" hidden>Passwords do not match.</p>
                 </div>
-
-                <div class="field {{ old('role') === 'curator' ? '' : 'hidden' }}" id="curator-options">
-                    <label>Register as Curator</label>
-                    <div class="choice-grid">
-                        <label class="choice-card" for="curator_registration_type_new_landmark">
-                            <input
-                                id="curator_registration_type_new_landmark"
-                                type="radio"
-                                name="curator_registration_type"
-                                value="new_landmark"
-                                {{ old('curator_registration_type', 'new_landmark') === 'new_landmark' ? 'checked' : '' }}
-                            >
-                            <span>
-                                <strong>New Landmark</strong>
-                                <small>If selected, registration requires admin approval.</small>
-                            </span>
-                        </label>
-
-                        <label class="choice-card" for="curator_registration_type_existing_landmark">
-                            <input
-                                id="curator_registration_type_existing_landmark"
-                                type="radio"
-                                name="curator_registration_type"
-                                value="existing_landmark"
-                                {{ old('curator_registration_type') === 'existing_landmark' ? 'checked' : '' }}
-                            >
-                            <span>
-                                <strong>Existing Landmark</strong>
-                                <small>Join with the curator code from your Landmark Manager—approval stays pending until they confirm.</small>
-                            </span>
-                        </label>
-                    </div>
-                </div>
-
-                <div class="field {{ old('role') === 'curator' && old('curator_registration_type', 'new_landmark') === 'existing_landmark' ? '' : 'hidden' }}" id="landmark-code-field">
-                    <label for="landmark_code">Landmark code</label>
-                    <input id="landmark_code" type="text" name="landmark_code" placeholder="Enter landmark code (e.g. LM-ABC123)" value="{{ old('landmark_code') }}">
+                <input type="hidden" name="role" value="site_manager">
+                <div class="role-summary" role="status" aria-label="Account type">
+                    <h3>Site Manager</h3>
+                    <p class="role-summary-intro">This registration is for Site Manager accounts only. Your account will be reviewed by an admin before you can sign in.</p>
                 </div>
 
                 <button type="submit">Register</button>
@@ -607,57 +664,59 @@
 
 <script>
     (function () {
-        const roleSelect = document.getElementById('role');
-        const landmarkManagerInfo = document.getElementById('landmark-manager-info');
-        const curatorOptions = document.getElementById('curator-options');
-        const landmarkCodeField = document.getElementById('landmark-code-field');
-        const landmarkCodeInput = document.getElementById('landmark_code');
-        const curatorTypeInputs = document.querySelectorAll('input[name="curator_registration_type"]');
+        const passwordInput = document.getElementById('password');
+        const confirmInput = document.getElementById('password_confirmation');
+        const confirmHint = document.getElementById('password-confirm-hint');
+        const registerForm = document.querySelector('form[action="{{ route('register') }}"]');
 
-        function getSelectedCuratorType() {
-            for (const input of curatorTypeInputs) {
-                if (input.checked) {
-                    return input.value;
+        function updatePasswordMatch() {
+            if (!passwordInput || !confirmInput || !confirmHint) {
+                return;
+            }
+
+            const password = passwordInput.value;
+            const confirm = confirmInput.value;
+            const mismatch = confirm !== '' && password !== confirm;
+
+            confirmHint.hidden = !mismatch;
+            confirmInput.classList.toggle('input-invalid', mismatch);
+        }
+
+        if (passwordInput && confirmInput) {
+            passwordInput.addEventListener('input', updatePasswordMatch);
+            confirmInput.addEventListener('input', updatePasswordMatch);
+        }
+
+        if (registerForm) {
+            registerForm.addEventListener('submit', (event) => {
+                updatePasswordMatch();
+                if (
+                    confirmInput
+                    && confirmInput.value !== ''
+                    && passwordInput
+                    && passwordInput.value !== confirmInput.value
+                ) {
+                    event.preventDefault();
+                    confirmInput.focus();
                 }
-            }
-            return '';
+            });
         }
 
-        function updateCuratorFields() {
-            const isCurator = roleSelect && roleSelect.value === 'curator';
-            const isLandmarkManager = roleSelect && roleSelect.value === 'landmark_manager';
-            const selectedType = getSelectedCuratorType();
-            const needsLandmarkCode = isCurator && selectedType === 'existing_landmark';
-
-            if (landmarkManagerInfo) {
-                landmarkManagerInfo.classList.toggle('hidden', !isLandmarkManager);
+        document.querySelectorAll('.password-wrap').forEach((wrap) => {
+            const input = wrap.querySelector('input');
+            const btn = wrap.querySelector('.password-toggle');
+            if (!input || !btn) {
+                return;
             }
-
-            if (curatorOptions) {
-                curatorOptions.classList.toggle('hidden', !isCurator);
-            }
-
-            if (landmarkCodeField) {
-                landmarkCodeField.classList.toggle('hidden', !needsLandmarkCode);
-            }
-
-            if (landmarkCodeInput) {
-                landmarkCodeInput.required = needsLandmarkCode;
-                if (!needsLandmarkCode) {
-                    landmarkCodeInput.value = '';
-                }
-            }
-        }
-
-        if (roleSelect) {
-            roleSelect.addEventListener('change', updateCuratorFields);
-        }
-
-        curatorTypeInputs.forEach((input) => {
-            input.addEventListener('change', updateCuratorFields);
+            const showLabel = btn.dataset.labelShow || 'Show password';
+            const hideLabel = btn.dataset.labelHide || 'Hide password';
+            btn.addEventListener('click', () => {
+                const willShow = input.type === 'password';
+                input.type = willShow ? 'text' : 'password';
+                btn.setAttribute('aria-pressed', willShow ? 'true' : 'false');
+                btn.setAttribute('aria-label', willShow ? hideLabel : showLabel);
+            });
         });
-
-        updateCuratorFields();
     })();
 </script>
 

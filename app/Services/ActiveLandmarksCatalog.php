@@ -2,6 +2,8 @@
 
 namespace App\Services;
 
+use App\Support\LandmarkActivation;
+
 final class ActiveLandmarksCatalog
 {
     /**
@@ -18,7 +20,7 @@ final class ActiveLandmarksCatalog
             }
             $d = $snap->data();
             $activation = strtolower((string) ($d['activation_status'] ?? 'active'));
-            if ($activation === 'pending') {
+            if (! LandmarkActivation::isBrowsable($activation)) {
                 continue;
             }
             $ids[] = $snap->id();

@@ -2,11 +2,13 @@
 
 namespace App\Services;
 
+use App\Support\LandmarkActivation;
+
 final class CuratorAccessibleLandmarks
 {
     /**
-     * All landmark document IDs this curator may work with: same Landmark Manager portfolio
-     * (shared manager_uid). Falls back to the primary ID only when no manager is set.
+     * All landmark document IDs this curator may work with: same Site Manager portfolio
+     * (shared manager_uid / managerUid). Falls back to the primary ID only when no manager is set.
      */
     public static function resolveIds(FirebaseService $firebase, string $primaryLandmarkId): array
     {
@@ -21,14 +23,22 @@ final class CuratorAccessibleLandmarks
             return [$primaryLandmarkId];
         }
 
-        $managerUid = trim((string) ($doc->data()['manager_uid'] ?? ''));
+        $d = $doc->data();
+        $managerUid = trim((string) ($d['manager_uid'] ?? $d['managerUid'] ?? ''));
         if ($managerUid === '') {
             return [$primaryLandmarkId];
         }
 
         $ids = [];
-        foreach ($fs->collection('landmarks')->where('manager_uid', '==', $managerUid)->documents() as $snap) {
-            if ($snap->exists()) {
+        foreach (['manager_uid', 'managerUid'] as $field) {
+            foreach ($fs->collection('landmarks')->where($field, '==', $managerUid)->documents() as $snap) {
+                if (! $snap->exists()) {
+                    continue;
+                }
+                $activation = strtolower((string) ($snap->data()['activation_status'] ?? 'active'));
+                if (! LandmarkActivation::isBrowsable($activation)) {
+                    continue;
+                }
                 $ids[] = $snap->id();
             }
         }

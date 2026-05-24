@@ -13,7 +13,7 @@ final class CuratorAssignedLandmark
         return is_string($id) && $id !== '' ? $id : null;
     }
 
-    /** @return list<string> Landmark IDs visible in curator lists (whole active catalog). */
+    /** @return list<string> Landmark IDs visible in curator listings (assigned landmark from session). */
     public static function browseableIds(): array
     {
         $ids = Session::get('browseable_landmark_ids');
@@ -60,10 +60,10 @@ final class CuratorAssignedLandmark
         return in_array($landmarkDocId, self::writableIds(), true);
     }
 
-    /** Curator may change landmark-linked data for any landmark they can browse (catalog scope). */
+    /** Curator may change landmark-linked data only for landmarks they may write (assigned by default). */
     public static function assertMatches(string $landmarkDocId): void
     {
-        if (in_array($landmarkDocId, self::browseableIds(), true)) {
+        if (in_array($landmarkDocId, self::writableIds(), true)) {
             return;
         }
 

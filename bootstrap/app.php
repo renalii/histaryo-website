@@ -11,10 +11,13 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        // ngrok / reverse proxies: honor X-Forwarded-Proto so signed URLs (https) validate.
+        $middleware->trustProxies(at: '*');
+
         $middleware->alias([
             'curator.auth' => \App\Http\Middleware\EnsureCuratorSession::class,
             'panel.admin' => \App\Http\Middleware\EnsureAdminPanelSession::class,
-            'panel.landmarkmanager' => \App\Http\Middleware\EnsureLandmarkManagerPanelSession::class,
+            'panel.sitemanager' => \App\Http\Middleware\EnsureLandmarkManagerPanelSession::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

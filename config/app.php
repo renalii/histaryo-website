@@ -56,6 +56,19 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Public URL (emails, signed invite links)
+    |--------------------------------------------------------------------------
+    |
+    | Optional override for signed email links (e.g. production HTTPS).
+    | Defaults to APP_URL. QR codes use QR_PUBLIC_BASE_URL separately (config/qr.php).
+    |
+    */
+
+    'public_url' => env('MAIL_PUBLIC_BASE_URL')
+        ?: env('APP_URL', 'http://localhost'),
+
+    /*
+    |--------------------------------------------------------------------------
     | Application Timezone
     |--------------------------------------------------------------------------
     |

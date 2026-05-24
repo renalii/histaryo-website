@@ -2,10 +2,13 @@
 
 @section('content')
     @php
-        $panelRoutePrefix = session('role') === 'landmark_manager' ? 'landmarkmanager' : 'admin';
+        $panelRoutePrefix = session('role') === 'site_manager' ? 'sitemanager' : 'admin';
         $curatorsOnly = $curatorsOnly ?? false;
-        $usersListRouteName = $curatorsOnly ? 'landmarkmanager.curators' : ($panelRoutePrefix.'.users');
-        $userActionsRoutePrefix = $curatorsOnly ? 'landmarkmanager.curators' : ($panelRoutePrefix.'.users');
+        $siteManagersOnly = $siteManagersOnly ?? false;
+        $usersListRouteName = $curatorsOnly
+            ? 'sitemanager.curators'
+            : ($siteManagersOnly ? 'admin.site-managers' : ($panelRoutePrefix.'.users'));
+        $userActionsRoutePrefix = $curatorsOnly ? 'sitemanager.curators' : ($panelRoutePrefix.'.users');
     @endphp
     <style>
         .users-wrap { max-width: 2000px; margin: 0 auto; }
@@ -88,7 +91,7 @@
         .role-admin { background: #fee2e2; color: #991b1b; border-color: #fecaca; }
         .role-curator { background: #ecfdf5; color: #166534; border-color: #bbf7d0; }
         .role-visitor { background: #eff6ff; color: #1d4ed8; border-color: #bfdbfe; }
-        .role-landmark_manager { background: #fef3c7; color: #92400e; border-color: #fde68a; }
+        .role-site_manager { background: #fef3c7; color: #92400e; border-color: #fde68a; }
         .uid-text { color: #6b7280; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .84rem; }
         .status-pill {
             display: inline-flex;
@@ -160,14 +163,33 @@
     </style>
 
     <div class="users-wrap">
-    <h2 class="users-title">{{ $curatorsOnly ? 'Curators' : 'All Registered Users' }}</h2>
-    <p class="users-sub">
-        @if ($curatorsOnly)
-            {{ count($users) }} curator{{ count($users) !== 1 ? 's' : '' }} found
-        @else
-            {{ count($users) }} user{{ count($users) !== 1 ? 's' : '' }} found
+    <div style="display:flex;flex-wrap:wrap;align-items:flex-start;justify-content:space-between;gap:1rem;margin-bottom:.25rem;">
+        <div>
+            <h2 class="users-title" style="margin-bottom:.25rem;">
+                @if ($curatorsOnly)
+                    Curators
+                @elseif ($siteManagersOnly)
+                    Site Managers
+                @else
+                    All Registered Users
+                @endif
+            </h2>
+            <p class="users-sub" style="margin-bottom:0;">
+                @if ($curatorsOnly)
+                    {{ count($users) }} curator{{ count($users) !== 1 ? 's' : '' }} found
+                @elseif ($siteManagersOnly)
+                    {{ count($users) }} Site Manager{{ count($users) !== 1 ? 's' : '' }} — approve or reject pending registrations
+                @else
+                    {{ count($users) }} user{{ count($users) !== 1 ? 's' : '' }} found
+                @endif
+            </p>
+        </div>
+        @if ($curatorsOnly && $panelRoutePrefix === 'sitemanager')
+            <button type="button" id="openCuratorDrawer" class="users-btn apply" style="white-space:nowrap;">
+                + Add curator
+            </button>
         @endif
-    </p>
+    </div>
 
     @if (session('status'))
         <p class="flash-ok">{{ session('status') }}</p>
@@ -184,15 +206,15 @@
             placeholder="Search by email or UID..."
             class="users-input">
 
-        @unless ($curatorsOnly)
+        @if (! $curatorsOnly && ! $siteManagersOnly)
         <select name="role" class="users-select">
             <option value="">All Roles</option>
             <option value="admin" {{ request('role') === 'admin' ? 'selected' : '' }}>Admin</option>
             <option value="curator" {{ request('role') === 'curator' ? 'selected' : '' }}>Curator</option>
-            <option value="landmark_manager" {{ request('role') === 'landmark_manager' ? 'selected' : '' }}>Landmark Manager</option>
+            <option value="site_manager" {{ request('role') === 'site_manager' ? 'selected' : '' }}>Site Manager</option>
             <option value="visitor" {{ request('role') === 'visitor' ? 'selected' : '' }}>Visitor</option>
         </select>
-        @endunless
+        @endif
 
         <button type="submit" class="users-btn apply">
             Apply
@@ -204,7 +226,15 @@
     </form>
 
     @if (count($users) === 0)
-        <p class="empty-box">{{ $curatorsOnly ? 'No curators found. Try a different search.' : 'No users found. Try changing your search or role filter.' }}</p>
+        <p class="empty-box">
+            @if ($curatorsOnly)
+                No curators found. Try a different search.
+            @elseif ($siteManagersOnly)
+                No Site Manager registrations match your search.
+            @else
+                No users found. Try changing your search or role filter.
+            @endif
+        </p>
     @else
         <div class="users-table-card">
             <table class="users-table">
@@ -212,9 +242,6 @@
                     <tr>
                         <th>Email</th>
                         <th>Role</th>
-                        @if ($curatorsOnly || request()->routeIs('admin.users'))
-                            <th>Signup</th>
-                        @endif
                         <th>Approval</th>
                         <th>UID</th>
                         <th>Actions</th>
@@ -225,27 +252,23 @@
                         @php
                             $approvalLabel = ucfirst(str_replace('_', ' ', $user->approval_status));
                             $showPendingActions = ! empty($user->approval_actions);
-                            $signupDetail = '';
-                            if ($user->role === 'curator') {
-                                $signupDetail = ($user->curator_registration_type ?? '') === 'new_landmark'
-                                    ? 'New landmark proposal'
-                                    : 'Landmark join code';
-                            }
+                            $roleLabel = $user->role === 'site_manager'
+                                ? 'Site Manager'
+                                : ucfirst(str_replace('_', ' ', $user->role));
                         @endphp
                         <tr>
                             <td>{{ $user->email }}</td>
                             <td>
                                 <span class="role-pill role-{{ strtolower($user->role) }}">
-                                    {{ str_replace('_', ' ', $user->role) }}
+                                    {{ $roleLabel }}
                                 </span>
                             </td>
-                            @if ($curatorsOnly || request()->routeIs('admin.users'))
-                                <td style="font-size:.88rem;color:#374151;">
-                                    {{ $signupDetail ?: '—' }}
-                                </td>
-                            @endif
                             <td>
-                                <span class="status-pill status-{{ $user->approval_status }}">{{ $approvalLabel }}</span>
+                                @if ($user->role === 'visitor')
+                                    <span style="color: #9ca3af; font-size: .82rem;">—</span>
+                                @else
+                                    <span class="status-pill status-{{ $user->approval_status }}">{{ $approvalLabel }}</span>
+                                @endif
                             </td>
                             <td class="uid-text">{{ $user->uid }}</td>
                             <td>
@@ -255,12 +278,18 @@
                                             @csrf
                                             <input type="hidden" name="search" value="{{ request('search') }}">
                                             <input type="hidden" name="role" value="{{ $curatorsOnly ? 'curator' : request('role') }}">
+                                            @if ($siteManagersOnly)
+                                                <input type="hidden" name="return_to" value="site-managers">
+                                            @endif
                                             <button type="submit" class="btn-approve">Approve</button>
                                         </form>
                                         <form method="POST" action="{{ route($userActionsRoutePrefix.'.reject', ['uid' => $user->uid]) }}" onsubmit="return confirm('Reject this registration?');">
                                             @csrf
                                             <input type="hidden" name="search" value="{{ request('search') }}">
                                             <input type="hidden" name="role" value="{{ $curatorsOnly ? 'curator' : request('role') }}">
+                                            @if ($siteManagersOnly)
+                                                <input type="hidden" name="return_to" value="site-managers">
+                                            @endif
                                             <button type="submit" class="btn-reject">Reject</button>
                                         </form>
                                     </div>
@@ -275,5 +304,12 @@
         </div>
     @endif
     </div>
+
+    @if ($curatorsOnly && $panelRoutePrefix === 'sitemanager')
+        @include('sitemanager.partials.curator-create-drawer', [
+            'landmarks' => $assignableLandmarks ?? [],
+            'allActiveLandmarksAssigned' => $allActiveLandmarksAssigned ?? false,
+        ])
+    @endif
 @endsection
 

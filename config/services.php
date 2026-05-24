@@ -34,6 +34,13 @@ return [
     
     'firebase' => [
         'api_key' => env('FIREBASE_API_KEY'),
+        // grpc (default) or rest — rest avoids flaky gRPC "Stream removed" on some Windows/dev setups.
+        'firestore_transport' => strtolower((string) env('FIRESTORE_TRANSPORT', 'grpc')),
+        // Optional comma-separated extra Firestore collection ids for crowd tips (merged with app defaults).
+        'firestore_tip_collection_names' => array_values(array_filter(array_map(
+            'trim',
+            explode(',', (string) env('FIRESTORE_TIP_COLLECTIONS', ''))
+        ))),
     ],
 
     'ses' => [

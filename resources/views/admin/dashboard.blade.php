@@ -6,6 +6,9 @@
     $today = Carbon::now()->format('F j, Y');
     $email = session('email');
     $name = $email ? ucfirst(explode('@', $email)[0]) : 'Admin';
+    $showInsights = $showSystemInsights ?? false;
+    $isSiteManager = session('role') === 'site_manager';
+    $statColClass = $isSiteManager ? 'lm-stat-2col' : ($showInsights ? '' : 'lm-stat-3col');
 @endphp
 
 <style>
@@ -44,12 +47,11 @@
     }
     .admin-stat h3 { margin: 0; font-size: .95rem; color: #6b7280; font-weight: 700; }
     .admin-stat p { margin: .45rem 0 0 0; font-size: 2rem; font-weight: 800; color: #111827; }
-    .admin-stat small { color: #6b7280; font-weight: 600; }
+    .admin-stat small { color: #6b7280; font-weight: 600; display: block; margin-top: .35rem; }
     @media (min-width: 641px) {
         .admin-stat.lm-stat-3col { grid-column: span 4 !important; }
         .admin-stat.lm-stat-2col { grid-column: span 6 !important; }
     }
-    
     .admin-chart {
         background: #fff;
         border: 1px solid #eceff3;
@@ -82,17 +84,17 @@
 <div class="admin-hero">
     <p class="admin-kicker">{{ $today }}</p>
     <h1>Welcome back, {{ $name }}!</h1>
-    <div class="admin-hero-sub">Here is today’s platform snapshot and recent usage trend.</div>
+    @if ($showInsights)
+        <p class="admin-hero-sub">Here is today's platform snapshot and recent usage trend.</p>
+    @elseif ($isSiteManager)
+        <p class="admin-hero-sub">Manage your landmarks and curators.</p>
+    @else
+        <p class="admin-hero-sub">Platform overview.</p>
+    @endif
 </div>
 
-@php
-    $showInsights = ($showSystemInsights ?? false);
-    $isLandmarkManager = session('role') === 'landmark_manager';
-    $statColClass = $isLandmarkManager ? 'lm-stat-2col' : ($showInsights ? '' : 'lm-stat-3col');
-@endphp
-
 <div class="admin-grid" style="margin-bottom: 1rem;">
-    @if (! $isLandmarkManager)
+    @if (! $isSiteManager)
     <div class="admin-stat {{ $statColClass }}">
         <h3>Total Users</h3>
         <p>{{ $userCount ?? 0 }}</p>
@@ -102,12 +104,12 @@
     <div class="admin-stat {{ $statColClass }}">
         <h3>Curators</h3>
         <p>{{ $curatorCount ?? 0 }}</p>
-        <small>{{ $isLandmarkManager ? 'Linked to your landmarks' : 'Active content managers' }}</small>
+        <small>{{ $isSiteManager ? 'Linked to your landmarks' : 'Active content managers' }}</small>
     </div>
     <div class="admin-stat {{ $statColClass }}">
         <h3>Landmarks</h3>
         <p>{{ $landmarkCount ?? 0 }}</p>
-        <small>{{ $isLandmarkManager ? 'In your portfolio' : 'Published places' }}</small>
+        <small>{{ $isSiteManager ? 'In your portfolio' : 'Published places' }}</small>
     </div>
     @if ($showInsights)
     <div class="admin-stat">
@@ -136,13 +138,13 @@
 </div>
 
 @if ($showInsights)
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <script>
     const visitsData = {
         labels: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
         datasets: [{
             label: 'Visits',
-            data: {!! json_encode($visitsByDay) !!},
+            data: {!! json_encode($visitsByDay ?? []) !!},
             borderColor: '#7A2E1F',
             backgroundColor: 'rgba(122, 46, 31, 0.12)',
             tension: 0.3,
@@ -155,7 +157,7 @@
     const usageData = {
         labels: ['Admins', 'Curators'],
         datasets: [{
-            data: [{{ $adminCount ?? 0 }}, {{ $curatorCount ?? 0 }}],
+            data: [{{ (int) ($adminCount ?? 0) }}, {{ (int) ($curatorCount ?? 0) }}],
             backgroundColor: ['#7A2E1F', '#E8B34B'],
             borderWidth: 1
         }]
@@ -168,9 +170,7 @@
             responsive: true,
             maintainAspectRatio: false,
             plugins: { legend: { position: 'top' } },
-            scales: {
-                y: { beginAtZero: true }
-            }
+            scales: { y: { beginAtZero: true } }
         }
     });
 
@@ -180,9 +180,7 @@
         options: {
             responsive: true,
             maintainAspectRatio: false,
-            plugins: {
-                legend: { position: 'bottom' }
-            }
+            plugins: { legend: { position: 'bottom' } }
         }
     });
 </script>

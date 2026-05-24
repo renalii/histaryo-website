@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Curator;
 
 use App\Http\Controllers\Controller;
 use App\Services\FirebaseService;
+use App\Services\LandmarkImageStorage;
 use App\Support\CuratorAssignedLandmark;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
@@ -48,50 +49,19 @@ class LandmarkController extends Controller
     public function index(Request $request)
     {
         $assignedId = CuratorAssignedLandmark::id();
-        $docs = [];
+        $landmark = null;
         $landmarkManagerAttribution = null;
 
-        foreach (CuratorAssignedLandmark::browseableIds() as $lid) {
-            $snapshot = $this->firestore->collection('landmarks')->document($lid)->snapshot();
-            if (! $snapshot->exists()) {
-                continue;
-            }
-            $docs[] = $snapshot;
-            if ($landmarkManagerAttribution === null && $assignedId !== null && $lid === $assignedId) {
+        if ($assignedId) {
+            $snapshot = $this->firestore->collection('landmarks')->document($assignedId)->snapshot();
+            if ($snapshot->exists()) {
+                $landmark = $snapshot;
                 $landmarkManagerAttribution = $this->resolveLandmarkManagerAttributionLabel($snapshot->data());
             }
         }
-        if ($landmarkManagerAttribution === null && $assignedId !== null) {
-            $prim = $this->firestore->collection('landmarks')->document($assignedId)->snapshot();
-            if ($prim->exists()) {
-                $landmarkManagerAttribution = $this->resolveLandmarkManagerAttributionLabel($prim->data());
-            }
-        }
-
-        $items = collect($docs);
-
-        if ($request->filled('category')) {
-            $items = $items->filter(function ($doc) use ($request) {
-                $data = $doc->data();
-
-                return isset($data['category']) && $data['category'] === $request->category;
-            });
-        }
-
-        $perPage = 3;
-        $currentPage = LengthAwarePaginator::resolveCurrentPage();
-
-        $paginated = new LengthAwarePaginator(
-            $items->forPage($currentPage, $perPage)->values(),
-            $items->count(),
-            $perPage,
-            $currentPage,
-            ['path' => url()->current(), 'query' => $request->query()]
-        );
 
         return view('curators.landmarks.index', [
-            'landmarks' => $paginated,
-            'selectedCategory' => $request->category,
+            'landmark' => $landmark,
             'landmarkManagerAttribution' => $landmarkManagerAttribution,
         ]);
     }
@@ -137,7 +107,7 @@ class LandmarkController extends Controller
             $data['image_mime'] = $imageMime;
 
             if (! empty($imageBase64)) {
-                $this->persistLandmarkImageFile((string) $id, $imageBase64, $imageMime);
+                LandmarkImageStorage::persistFromBase64((string) $id, $imageBase64, $imageMime);
             }
         }
 
@@ -197,7 +167,7 @@ class LandmarkController extends Controller
             }
         }
 
-        $this->deleteLandmarkImageFiles($id);
+        LandmarkImageStorage::deleteForLandmark($id);
         $docRef->delete();
 
         $this->firestore->collection('logs')->add([
@@ -241,45 +211,4 @@ class LandmarkController extends Controller
         return [$base64, $mime];
     }
 
-    private function persistLandmarkImageFile(string $landmarkId, string $base64, ?string $mimeType = null): bool
-    {
-        if (str_contains($base64, ',')) {
-            $parts = explode(',', $base64, 2);
-            $base64 = $parts[1] ?? '';
-        }
-
-        $binary = base64_decode($base64, true);
-        if ($binary === false) {
-            return false;
-        }
-
-        $this->deleteLandmarkImageFiles($landmarkId);
-
-        $ext = $this->extensionFromMime($mimeType ?: 'image/jpeg');
-        Storage::disk('public')->put('landmarks/'.$landmarkId.'.'.$ext, $binary);
-
-        return true;
-    }
-
-    private function deleteLandmarkImageFiles(string $landmarkId): void
-    {
-        $disk = Storage::disk('public');
-        foreach (['jpg', 'jpeg', 'png', 'webp', 'gif'] as $ext) {
-            $path = 'landmarks/'.$landmarkId.'.'.$ext;
-            if ($disk->exists($path)) {
-                $disk->delete($path);
-            }
-        }
-    }
-
-    private function extensionFromMime(string $mime): string
-    {
-        return match (strtolower(trim($mime))) {
-            'image/png' => 'png',
-            'image/webp' => 'webp',
-            'image/gif' => 'gif',
-            'image/jpeg', 'image/jpg' => 'jpg',
-            default => 'jpg',
-        };
-    }
 }

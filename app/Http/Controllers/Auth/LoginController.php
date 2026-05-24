@@ -4,12 +4,14 @@ namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Support\FirestoreBool;
+use App\Support\UserApprovalPolicy;
 use Illuminate\Http\Request;
-use App\Services\ActiveLandmarksCatalog;
 use App\Services\CuratorAccessibleLandmarks;
+use App\Services\CuratorBrowseableLandmarks;
 use App\Services\FirebaseService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Session;
+use Kreait\Firebase\Auth\SignIn\FailedToSignIn;
 use Kreait\Firebase\Exception\Auth\InvalidPassword;
 use Kreait\Firebase\Exception\Auth\UserNotFound;
 
@@ -31,8 +33,15 @@ class LoginController extends Controller
 
         if (Session::has('uid') && Session::has('role')) {
             $role = Session::get('role');
+            if ($role === 'landmark_manager') {
+                Session::put('role', 'site_manager');
+                $role = 'site_manager';
+            }
 
             if ($role === 'curator') {
+                if (Session::get('must_change_password')) {
+                    return redirect()->route('curators.change-password');
+                }
                 $aid = Session::get('assigned_landmark_id');
                 if (! is_string($aid) || trim($aid) === '') {
                     return redirect()->route('curators.pending-assignment');
@@ -45,8 +54,8 @@ class LoginController extends Controller
                 return redirect()->route('admin.dashboard');
             }
 
-            if ($role === 'landmark_manager') {
-                return redirect()->route('landmarkmanager.dashboard');
+            if ($role === 'site_manager') {
+                return redirect()->route('sitemanager.dashboard');
             }
         }
 
@@ -73,13 +82,32 @@ class LoginController extends Controller
             
             $userDoc = $this->firebase->firestore()->collection('users')->document($uid)->snapshot();
             $name = $userDoc->exists() ? ($userDoc['name'] ?? null) : null;
+            $fsRole = strtolower((string) ($userDoc->exists() ? ($userDoc['role'] ?? $role) : $role));
+            if ($fsRole === '') {
+                $fsRole = 'visitor';
+            }
+
+            if ($userDoc->exists() && $fsRole === 'visitor') {
+                $visitorPatch = UserApprovalPolicy::visitorAutoApprovalPatch($userDoc->data());
+                if ($visitorPatch !== null) {
+                    $this->firebase->firestore()
+                        ->collection('users')
+                        ->document($uid)
+                        ->set($visitorPatch, ['merge' => true]);
+                }
+            }
+
             $approvalStatus = $userDoc->exists()
                 ? strtolower((string) ($userDoc['approval_status'] ?? 'approved'))
                 : 'approved';
             $requiresApproval = $userDoc->exists()
-                ? FirestoreBool::isTrue($userDoc['requires_approval'] ?? null)
+                ? UserApprovalPolicy::effectiveRequiresApproval($fsRole, $userDoc['requires_approval'] ?? null)
                 : false;
-            $fsRole = strtolower((string) ($userDoc->exists() ? ($userDoc['role'] ?? $role) : $role));
+
+            if ($fsRole === 'visitor') {
+                $approvalStatus = 'approved';
+                $requiresApproval = false;
+            }
 
             if ($requiresApproval && $approvalStatus === 'rejected') {
                 return back()->withErrors([
@@ -88,10 +116,10 @@ class LoginController extends Controller
             }
 
             if ($requiresApproval && $approvalStatus !== 'approved') {
-                if ($fsRole === 'landmark_manager') {
+                if ($fsRole === 'site_manager') {
                     $pendingMsg = 'Your account is waiting for administrator approval.';
                 } elseif ($fsRole === 'curator') {
-                    $pendingMsg = 'Your account is waiting for approval from your Landmark Manager.';
+                    $pendingMsg = 'Your account is waiting for approval from your Site Manager.';
                 } else {
                     $pendingMsg = 'Your account is pending approval before activation.';
                 }
@@ -102,7 +130,7 @@ class LoginController extends Controller
 
             
             Session::put('uid', $uid);
-            Session::put('role', $role);
+            Session::put('role', $fsRole);
             Session::put('email', $email);
             if ($name) {
                 Session::put('name', $name);
@@ -112,13 +140,18 @@ class LoginController extends Controller
                 $assignedLandmarkIdRaw = $userDoc->exists() ? ($userDoc['assigned_landmark_id'] ?? '') : '';
                 $assignedTrimmed = is_string($assignedLandmarkIdRaw) ? trim($assignedLandmarkIdRaw) : '';
                 Session::put('assigned_landmark_id', $assignedTrimmed);
-                Session::put('browseable_landmark_ids', ActiveLandmarksCatalog::documentIds($this->firebase));
+                Session::put('browseable_landmark_ids', CuratorBrowseableLandmarks::resolveIds($this->firebase, $assignedTrimmed));
                 Session::put(
                     'writable_landmark_ids',
                     $assignedTrimmed !== ''
                         ? CuratorAccessibleLandmarks::resolveIds($this->firebase, $assignedTrimmed)
                         : []
                 );
+                if ($userDoc->exists() && FirestoreBool::isTrue($userDoc['must_change_password'] ?? false)) {
+                    Session::put('must_change_password', true);
+                } else {
+                    Session::forget('must_change_password');
+                }
             } else {
                 Session::forget('assigned_landmark_id');
                 Session::forget('browseable_landmark_ids');
@@ -133,25 +166,41 @@ class LoginController extends Controller
             ]);
 
             
-            if ($role === 'admin') {
+            if ($fsRole === 'admin') {
                 return redirect()->route('admin.dashboard')->with('success', 'Welcome Admin!');
-            } elseif ($role === 'curator') {
+            } elseif ($fsRole === 'curator') {
+                if (Session::get('must_change_password')) {
+                    return redirect()
+                        ->route('curators.change-password')
+                        ->with('success', 'Welcome! Set a new password to continue.');
+                }
                 $assignedAfterLogin = Session::get('assigned_landmark_id');
                 $redirectTo =
                     (! is_string($assignedAfterLogin) || trim($assignedAfterLogin) === '')
                         ? route('curators.pending-assignment')
                         : $this->pullCuratorRedirectOrDefault();
                 return redirect()->to($redirectTo)->with('success', 'Welcome Curator!');
-            } elseif ($role === 'landmark_manager') {
-                return redirect()->route('landmarkmanager.dashboard')->with('success', 'Welcome Landmark Manager!');
+            } elseif ($fsRole === 'site_manager') {
+                return redirect()->route('sitemanager.dashboard')->with('success', 'Welcome Site Manager!');
             } else {
                 return back()->withErrors(['error' => 'Unauthorized role.']);
             }
 
-        } catch (UserNotFound | InvalidPassword $e) {
-            return back()->withErrors(['error' => 'Invalid email or password.']);
+        } catch (UserNotFound | InvalidPassword | FailedToSignIn $e) {
+            return back()->withErrors([
+                'error' => 'Login failed. Please check your username/email and password, then try again.',
+            ]);
         } catch (\Exception $e) {
-            return back()->withErrors(['error' => 'Login failed. ' . $e->getMessage()]);
+            $message = $e->getMessage();
+            if (str_contains($message, 'INVALID_LOGIN_CREDENTIALS')
+                || str_contains($message, 'INVALID_PASSWORD')
+                || str_contains($message, 'EMAIL_NOT_FOUND')) {
+                return back()->withErrors([
+                    'error' => 'Login failed. Please check your username/email and password, then try again.',
+                ]);
+            }
+
+            return back()->withErrors(['error' => 'Login failed. Please try again later.']);
         }
     }
 

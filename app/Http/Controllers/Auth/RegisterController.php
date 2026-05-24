@@ -26,14 +26,14 @@ class RegisterController extends Controller
     {
         $rules = [
             'email' => 'required|email',
-            'password' => 'required|min:6',
+            'password' => 'required|min:6|confirmed',
             'first_name' => 'required|string|max:120',
             'last_name' => 'required|string|max:120',
-            'role' => 'required|in:admin,curator,landmark_manager',
+            'role' => 'required|in:site_manager',
             'profile_image' => 'nullable|image|max:512',
             'curator_registration_type' => Rule::when(
                 $request->input('role') === 'curator',
-                ['required', Rule::in(['new_landmark', 'existing_landmark'])],
+                ['required', Rule::in(['existing_landmark'])],
                 'nullable|string'
             ),
             'landmark_code' => [
@@ -81,16 +81,20 @@ class RegisterController extends Controller
                     ->documents();
 
                 foreach ($qrDocs as $qrDoc) {
-                    if ($qrDoc->exists()) {
-                        $qrData = $qrDoc->data();
-                        $assignedLandmarkId = $qrData['landmark_id'] ?? null;
-                        break;
+                    if (! $qrDoc->exists()) {
+                        continue;
                     }
+                    $qrData = $qrDoc->data();
+                    if ($qrData['is_landmark_join_code'] ?? false) {
+                        continue;
+                    }
+                    $assignedLandmarkId = $qrData['landmark_id'] ?? null;
+                    break;
                 }
 
                 if (! $assignedLandmarkId) {
                     return back()->withErrors([
-                        'landmark_code' => 'Invalid landmark code. Please check the code from your Landmark Manager.',
+                        'landmark_code' => 'Invalid landmark code. Please check the code from your Site Manager.',
                     ])->withInput();
                 }
 
@@ -102,15 +106,15 @@ class RegisterController extends Controller
                     ? strtolower((string) ($landmarkSnap->data()['activation_status'] ?? 'active'))
                     : '';
 
-                if (! $landmarkSnap->exists() || $landmarkActivation === 'pending') {
+                if (! $landmarkSnap->exists() || in_array($landmarkActivation, ['pending', 'rejected'], true)) {
                     return back()->withErrors([
-                        'landmark_code' => 'This landmark is not yet active. Ask your Landmark Manager when it is ready.',
+                        'landmark_code' => 'This landmark is not yet active. Ask your Site Manager when administrator approval is complete.',
                     ])->withInput();
                 }
             }
         }
 
-        if ($role === 'landmark_manager') {
+        if ($role === 'site_manager') {
             $requiresApproval = true;
             $approvalStatus = 'pending';
         }
@@ -145,21 +149,6 @@ class RegisterController extends Controller
                     $userData['assigned_landmark_id'] = $assignedLandmarkId;
                     $userData['landmark_code'] = $landmarkCode;
                     $userData['pending_landmark_id'] = null;
-                } elseif ($curatorRegistrationType === 'new_landmark') {
-                    $proposalCode = $this->uniqueProposalLandmarkCode();
-                    $landmarkRef = $this->firebase->firestore()->collection('landmarks')->add([
-                        'name' => 'Pending landmark proposal',
-                        'landmarkcode' => $proposalCode,
-                        'category' => 'Unspecified',
-                        'description' => null,
-                        'activation_status' => 'pending',
-                        'proposed_by_curator_uid' => $uid,
-                        'proposed_by_email' => $email,
-                        'manager_uid' => '',
-                        'created_at' => now()->toDateTimeString(),
-                    ]);
-                    $userData['pending_landmark_id'] = $landmarkRef->id();
-                    $userData['proposed_landmarkcode'] = $proposalCode;
                 }
             }
 
@@ -173,12 +162,10 @@ class RegisterController extends Controller
                 ->document($uid)
                 ->set($userData);
 
-            if ($requiresApproval && $role === 'landmark_manager') {
+            if ($requiresApproval && $role === 'site_manager') {
                 $successMessage = 'Registration submitted successfully! Your account is pending admin approval.';
-            } elseif ($requiresApproval && $role === 'curator' && $curatorRegistrationType === 'new_landmark') {
-                $successMessage = 'Registration submitted! An administrator will review your landmark proposal and account.';
             } elseif ($requiresApproval && $role === 'curator') {
-                $successMessage = 'Registration submitted! Your account is pending approval from your Landmark Manager.';
+                $successMessage = 'Registration submitted! Your account is pending approval from your Site Manager.';
             } else {
                 $successMessage = $requiresApproval
                     ? 'Registration submitted successfully! Pending approval.'
@@ -191,43 +178,5 @@ class RegisterController extends Controller
         } catch (\Exception $e) {
             return back()->withErrors(['error' => 'Registration failed. '.$e->getMessage()])->withInput();
         }
-    }
-
-    /**
-     * Temporary site code for curator-proposed landmarks (admin assigns a manager after approval).
-     */
-    private function uniqueProposalLandmarkCode(): string
-    {
-        $fs = $this->firebase->firestore();
-
-        for ($attempt = 0; $attempt < 12; $attempt++) {
-            $candidate = 'PROP-'.strtoupper(substr(bin2hex(random_bytes(6)), 0, 10));
-
-            $dupLm = $fs->collection('landmarks')->where('landmarkcode', '==', $candidate)->limit(1)->documents();
-            $takenLm = false;
-            foreach ($dupLm as $doc) {
-                if ($doc->exists()) {
-                    $takenLm = true;
-                    break;
-                }
-            }
-            if ($takenLm) {
-                continue;
-            }
-
-            $dupQr = $fs->collection('qr_codes')->where('code', '==', $candidate)->limit(1)->documents();
-            $takenQr = false;
-            foreach ($dupQr as $doc) {
-                if ($doc->exists()) {
-                    $takenQr = true;
-                    break;
-                }
-            }
-            if (! $takenQr) {
-                return $candidate;
-            }
-        }
-
-        return 'PROP-'.strtoupper(substr(sha1((string) microtime(true).random_bytes(16)), 0, 10));
     }
 }

@@ -33,7 +33,7 @@
         <p style="margin: 0; font-size: 0.9rem; opacity: 0.85;">{{ $today }}</p>
         <h2 style="font-size: 2rem; font-weight: 700; margin: 0;">Welcome back, {{ $name }}</h2>
         <p style="margin: 0; font-size: 1rem; opacity: 0.95;">
-            You manage content for your <strong>assigned landmark</strong> only—display QR codes and trivia scoped to it.
+            You manage content for your <strong>assigned landmark</strong> only display QR codes and trivia scoped to it.
         </p>
     </div>
 

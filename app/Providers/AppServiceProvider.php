@@ -2,8 +2,9 @@
 
 namespace App\Providers;
 
+use App\Services\FirebaseService;
+use Illuminate\Support\Facades\URL;
 use Illuminate\Support\ServiceProvider;
-use Google\Cloud\Firestore\FirestoreClient;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -12,11 +13,7 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        $this->app->singleton('firebase.firestore', function () {
-            return new FirestoreClient([
-                'keyFilePath' => base_path(env('FIREBASE_CREDENTIALS')),
-            ]);
-        });
+        $this->app->singleton(FirebaseService::class);
     }
 
     /**
@@ -24,6 +21,9 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        //
+        $root = rtrim((string) config('app.url'), '/');
+        if ($root !== '') {
+            URL::forceRootUrl($root);
+        }
     }
 }

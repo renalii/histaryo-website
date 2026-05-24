@@ -14,11 +14,15 @@ class EnsureLandmarkManagerPanelSession
             return redirect()->route('login');
         }
 
+        if ($request->session()->get('role') === 'landmark_manager') {
+            $request->session()->put('role', 'site_manager');
+        }
+
         if ($request->session()->get('role') === 'admin') {
             return redirect()->route('admin.dashboard');
         }
 
-        if ($request->session()->get('role') !== 'landmark_manager') {
+        if ($request->session()->get('role') !== 'site_manager') {
             return redirect()->route('login');
         }
 

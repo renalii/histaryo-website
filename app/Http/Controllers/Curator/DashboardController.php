@@ -3,10 +3,11 @@
 namespace App\Http\Controllers\Curator;
 
 use App\Http\Controllers\Controller;
-use App\Services\ActiveLandmarksCatalog;
 use App\Services\CuratorAccessibleLandmarks;
+use App\Services\CuratorBrowseableLandmarks;
 use App\Services\FirebaseService;
 use App\Support\CuratorAssignedLandmark;
+use App\Support\FirestoreTipCollections;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 
@@ -32,7 +33,7 @@ class DashboardController extends Controller
 
         if ($trimmed !== '') {
             $request->session()->put('assigned_landmark_id', $trimmed);
-            $request->session()->put('browseable_landmark_ids', ActiveLandmarksCatalog::documentIds($this->firebase));
+            $request->session()->put('browseable_landmark_ids', CuratorBrowseableLandmarks::resolveIds($this->firebase, $trimmed));
             $request->session()->put('writable_landmark_ids', CuratorAccessibleLandmarks::resolveIds($this->firebase, $trimmed));
 
             return redirect()->route('curators.dashboard')->with(
@@ -160,14 +161,14 @@ class DashboardController extends Controller
         $browseableSet = $this->tipLandmarkKeySet($browseableIds);
 
         $pending = 0;
-        foreach (['crowdsourced_tips', 'tips', 'user_tips'] as $tipsCollection) {
-            $scopeSet = $tipsCollection === 'crowdsourced_tips' ? $browseableSet : $writableSet;
+        foreach (FirestoreTipCollections::names() as $tipsCollection) {
+            $scopeSet = FirestoreTipCollections::usesBrowseableScope($tipsCollection) ? $browseableSet : $writableSet;
             foreach ($db->collection($tipsCollection)->documents() as $tipDoc) {
                 if (! $tipDoc->exists()) {
                     continue;
                 }
                 $tipData = $tipDoc->data();
-                $lid = trim((string) ($tipData['landmark_id'] ?? $tipData['landmarkId'] ?? ''));
+                $lid = FirestoreTipCollections::landmarkIdFromData($tipData);
                 if ($scopeSet !== []) {
                     if ($lid === '' || ! isset($scopeSet[$lid])) {
                         continue;

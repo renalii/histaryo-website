@@ -5,15 +5,19 @@
 
   if (request()->routeIs('admin.dashboard')) {
     $pageTitle = 'Admin Dashboard';
-  } elseif (request()->routeIs('landmarkmanager.dashboard')) {
-    $pageTitle = 'Landmark Manager';
+  } elseif (request()->routeIs('sitemanager.dashboard')) {
+    $pageTitle = 'Site Manager';
   } elseif (request()->routeIs('admin.users')) {
-    $pageTitle = 'Admin Users';
-  } elseif (request()->routeIs('landmarkmanager.curators')) {
+    $pageTitle = 'Users';
+  } elseif (request()->routeIs('admin.site-managers')) {
+    $pageTitle = 'Site Managers';
+  } elseif (request()->routeIs('sitemanager.curators')) {
     $pageTitle = 'Curators';
-  } elseif (request()->routeIs('landmarkmanager.landmarks.create')) {
+  } elseif (request()->routeIs('sitemanager.landmarks.create')) {
     $pageTitle = 'Create landmark';
-  } elseif (request()->routeIs('admin.landmarks') || request()->routeIs('landmarkmanager.landmarks')) {
+  } elseif (request()->routeIs('admin.landmarks') || request()->routeIs('admin.landmarks.show')) {
+    $pageTitle = request('status', 'pending') === 'pending' ? 'Landmark Approvals' : 'Landmarks';
+  } elseif (request()->routeIs('sitemanager.landmarks') || request()->routeIs('sitemanager.landmarks.show')) {
     $pageTitle = 'Landmarks';
   } elseif (request()->routeIs('admin.logs')) {
     $pageTitle = 'Admin Logs';
@@ -25,6 +29,8 @@
     $pageTitle = 'Assignment pending';
   } elseif (request()->routeIs('curators.tips.*')) {
     $pageTitle = 'Curator Tips Review';
+  } elseif (request()->routeIs('curators.trivia.*')) {
+    $pageTitle = 'Question Bank';
   }
 @endphp
 
@@ -45,8 +51,7 @@
       background: linear-gradient(to bottom right, #f4f1ff, #e0e7ff);
       color: #111827;
       display: flex;
-      height: 100vh;      
-      overflow: hidden;   
+      min-height: 100vh;
     }
 
     .sidebar {
@@ -143,8 +148,6 @@
       flex: 1;
       min-width: 0;
       padding: 2.5rem;
-      height: 100vh;        
-      overflow-y: auto;     
     }
 
     @media (max-width: 768px) {
@@ -182,14 +185,14 @@
         @elseif(session('role') === 'admin')
           <a href="{{ route('admin.dashboard') }}"><span class="nav-label">Dashboard</span></a>
           <a href="{{ route('admin.users') }}"><span class="nav-label">Users</span></a>
-          <a href="{{ route('admin.landmarks') }}"><span class="nav-label">Landmarks</span></a>
+          <a href="{{ route('admin.landmarks', ['status' => 'all']) }}"><span class="nav-label">Landmarks</span></a>
           <a href="{{ route('admin.logs') }}"><span class="nav-label">Logs</span></a>
           <a href="{{ route('admin.reports') }}"><span class="nav-label">Reports</span></a>
-        @elseif(session('role') === 'landmark_manager')
-          <a href="{{ route('landmarkmanager.dashboard') }}"><span class="nav-label">Dashboard</span></a>
-          <a href="{{ route('landmarkmanager.curators') }}"><span class="nav-label">Curators</span></a>
-          <a href="{{ route('landmarkmanager.landmarks') }}"><span class="nav-label">Landmarks</span></a>
-          <a href="{{ route('landmarkmanager.landmarks.create') }}"><span class="nav-label">Create landmark</span></a>
+            {{-- Landmark Approvals removed as requested --}}
+        @elseif(session('role') === 'site_manager')
+          <a href="{{ route('sitemanager.dashboard') }}"><span class="nav-label">Dashboard</span></a>
+          <a href="{{ route('sitemanager.curators') }}"><span class="nav-label">Curators</span></a>
+          <a href="{{ route('sitemanager.landmarks') }}"><span class="nav-label">Landmarks</span></a>
         @endif
       </nav>
     </div>

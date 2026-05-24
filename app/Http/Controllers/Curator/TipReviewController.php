@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Curator;
 
 use App\Http\Controllers\Controller;
 use App\Support\CuratorAssignedLandmark;
+use App\Support\FirestoreTipCollections;
 use App\Services\FirebaseService;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Http\Request;
@@ -12,7 +13,6 @@ use Illuminate\Support\Facades\Session;
 class TipReviewController extends Controller
 {
     protected $firestore;
-    private array $tipCollections = ['crowdsourced_tips', 'tips', 'user_tips'];
 
     public function __construct(FirebaseService $firebaseService)
     {
@@ -61,10 +61,9 @@ class TipReviewController extends Controller
     private function fetchTips(string $statusFilter = 'all'): array
     {
         $writableSet = $this->landmarkIdKeySet(CuratorAssignedLandmark::writableIds());
-        $browseableSet = $this->landmarkIdKeySet(CuratorAssignedLandmark::browseableIds());
 
         $tips = [];
-        foreach ($this->tipCollections as $collectionName) {
+        foreach (FirestoreTipCollections::names() as $collectionName) {
             $tipsSnapshot = $this->firestore->collection($collectionName)->documents();
 
             foreach ($tipsSnapshot as $doc) {
@@ -84,18 +83,9 @@ class TipReviewController extends Controller
                     continue;
                 }
 
-                $tipLandmarkId = trim((string) ($data['landmark_id'] ?? $data['landmarkId'] ?? ''));
+                $tipLandmarkId = FirestoreTipCollections::landmarkIdFromData($data);
 
-                // crowdsourced_tips: show any tip tied to an active (browseable) landmark.
-                // tips / user_tips: still scoped to landmarks this curator may edit.
-                $scopeSet = $collectionName === 'crowdsourced_tips' ? $browseableSet : $writableSet;
-                if ($scopeSet !== []) {
-                    if ($tipLandmarkId === '' || ! isset($scopeSet[$tipLandmarkId])) {
-                        continue;
-                    }
-                }
-
-                $canModerate = $tipLandmarkId !== '' && isset($writableSet[$tipLandmarkId]);
+                $canModerate = $writableSet !== [] && $tipLandmarkId !== '' && isset($writableSet[$tipLandmarkId]);
 
                 $createdAtRaw = $data['created_at'] ?? $data['createdAt'] ?? null;
                 $reviewedAtRaw = $data['reviewed_at'] ?? $data['reviewedAt'] ?? null;
@@ -154,7 +144,7 @@ class TipReviewController extends Controller
         $payload = $request->validate([
             'decision' => 'required|in:accepted,rejected',
             'review_note' => 'nullable|string|max:500',
-            'source_collection' => 'nullable|in:crowdsourced_tips,tips,user_tips',
+            'source_collection' => 'nullable|in:' . FirestoreTipCollections::validationInRule(),
             'page' => 'nullable|integer|min:1',
             'status_filter' => 'nullable|in:all,pending,accepted,rejected',
         ]);
@@ -167,7 +157,7 @@ class TipReviewController extends Controller
         }
 
         $tipData = $tipDoc->data();
-        $tipLm = trim((string) ($tipData['landmark_id'] ?? $tipData['landmarkId'] ?? ''));
+        $tipLm = FirestoreTipCollections::landmarkIdFromData($tipData);
         if (! CuratorAssignedLandmark::canAccess($tipLm)) {
             abort(403);
         }

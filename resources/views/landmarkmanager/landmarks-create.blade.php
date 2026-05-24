@@ -1,5 +1,10 @@
 @extends('layouts.sidebar')
 
+@php
+    $lmCreateFormAction = $lmCreateFormAction ?? route('sitemanager.landmarks.store');
+    $lmCreateCancelUrl = $lmCreateCancelUrl ?? route('sitemanager.landmarks');
+@endphp
+
 @section('content')
     <style>
         .lm-create-page {
@@ -271,10 +276,10 @@
 
     <div class="lm-create-page">
         <header class="lm-create-head">
-            <span class="lm-create-eyebrow">Landmark Manager</span>
+            <span class="lm-create-eyebrow">Site Manager</span>
             <h1 class="lm-create-title">Create landmark</h1>
             <p class="lm-create-lead">
-                Set a short <strong>landmark site code</strong> (shown to curators, e.g. CGM01). This publishes an active site on the map and generates a <strong>curator join code</strong>&mdash;share that with curators who register under &ldquo;Existing landmark.&rdquo;
+                Set a short <strong>landmark code</strong> (shown to curators, e.g. CGM01). Upload <strong>evidence</strong> that the landmark exists; an administrator reviews it before the site goes live. Create the matching <strong>QR code</strong> in QR Codes using that same value.
             </p>
         </header>
 
@@ -294,7 +299,7 @@
         @endif
 
         <div class="lm-card">
-            <form class="lm-card-body" method="POST" action="{{ route('landmarkmanager.landmarks.store') }}" enctype="multipart/form-data">
+            <form class="lm-card-body" method="POST" action="{{ $lmCreateFormAction }}" enctype="multipart/form-data">
                 @csrf
 
                 <div class="lm-section">
@@ -307,7 +312,7 @@
                                value="{{ old('name') }}" required>
                     </div>
                     <div class="lm-field">
-                        <label for="landmarkcode">Landmark site code</label>
+                        <label for="landmarkcode">Landmark code</label>
                         <input class="lm-input" id="landmarkcode" name="landmarkcode" type="text"
                                autocomplete="off"
                                maxlength="48"
@@ -315,7 +320,7 @@
                                title="Letters, numbers, hyphen, or underscore only"
                                placeholder="e.g. CGM01, BDSN01"
                                value="{{ old('landmarkcode') }}" required>
-                        <p class="lm-file-hint" style="margin-top:.35rem;">Unique code curators see on their landmarks page (stored uppercase).</p>
+                        <p class="lm-file-hint" style="margin-top:.35rem;">Unique code curators see on their landmarks list (stored uppercase).</p>
                     </div>
                     <div class="lm-field">
                         <label for="category">Category</label>
@@ -349,6 +354,18 @@
                 </div>
 
                 <div class="lm-section">
+                    <h2 class="lm-section-title">Evidence <span class="lm-optional" style="color:#b45309;font-weight:700;">(required)</span></h2>
+                    <div class="lm-field">
+                        <label for="evidence_files">Supporting documents</label>
+                        <div class="lm-file-wrap">
+                            <input id="evidence_files" name="evidence_files[]" type="file"
+                                   accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx,image/*,application/pdf"
+                                   multiple required>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="lm-section">
                     <h2 class="lm-section-title">Media</h2>
                     <div class="lm-field">
                         <label for="video_url">Video URL <span class="lm-optional">(optional)</span></label>
@@ -359,14 +376,13 @@
                         <label for="image">Hero image <span class="lm-optional">(optional)</span></label>
                         <div class="lm-file-wrap">
                             <input id="image" name="image" type="file" accept="image/*">
-                            <p class="lm-file-hint">PNG, JPG, or WebP — shown on landmark cards and detail views.</p>
                         </div>
                     </div>
                 </div>
 
                 <div class="lm-actions">
-                    <button type="submit" class="lm-btn-primary">Save &amp; generate join code</button>
-                    <a href="{{ route('landmarkmanager.landmarks') }}" class="lm-btn-secondary">Cancel</a>
+                    <button type="submit" class="lm-btn-primary">Submit for approval</button>
+                    <a href="{{ $lmCreateCancelUrl }}" class="lm-btn-secondary">Cancel</a>
                 </div>
             </form>
         </div>

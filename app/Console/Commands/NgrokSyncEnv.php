@@ -16,7 +16,7 @@ class NgrokSyncEnv extends Command
         $ctx = stream_context_create(['http' => ['timeout' => 5]]);
         $json = @file_get_contents('http://127.0.0.1:4040/api/tunnels', false, $ctx);
         if ($json === false) {
-            $this->error('Could not reach ngrok at http://127.0.0.1:4040. Start it first: ngrok http 8000');
+            $this->error('Could not reach ngrok at http://127.0.0.1:4040. Start it first: ngrok http 127.0.0.1:8000');
 
             return self::FAILURE;
         }
@@ -59,7 +59,7 @@ class NgrokSyncEnv extends Command
 
         File::put($path, $text);
 
-        $this->info("QR_PUBLIC_BASE_URL set to {$httpsUrl} (APP_URL unchanged — keep http://127.0.0.1:8000 for Curators on this PC).");
+        $this->info("QR_PUBLIC_BASE_URL set to {$httpsUrl} (APP_URL and email links unchanged).");
         $this->call('config:clear');
         $this->line('Re-open Curators → QR → Preview QR so PNGs match this URL.');
 

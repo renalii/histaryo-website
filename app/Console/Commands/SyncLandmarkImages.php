@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Services\FirebaseService;
+use App\Services\LandmarkImageStorage;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Storage;
 
@@ -56,21 +57,11 @@ class SyncLandmarkImages extends Command
                 continue;
             }
 
-            if (str_contains($base64, ',')) {
-                $parts = explode(',', $base64, 2);
-                $base64 = $parts[1] ?? '';
-            }
-
-            $binary = base64_decode($base64, true);
-            if ($binary === false) {
+            if (LandmarkImageStorage::persistFromBase64($doc->id(), $base64, $mime)) {
+                $written++;
+            } else {
                 $skippedDecode++;
-                continue;
             }
-
-            $ext = $this->extensionFromMime($mime);
-            $filename = $doc->id() . '.' . $ext;
-            $disk->put($dir . '/' . $filename, $binary);
-            $written++;
         }
 
         $finalCount = count($disk->files($dir));
@@ -82,15 +73,5 @@ class SyncLandmarkImages extends Command
         $this->info("Files currently in public/landmarks: {$finalCount}");
 
         return self::SUCCESS;
-    }
-
-    private function extensionFromMime(string $mime): string
-    {
-        return match (strtolower(trim($mime))) {
-            'image/png' => 'png',
-            'image/webp' => 'webp',
-            'image/gif' => 'gif',
-            default => 'jpg',
-        };
     }
 }

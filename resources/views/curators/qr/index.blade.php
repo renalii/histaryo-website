@@ -201,7 +201,7 @@
         <div class="qr-notice warn">
             <strong>Phone scan:</strong> Ang <code>127.0.0.1</code> / <code>localhost</code> mo-open sa phone mismo — dili mo-konek sa imong PC.
             Para <strong>bisan unsang network</strong> (dili kinahanglan parehas Wi‑Fi): <code>ngrok http 8000</code>, dayon
-            <code>php artisan ngrok:sync</code> (o <code>composer sync-ngrok</code>) aron ma-set ang <code>QR_PUBLIC_BASE_URL</code> sa tinuod nga <code>https://…ngrok-free.app</code> (ang <code>APP_URL</code> makabilin og local).
+            <code>php artisan ngrok:sync</code> (o <code>composer sync-ngrok</code>) aron ma-set ang <code>QR_PUBLIC_BASE_URL</code> sa tinuod nga <code>https://…ngrok-free.app</code> para sa public phone link (ang <code>APP_URL</code> makabilin og local http://127.0.0.1:8000).
             Ang script mo-run na sa <code>config:clear</code>. I-Preview QR pag-usab. Kinahanglan naka-run ang ngrok samtang gina-scan.
             Ang “URL phones open” nagpakita sa bag-ong base; i-refresh ang preview aron ma-update ang PNG.
         </div>
@@ -234,11 +234,14 @@
                     <small class="qr-muted">Use a short unique ID (e.g. `L001`)</small>
                 </div>
 
+                @if(count($landmarks) === 1)
+                <input type="hidden" name="landmark_id" value="{{ $landmarks[0]['id'] }}">
+                @else
                 <div style="flex:1; min-width:200px;">
-                    <label for="landmark_id" class="qr-label">Landmark</label>
+                    <label for="landmark_id" class="qr-label">Site</label>
                     <select id="landmark_id" name="landmark_id" required
                         class="qr-input">
-                        <option value="">-- Select Landmark --</option>
+                        <option value="">-- Select site --</option>
                         @foreach($landmarks as $lm)
                             <option value="{{ $lm['id'] }}" @selected(old('landmark_id')==$lm['id'])>
                                 {{ $lm['name'] }}
@@ -246,6 +249,7 @@
                         @endforeach
                     </select>
                 </div>
+                @endif
 
                 <div style="flex:0 0 120px;">
                     <label for="format" class="qr-label">Format</label>
@@ -273,7 +277,7 @@
             <thead>
                 <tr>
                     <th>Code</th>
-                    <th>Landmark ID</th>
+                    <th>Site ID</th>
                     <th>Created</th>
                     <th style="text-align:center;">Actions</th>
                 </tr>

@@ -124,11 +124,11 @@
             border-radius: 999px;
             font-size: .78rem;
             font-weight: 700;
-            text-transform: capitalize;
             border: 1px solid transparent;
         }
         .role-admin { background: #fee2e2; color: #991b1b; border-color: #fecaca; }
         .role-curator { background: #ecfdf5; color: #166534; border-color: #bbf7d0; }
+        .role-site_manager { background: #fef3c7; color: #92400e; border-color: #fde68a; }
         .role-na { background: #f3f4f6; color: #6b7280; border-color: #e5e7eb; }
         .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; color: #6b7280; font-size: .84rem; }
     </style>
@@ -170,16 +170,18 @@
                         $data = $log->data();
                         $email = $data['email'] ?? '—';
                         $timestamp = $data['timestamp'] ?? '—';
-                        $action = preg_replace('/\s*\(auto-QR:\s*LM-[a-f0-9]{6}\)/i', '', (string)($data['action'] ?? '—'));
-                        $role = $userRoles[$email] ?? 'N/A';
+                        $action = \App\Support\SystemLogDisplay::formatAction((string) ($data['action'] ?? '—'));
+                        $rawRole = $userRoles[$email] ?? '';
+                        $roleLabel = \App\Support\SystemLogDisplay::roleLabel($rawRole !== '' ? $rawRole : null);
+                        $roleClass = \App\Support\SystemLogDisplay::roleCssClass($rawRole !== '' ? $rawRole : null);
                     @endphp
 
                     <tr>
                         <td class="mono">{{ $timestamp }}</td>
                         <td>{{ $email }}</td>
                         <td>
-                            <span class="role-pill {{ $role === 'admin' ? 'role-admin' : ($role === 'curator' ? 'role-curator' : 'role-na') }}">
-                                {{ $role }}
+                            <span class="role-pill {{ $roleClass }}">
+                                {{ $roleLabel }}
                             </span>
                         </td>
                         <td>{{ $action }}</td>
