@@ -31,6 +31,8 @@
     $pageTitle = 'Curator Tips Review';
   } elseif (request()->routeIs('curators.trivia.*')) {
     $pageTitle = 'Question Bank';
+  } elseif (request()->routeIs('landmarks.*')) {
+    $pageTitle = 'Landmarks';
   }
 @endphp
 
@@ -174,7 +176,7 @@
           @endphp
           @if($curatorHasLandmark)
             <a href="{{ route('curators.dashboard') }}"><span class="nav-label">Dashboard</span></a>
-            <a href="{{ route('landmarks.index') }}"><span class="nav-label">Landmarks</span></a>
+            <a href="{{ route('landmarks.show', session('assigned_landmark_id')) }}"><span class="nav-label">Landmarks</span></a>
             <a href="{{ route('curators.trivia.all') }}"><span class="nav-label">Trivia</span></a>
             <a href="{{ route('curators.tips.index') }}"><span class="nav-label">Tips Review</span></a>
             <a href="{{ route('curators.map') }}"><span class="nav-label">Map</span></a>

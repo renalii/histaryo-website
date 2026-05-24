@@ -4,8 +4,12 @@
 
     $activationStatus = strtolower((string) ($data['activation_status'] ?? 'active'));
     $evidenceDocuments = is_array($data['evidence_documents'] ?? null) ? $data['evidence_documents'] : [];
-    $latDisplay = ($data['latitude'] ?? '') !== '' ? $data['latitude'] : 'N/A';
-    $lngDisplay = ($data['longitude'] ?? '') !== '' ? $data['longitude'] : 'N/A';
+    $latRaw = $data['latitude'] ?? $data['lati'] ?? null;
+    $lngRaw = $data['longitude'] ?? $data['longti'] ?? null;
+    $latDisplay = ($latRaw !== null && $latRaw !== '') ? $latRaw : 'N/A';
+    $lngDisplay = ($lngRaw !== null && $lngRaw !== '') ? $lngRaw : 'N/A';
+    $hasCoords = is_numeric($latRaw) && is_numeric($lngRaw);
+    $mapContainerId = 'lm-view-map-' . ($modalSafe ?? 'landmark');
 @endphp
 
 <div id="{{ $viewModalId }}"
@@ -68,6 +72,17 @@
                     </div>
                 @endif
             </div>
+        @endif
+
+        @if ($hasCoords)
+            <h3 class="lm-view-modal__section">Location</h3>
+            @include('partials.landmark-map-embed', [
+                'latitude' => $latRaw,
+                'longitude' => $lngRaw,
+                'mapContainerId' => $mapContainerId,
+                'landmarkName' => $data['name'] ?? 'Landmark',
+                'mapboxToken' => $mapboxToken ?? null,
+            ])
         @endif
 
         @if (! empty($data['description'] ?? ''))

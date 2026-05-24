@@ -49,33 +49,53 @@ class LandmarkController extends Controller
     public function index(Request $request)
     {
         $assignedId = CuratorAssignedLandmark::id();
-        $landmark = null;
-        $landmarkManagerAttribution = null;
-
         if ($assignedId) {
-            $snapshot = $this->firestore->collection('landmarks')->document($assignedId)->snapshot();
-            if ($snapshot->exists()) {
-                $landmark = $snapshot;
-                $landmarkManagerAttribution = $this->resolveLandmarkManagerAttributionLabel($snapshot->data());
-            }
+            return redirect()->route('landmarks.show', $assignedId);
         }
 
         return view('curators.landmarks.index', [
-            'landmark' => $landmark,
-            'landmarkManagerAttribution' => $landmarkManagerAttribution,
+            'landmark' => null,
+            'landmarkManagerAttribution' => null,
         ]);
     }
 
-    public function edit($id)
+    public function show(string $landmark)
     {
-        CuratorAssignedLandmark::assertMatches((string) $id);
+        return $this->landmarkDetailView((string) $landmark);
+    }
 
-        $doc = $this->firestore->collection('landmarks')->document($id)->snapshot();
-        if (! $doc->exists()) {
+    private function landmarkDetailView(string $id)
+    {
+        if (! in_array($id, CuratorAssignedLandmark::browseableIds(), true)) {
+            abort(403);
+        }
+
+        $snapshot = $this->firestore->collection('landmarks')->document($id)->snapshot();
+        if (! $snapshot->exists()) {
             abort(404);
         }
 
-        return view('curators.landmarks.edit', ['id' => $id, 'landmark' => $doc->data()]);
+        return view('curators.landmarks.index', [
+            'landmark' => $snapshot,
+            'landmarkManagerAttribution' => $this->resolveLandmarkManagerAttributionLabel($snapshot->data()),
+            'mapboxToken' => config('services.mapbox.token'),
+        ]);
+    }
+
+    public function edit(string $landmark)
+    {
+        CuratorAssignedLandmark::assertMatches($landmark);
+
+        $snapshot = $this->firestore->collection('landmarks')->document($landmark)->snapshot();
+        if (! $snapshot->exists()) {
+            abort(404);
+        }
+
+        return view('curators.landmarks.edit', [
+            'id' => $landmark,
+            'landmark' => $snapshot->data(),
+            'mapboxToken' => config('services.mapbox.token'),
+        ]);
     }
 
     public function update(Request $request, $id)
@@ -132,7 +152,7 @@ class LandmarkController extends Controller
             'timestamp' => now()->toISOString(),
         ]);
 
-        return redirect()->route('landmarks.index')->with('success', 'Landmark updated.');
+        return redirect()->route('landmarks.show', $id)->with('success', 'Landmark updated.');
     }
 
     public function destroy(string $id)
@@ -176,7 +196,7 @@ class LandmarkController extends Controller
             'timestamp' => now()->toISOString(),
         ]);
 
-        return redirect()->route('landmarks.index')->with('success', 'Landmark deleted.');
+        return redirect()->route('curators.dashboard')->with('success', 'Landmark deleted.');
     }
 
     private function resolveLandmarkManagerAttributionLabel(array $landmarkData): ?string

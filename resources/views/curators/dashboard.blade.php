@@ -78,7 +78,7 @@
                 <h4 style="margin:0; color:#111827;">Quick Actions</h4>
             </div>
             <div style="display:flex; flex-direction:column; gap:.5rem;">
-                <a href="{{ route('landmarks.index') }}" style="text-decoration:none; background:#E8B34B; color:#7A2E1F; padding:.75rem 1rem; border-radius:10px; font-weight:700; text-align:center; border:1px solid #F3C96A;">Your Landmark</a>
+                <a href="{{ route('landmarks.show', session('assigned_landmark_id')) }}" style="text-decoration:none; background:#E8B34B; color:#7A2E1F; padding:.75rem 1rem; border-radius:10px; font-weight:700; text-align:center; border:1px solid #F3C96A;">Your Landmark</a>
                 <a href="{{ route('curators.trivia.all') }}" style="text-decoration:none; background:#f3f4f6; color:#111827; padding:.75rem 1rem; border-radius:10px; font-weight:600; text-align:center; border:1px solid #e5e7eb;">Displays / Trivia</a>
                 <a href="{{ route('curators.map') }}" style="text-decoration:none; background:#F3C96A; color:#7A2E1F; padding:.75rem 1rem; border-radius:10px; font-weight:700; text-align:center; border:1px solid #E8B34B;">View Map</a>
             </div>
@@ -100,7 +100,7 @@
         <div class="card" style="grid-column: span 7; background:#fff; border-radius:14px; padding:1rem; box-shadow: 0 4px 16px rgba(0,0,0,0.06);">
             <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:.75rem;">
                 <h4 style="margin:0; color:#111827;">Recent Landmarks</h4>
-                <a href="{{ route('landmarks.index') }}" style="font-size:.9rem; color:#7A2E1F; text-decoration:none; font-weight:700;">View all</a>
+                <a href="{{ route('landmarks.show', session('assigned_landmark_id')) }}" style="font-size:.9rem; color:#7A2E1F; text-decoration:none; font-weight:700;">View all</a>
             </div>
 
             @if (empty($recentLandmarks))

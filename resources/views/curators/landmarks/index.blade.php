@@ -19,7 +19,7 @@
         }
         .cu-lm-flash--ok { background: #ecfdf5; color: #166534; border: 1px solid #bbf7d0; }
         .cu-lm-flash--err { background: #fef2f2; color: #991b1b; border: 1px solid #fecaca; }
-        .land-wrap { max-width: 1200px; margin: 0 auto; }
+        .land-wrap { max-width: 1900px; margin: 0 auto; }
         .land-header {
             display: flex;
             align-items: flex-end;
@@ -289,6 +289,12 @@
                     'landmarkId' => $lid,
                     'data' => $data,
                     'headerActionsView' => 'curators.landmarks.partials.detail-actions',
+                    'mapboxToken' => $mapboxToken ?? config('services.mapbox.token'),
+                ])
+                @include('curators.landmarks.partials.edit-modal', [
+                    'landmarkId' => $lid,
+                    'data' => $data,
+                    'mapboxToken' => $mapboxToken ?? config('services.mapbox.token'),
                 ])
             </div>
         @endif

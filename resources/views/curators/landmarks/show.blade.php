@@ -118,13 +118,21 @@
         @media (min-width: 640px) {
             .lm-detail__hero { padding: 2rem 2.25rem 1.5rem; }
         }
+        .lm-detail__meta-row {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: .65rem 1rem;
+            margin-bottom: .5rem;
+        }
         .lm-detail__eyebrow {
-            margin: 0 0 .5rem;
+            margin: 0;
             font-size: .7rem;
             font-weight: 700;
             letter-spacing: .12em;
             text-transform: uppercase;
             color: #A67C52;
+            flex-shrink: 0;
         }
         .lm-detail__title {
             margin: 0 0 1rem;
@@ -356,11 +364,10 @@
     <div class="lm-detail">
         <div class="lm-detail__toolbar">
             <div class="lm-detail__toolbar-left">
-                <a href="{{ route('landmarks.index') }}" class="lm-detail__back">← Landmarks</a>
+                <a href="{{ route('landmarks.show', $landmarkId) }}" class="lm-detail__back">← Landmarks</a>
             </div>
             <div class="lm-detail__toolbar-left" style="margin-left:auto;">
                 <button type="button" class="cu-btn-gold" onclick="cuOpenModalCl('editModal_{{ $modalSafe }}')">Edit</button>
-                <a href="{{ route('landmarks.edit', $landmarkId) }}" class="cu-btn-outline">Full editor — map</a>
                 <a href="{{ route('curators.qr') }}"
                    class="cu-btn-outline"
                    data-qr-download-url="{{ route('curators.qr.byLandmark', $landmarkId) }}"
@@ -370,29 +377,30 @@
 
         <article class="lm-detail__panel">
             <header class="lm-detail__hero">
-                <p class="lm-detail__eyebrow">Landmark detail</p>
-                <h1 class="lm-detail__title">{{ $data['name'] ?? 'Unnamed landmark' }}</h1>
-
-                <div class="lm-detail__chips" aria-label="Landmark metadata">
-                    <span class="lm-chip lm-chip--category">
-                        <span class="lm-chip__k">Category</span>
-                        <span style="font-family:inherit;font-size:.8rem;">{{ $data['category'] ?? 'Uncategorized' }}</span>
-                    </span>
-                    <span class="lm-chip lm-chip--muted">
-                        <span class="lm-chip__k">ID</span>
-                        <span class="lm-chip__v">{{ $landmarkId }}</span>
-                    </span>
-                    @if (! empty($data['landmarkcode'] ?? ''))
-                        <span class="lm-chip lm-chip--code">
-                            <span class="lm-chip__k">Code</span>
-                            <span class="lm-chip__v">{{ $data['landmarkcode'] }}</span>
+                <div class="lm-detail__meta-row">
+                    <p class="lm-detail__eyebrow">Landmark detail</p>
+                    <div class="lm-detail__chips" aria-label="Landmark metadata">
+                        <span class="lm-chip lm-chip--category">
+                            <span class="lm-chip__k">Category</span>
+                            <span style="font-family:inherit;font-size:.8rem;">{{ $data['category'] ?? 'Uncategorized' }}</span>
                         </span>
-                    @endif
-                    <span class="lm-chip lm-chip--coord">
-                        <span class="lm-chip__k">Location</span>
-                        <span class="lm-chip__v">{{ $data['latitude'] ?? 'N/A' }}, {{ $data['longitude'] ?? 'N/A' }}</span>
-                    </span>
+                        <span class="lm-chip lm-chip--muted">
+                            <span class="lm-chip__k">ID</span>
+                            <span class="lm-chip__v">{{ $landmarkId }}</span>
+                        </span>
+                        @if (! empty($data['landmarkcode'] ?? ''))
+                            <span class="lm-chip lm-chip--code">
+                                <span class="lm-chip__k">Code</span>
+                                <span class="lm-chip__v">{{ $data['landmarkcode'] }}</span>
+                            </span>
+                        @endif
+                        <span class="lm-chip lm-chip--coord">
+                            <span class="lm-chip__k">Location</span>
+                            <span class="lm-chip__v">{{ $data['latitude'] ?? 'N/A' }}, {{ $data['longitude'] ?? 'N/A' }}</span>
+                        </span>
+                    </div>
                 </div>
+                <h1 class="lm-detail__title">{{ $data['name'] ?? 'Unnamed landmark' }}</h1>
             </header>
 
             <div class="lm-detail__body">

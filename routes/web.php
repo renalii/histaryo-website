@@ -43,7 +43,7 @@ Route::prefix('curators')->middleware('curator.auth')->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('curators.dashboard');
 
     Route::get('/map', [LandmarkController::class, 'map'])->name('curators.map');
-    Route::resource('landmarks', LandmarkController::class)->except(['create', 'store', 'show']);
+    Route::resource('landmarks', LandmarkController::class)->except(['create', 'store']);
 
     
     Route::get('/qr',                 [QrController::class, 'index'])->name('curators.qr');

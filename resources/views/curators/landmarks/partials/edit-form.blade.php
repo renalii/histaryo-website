@@ -2,41 +2,24 @@
     /** @var string $landmarkId */
     /** @var array $data */
     $d = isset($data) && is_array($data) ? $data : [];
+    $modalSafe = $modalSafe ?? preg_replace('/[^a-zA-Z0-9_-]/', '_', (string) ($landmarkId ?? 'landmark'));
+    $fieldHash = md5($landmarkId);
 @endphp
-<form method="POST" action="{{ route('landmarks.update', $landmarkId) }}" enctype="multipart/form-data">
+<form method="POST" action="{{ route('landmarks.update', $landmarkId) }}" enctype="multipart/form-data" class="lm-editor-form">
     @csrf
     @method('PUT')
 
-    <label for="cl-name-{{ md5($landmarkId) }}">Name</label>
-    <input id="cl-name-{{ md5($landmarkId) }}" type="text" name="name" value="{{ $d['name'] ?? '' }}" required>
+    @include('curators.landmarks.partials.landmark-form-fields', [
+        'landmarkId' => $landmarkId,
+        'd' => $d,
+        'modalSafe' => $modalSafe,
+        'fieldHash' => $fieldHash,
+        'mapboxToken' => $mapboxToken ?? null,
+        'formContext' => 'modal',
+    ])
 
-    @if (! empty($d['landmarkcode'] ?? ''))
-        <p class="cl-modal-readonly">Landmark code <span class="mono">{{ $d['landmarkcode'] }}</span></p>
-    @endif
-
-    <label for="cl-cat-{{ md5($landmarkId) }}">Category</label>
-    <select id="cl-cat-{{ md5($landmarkId) }}" name="category" required>
-        @foreach (['Unspecified', 'Historical', 'Natural', 'Cultural', 'Religious', 'Modern'] as $cat)
-            <option value="{{ $cat }}" {{ (($d['category'] ?? '') == $cat) ? 'selected' : '' }}>{{ $cat }}</option>
-        @endforeach
-    </select>
-
-    <label for="cl-desc-{{ md5($landmarkId) }}">Description</label>
-    <textarea id="cl-desc-{{ md5($landmarkId) }}" name="description" rows="4">{{ $d['description'] ?? '' }}</textarea>
-
-    <label for="cl-lat-{{ md5($landmarkId) }}">Latitude</label>
-    <input id="cl-lat-{{ md5($landmarkId) }}" type="text" name="latitude" inputmode="decimal"
-           value="{{ $d['latitude'] ?? '' }}" placeholder="Optional">
-
-    <label for="cl-lng-{{ md5($landmarkId) }}">Longitude</label>
-    <input id="cl-lng-{{ md5($landmarkId) }}" type="text" name="longitude" inputmode="decimal"
-           value="{{ $d['longitude'] ?? '' }}" placeholder="Optional">
-
-    <label for="cl-video-{{ md5($landmarkId) }}">Video URL</label>
-    <input id="cl-video-{{ md5($landmarkId) }}" type="url" name="video_url" value="{{ $d['video_url'] ?? '' }}">
-
-    <label for="cl-img-{{ md5($landmarkId) }}">Replace image</label>
-    <input id="cl-img-{{ md5($landmarkId) }}" type="file" name="image" accept="image/*">
-
-    <button type="submit">Update</button>
+    <div class="modal-cl__form-actions">
+        <button type="button" class="modal-cl__btn-secondary" onclick="cuCloseModalCl('editModal_{{ $modalSafe }}')">Cancel</button>
+        <button type="submit" class="modal-cl__btn-primary">Save changes</button>
+    </div>
 </form>

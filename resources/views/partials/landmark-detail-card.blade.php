@@ -10,6 +10,10 @@
     $lngOut = $data['longitude'] ?? $data['longti'] ?? null;
     $latDisplay = ($latOut !== null && $latOut !== '') ? $latOut : 'N/A';
     $lngDisplay = ($lngOut !== null && $lngOut !== '') ? $lngOut : 'N/A';
+    $hasCoords = is_numeric($latOut) && is_numeric($lngOut);
+    $mapContainerId = $landmarkId !== ''
+        ? 'lm-detail-map-' . preg_replace('/[^a-zA-Z0-9_-]/', '_', $landmarkId)
+        : 'lm-detail-map';
 
     $videoUrl = trim((string) ($data['video_url'] ?? ''));
     $embedUrl = '';
@@ -82,16 +86,24 @@
             justify-content: flex-end;
             flex-shrink: 0;
         }
+        .lm-detail-card__meta-row {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: .65rem 1rem;
+            margin-bottom: .5rem;
+        }
         .lm-detail-card__eyebrow {
-            margin: 0 0 .5rem;
+            margin: 0;
             font-size: .7rem;
             font-weight: 700;
             letter-spacing: .12em;
             text-transform: uppercase;
             color: #A67C52;
+            flex-shrink: 0;
         }
         .lm-detail-card__title {
-            margin: 0;
+            margin: 0 0 1.15rem;
             font-size: clamp(1.35rem, 3vw, 1.85rem);
             font-weight: 800;
             letter-spacing: -0.02em;
@@ -103,7 +115,6 @@
             flex-wrap: wrap;
             gap: .45rem .55rem;
             align-items: center;
-            margin-bottom: 1.15rem;
         }
         .lm-detail-chip {
             display: inline-flex;
@@ -267,30 +278,34 @@
 <article class="lm-detail-card" aria-label="Landmark detail">
     <div class="lm-detail-card__top">
         <div class="lm-detail-card__top-main">
-            <p class="lm-detail-card__eyebrow">Landmark detail</p>
+            <div class="lm-detail-card__meta-row">
+                <p class="lm-detail-card__eyebrow">Landmark detail</p>
+                <div class="lm-detail-card__chips" aria-label="Landmark metadata">
+                    @if ($idChipValue !== '')
+                        <span class="lm-detail-chip">
+                            <span class="lm-detail-chip__k">ID</span>
+                            <span class="lm-detail-chip__v">{{ $idChipValue }}</span>
+                        </span>
+                    @endif
+                    <span class="lm-detail-chip lm-detail-chip--coord">
+                        <span class="lm-detail-chip__k">Location</span>
+                        <span class="lm-detail-chip__v">{{ $latDisplay }}, {{ $lngDisplay }}</span>
+                    </span>
+                    <span class="lm-detail-status lm-detail-status--{{ $activationStatus === 'pending' || $activationStatus === 'rejected' ? $activationStatus : 'active' }}">
+                        {{ LandmarkActivation::label($activationStatus) }}
+                    </span>
+                </div>
+            </div>
             <h1 class="lm-detail-card__title">{{ $data['name'] ?? 'Unnamed landmark' }}</h1>
         </div>
         @if (! empty($headerActionsView))
             <div class="lm-detail-card__actions" aria-label="Landmark actions">
-                @include($headerActionsView, array_merge(['landmarkId' => $landmarkId], $headerActionsData ?? []))
+                @include($headerActionsView, array_merge([
+                    'landmarkId' => $landmarkId,
+                    'landmarkName' => $data['name'] ?? 'Unnamed landmark',
+                ], $headerActionsData ?? []))
             </div>
         @endif
-    </div>
-
-    <div class="lm-detail-card__chips" aria-label="Landmark metadata">
-        @if ($idChipValue !== '')
-            <span class="lm-detail-chip">
-                <span class="lm-detail-chip__k">ID</span>
-                <span class="lm-detail-chip__v">{{ $idChipValue }}</span>
-            </span>
-        @endif
-        <span class="lm-detail-chip lm-detail-chip--coord">
-            <span class="lm-detail-chip__k">Location</span>
-            <span class="lm-detail-chip__v">{{ $latDisplay }}, {{ $lngDisplay }}</span>
-        </span>
-        <span class="lm-detail-status lm-detail-status--{{ $activationStatus === 'pending' || $activationStatus === 'rejected' ? $activationStatus : 'active' }}">
-            {{ LandmarkActivation::label($activationStatus) }}
-        </span>
     </div>
 
     @if ($imageSrc || $youtubeIframeSrc !== '' || $showVideoLinkOnly)
@@ -322,6 +337,17 @@
                 </div>
             @endif
         </div>
+    @endif
+
+    @if ($hasCoords)
+        <h2 class="lm-detail-card__section">Location</h2>
+        @include('partials.landmark-map-embed', [
+            'latitude' => $latOut,
+            'longitude' => $lngOut,
+            'mapContainerId' => $mapContainerId,
+            'landmarkName' => $data['name'] ?? 'Landmark',
+            'mapboxToken' => $mapboxToken ?? null,
+        ])
     @endif
 
     @if (! empty($data['description'] ?? ''))
