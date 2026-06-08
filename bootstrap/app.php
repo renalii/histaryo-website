@@ -17,7 +17,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'curator.auth' => \App\Http\Middleware\EnsureCuratorSession::class,
             'panel.admin' => \App\Http\Middleware\EnsureAdminPanelSession::class,
-            'panel.sitemanager' => \App\Http\Middleware\EnsureLandmarkManagerPanelSession::class,
+            'panel.sitemanager' => \App\Http\Middleware\EnsureSiteManagerPanelSession::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

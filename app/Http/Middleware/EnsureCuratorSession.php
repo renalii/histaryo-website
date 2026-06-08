@@ -25,6 +25,18 @@ class EnsureCuratorSession
             return redirect()->route('curators.login');
         }
 
+        $uid = (string) Session::get('uid', '');
+        $profile = $this->firebase->userProfile($uid, 'curator');
+        $accountStatus = strtolower((string) ($profile['data']['account_status'] ?? 'active'));
+        if ($accountStatus === 'inactive') {
+            $request->session()->invalidate();
+            $request->session()->regenerateToken();
+
+            return redirect()->route('curators.login')
+                ->withErrors(['error' => 'Your curator account is inactive. Please contact your Site Manager.']);
+        }
+        Session::put('account_status', $accountStatus);
+
         if (FirestoreBool::isTrue(Session::get('must_change_password'))) {
             if ($request->routeIs('curators.change-password', 'curators.change-password.update')) {
                 return $next($request);
@@ -52,4 +64,3 @@ class EnsureCuratorSession
         return $next($request);
     }
 }
-

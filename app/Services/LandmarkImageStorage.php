@@ -20,6 +20,10 @@ final class LandmarkImageStorage
             return false;
         }
 
+        if (preg_match('/^data:([^;]+);base64,/', $base64, $matches) === 1) {
+            $mimeType = $matches[1];
+        }
+
         if (str_contains($base64, ',')) {
             $parts = explode(',', $base64, 2);
             $base64 = $parts[1] ?? '';

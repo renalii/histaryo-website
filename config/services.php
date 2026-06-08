@@ -31,6 +31,14 @@ return [
     'resend' => [
         'key' => env('RESEND_KEY'),
     ],
+
+    'cloudinary' => [
+        'cloud_name' => env('CLOUDINARY_CLOUD_NAME'),
+        'api_key' => env('CLOUDINARY_API_KEY'),
+        'api_secret' => env('CLOUDINARY_API_SECRET'),
+        'landmark_folder' => env('CLOUDINARY_LANDMARK_FOLDER', 'histaryo/landmarks'),
+        'max_base64_bytes' => (int) env('CLOUDINARY_MAX_BASE64_BYTES', 700000),
+    ],
     
     'firebase' => [
         'api_key' => env('FIREBASE_API_KEY'),

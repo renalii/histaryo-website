@@ -19,7 +19,7 @@ class MigrateDisplayNameToName extends Command
      *
      * @var string
      */
-    protected $description = 'Rename display_name field to name for all users in Firestore';
+    protected $description = 'Rename display_name field to name for all role-based user profiles in Firestore';
 
     protected $firebase;
 
@@ -34,27 +34,27 @@ class MigrateDisplayNameToName extends Command
      */
     public function handle()
     {
-        $firestore = $this->firebase->firestore();
-        $usersRef = $firestore->collection('users');
-        $documents = $usersRef->documents();
-
         $updated = 0;
 
-        foreach ($documents as $doc) {
-            if ($doc->exists()) {
-                $data = $doc->data();
+        foreach (array_keys(FirebaseService::USER_COLLECTIONS) as $role) {
+            $profilesRef = $this->firebase->userCollection($role);
 
-                if (isset($data['display_name'])) {
-                    $usersRef->document($doc->id())->update([
-                        ['path' => 'name', 'value' => $data['display_name']],
-                    ]);
+            foreach ($profilesRef->documents() as $doc) {
+                if ($doc->exists()) {
+                    $data = $doc->data();
 
-                    $usersRef->document($doc->id())->update([
-                        ['path' => 'display_name', 'value' => null],
-                    ]);
+                    if (isset($data['display_name'])) {
+                        $profilesRef->document($doc->id())->update([
+                            ['path' => 'name', 'value' => $data['display_name']],
+                        ]);
 
-                    $this->info("Updated user: {$doc->id()} ({$data['display_name']})");
-                    $updated++;
+                        $profilesRef->document($doc->id())->update([
+                            ['path' => 'display_name', 'value' => null],
+                        ]);
+
+                        $this->info("Updated user: {$doc->id()} ({$data['display_name']})");
+                        $updated++;
+                    }
                 }
             }
         }
