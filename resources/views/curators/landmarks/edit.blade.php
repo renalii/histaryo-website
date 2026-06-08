@@ -55,7 +55,7 @@
         <div class="cl-card cl-danger">
             <div class="cl-card-inner">
                 <h2 class="cl-section-title" style="margin-top:0;color:#991b1b;border-color:#fecaca;">Danger zone</h2>
-                <p class="cl-edit-muted">Deleting removes this landmark record, QR links, trivia, and synced images tied to this id.</p>
+                <p class="cl-edit-muted">Deleting removes this landmark record, QR links, quizzes, and synced images tied to this id.</p>
                 <form method="POST" action="{{ route('landmarks.destroy', $id) }}" style="margin-top:.85rem;"
                       onsubmit="return confirm('Delete this landmark permanently? This cannot be undone.');">
                     @csrf

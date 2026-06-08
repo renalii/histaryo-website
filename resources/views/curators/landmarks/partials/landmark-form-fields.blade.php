@@ -32,9 +32,13 @@
     $coordLng = $coordLng ?? '';
 
     $imageSrc = null;
-    if (! empty($d['image_base64'])) {
+    if (! empty($d['image_url'])) {
+        $imageSrc = $d['image_url'];
+    } elseif (! empty($d['image_base64'])) {
         $mime = $d['image_mime'] ?? 'image/jpeg';
-        $imageSrc = 'data:' . $mime . ';base64,' . $d['image_base64'];
+        $imageSrc = str_starts_with($d['image_base64'], 'data:')
+            ? $d['image_base64']
+            : 'data:' . $mime . ';base64,' . $d['image_base64'];
     }
 
     $hasMap = ! empty(trim((string) ($mapboxToken ?? '')));
@@ -90,10 +94,10 @@
             </header>
             <div class="lm-editor-card__body">
                 <div class="lm-editor-field">
-                    <label for="cl-video-{{ $fieldHash }}">Video URL <span class="lm-editor-optional">optional</span></label>
-                    <input class="lm-editor-input" type="url" id="cl-video-{{ $fieldHash }}" name="video_url"
-                           placeholder="https://youtube.com/watch?v=…"
-                           value="{{ $v('video_url') }}">
+                    <label for="cl-video-{{ $fieldHash }}">Video (optional)</label>
+                    <div class="lm-editor-file-zone">
+                        <input id="cl-video-{{ $fieldHash }}" type="file" name="video" accept="video/*">
+                    </div>
                 </div>
 
                 <div class="lm-editor-field lm-editor-field--last">

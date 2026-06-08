@@ -162,7 +162,7 @@
       margin:0
     }
 
-    .btn-trivia {
+    .btn-quiz {
       display:inline-flex;
       align-items:center;
       justify-content:center;
@@ -178,21 +178,21 @@
       box-sizing:border-box;
     }
 
-    .btn-trivia-edit {
+    .btn-quiz-edit {
       background:#3b82f6;
       color:#fff
     }
 
-    .btn-trivia-edit:hover {
+    .btn-quiz-edit:hover {
       background:#2563eb
     }
 
-    .btn-trivia-del {
+    .btn-quiz-del {
       background:#ef4444;
       color:#fff
     }
 
-    .btn-trivia-del:hover {
+    .btn-quiz-del:hover {
       background:#dc2626
     }
 
@@ -349,14 +349,14 @@
 <div class="wrap">
   <div class="topbar">
     <div class="title-group">
-      <h1 class="h1">Question Bank</h1>
-      @if($triviaPaginator->total() > 0)
-        <p class="muted" style="margin:0;">{{ $triviaPaginator->total() }} question{{ $triviaPaginator->total() > 1 ? 's' : '' }} found</p>
+      <h1 class="h1">Quiz Bank</h1>
+      @if($quizPaginator->total() > 0)
+        <p class="muted" style="margin:0;">{{ $quizPaginator->total() }} question{{ $quizPaginator->total() > 1 ? 's' : '' }} found</p>
       @endif
     </div>
     <div style="display:flex;gap:.5rem;flex-wrap:wrap">
       @if(count($landmarkList) > 0)
-      <button class="btn btn-add" onclick="openAdd()">Add Trivia</button>
+      <button class="btn btn-add" onclick="openAdd()">Add Quiz</button>
       @endif
     </div>
   </div>
@@ -374,31 +374,31 @@
     </div>
   @endif
 
-  @if($triviaPaginator->total() > 0)
+  @if($quizPaginator->total() > 0)
     <div class="cards">
-      @foreach ($triviaPaginator as $t)
+      @foreach ($quizPaginator as $t)
         @php
-          $triviaLmKey = trim((string) ($t['landmark_id'] ?? ''));
-          $canEditTrivia = isset($writableLandmarkIdSet[$triviaLmKey])
-              || ($assignedLandmarkId !== '' && $triviaLmKey === $assignedLandmarkId);
-          $isEditingThis = !empty($autoOpenTrivia) && ($autoOpenTrivia['trivia_id'] ?? '') === ($t['trivia_id'] ?? '');
+          $quizLmKey = trim((string) ($t['landmark_id'] ?? ''));
+          $canEditQuiz = isset($writableLandmarkIdSet[$quizLmKey])
+              || ($assignedLandmarkId !== '' && $quizLmKey === $assignedLandmarkId);
+          $isEditingThis = !empty($autoOpenQuiz) && ($autoOpenQuiz['quiz_id'] ?? '') === ($t['quiz_id'] ?? '');
         @endphp
         <div class="card{{ $isEditingThis ? ' card--editing' : '' }}">
             <div class="card-body">
                 <span class="pill">{{ $t['landmark_name'] }}</span>
                 <div class="qtext">{{ $t['question'] }}</div>
             </div>
-            @if ($canEditTrivia)
+            @if ($canEditQuiz)
                 <div class="card-footer">
-                    <a href="{{ route('curators.trivia.show', $t['trivia_id']) }}"
-                       class="btn-trivia btn-trivia-edit">
+                    <a href="{{ route('curators.quiz.show', $t['quiz_id']) }}"
+                       class="btn-quiz btn-quiz-edit">
                         Edit
                     </a>
-                    <form action="{{ route('curators.trivia.destroy', $t['trivia_id']) }}"
+                    <form action="{{ route('curators.quiz.destroy', $t['quiz_id']) }}"
                           method="POST"
                           class="js-delete-form">
                         @csrf @method('DELETE')
-                        <button type="submit" class="btn-trivia btn-trivia-del">Delete</button>
+                        <button type="submit" class="btn-quiz btn-quiz-del">Delete</button>
                     </form>
                 </div>
             @endif
@@ -406,32 +406,32 @@
       @endforeach
     </div>
 
-    @if ($triviaPaginator->lastPage() > 1)
+    @if ($quizPaginator->lastPage() > 1)
       <div class="pager">
-        <a href="{{ $triviaPaginator->previousPageUrl() ?: '#' }}"
-           class="page-btn {{ $triviaPaginator->onFirstPage() ? 'disabled' : '' }}">Prev</a>
+        <a href="{{ $quizPaginator->previousPageUrl() ?: '#' }}"
+           class="page-btn {{ $quizPaginator->onFirstPage() ? 'disabled' : '' }}">Prev</a>
 
-        @for ($page = 1; $page <= $triviaPaginator->lastPage(); $page++)
-          <a href="{{ $triviaPaginator->url($page) }}"
-             class="page-btn {{ $triviaPaginator->currentPage() === $page ? 'active' : '' }}">
+        @for ($page = 1; $page <= $quizPaginator->lastPage(); $page++)
+          <a href="{{ $quizPaginator->url($page) }}"
+             class="page-btn {{ $quizPaginator->currentPage() === $page ? 'active' : '' }}">
             {{ $page }}
           </a>
         @endfor
 
-        <a href="{{ $triviaPaginator->hasMorePages() ? $triviaPaginator->nextPageUrl() : '#' }}"
-           class="page-btn {{ $triviaPaginator->hasMorePages() ? '' : 'disabled' }}">Next</a>
+        <a href="{{ $quizPaginator->hasMorePages() ? $quizPaginator->nextPageUrl() : '#' }}"
+           class="page-btn {{ $quizPaginator->hasMorePages() ? '' : 'disabled' }}">Next</a>
       </div>
     @endif
   @else
-    <p class="muted" style="margin-top:1rem;background:#fff;border:1px dashed #e5e7eb;border-radius:10px;padding:.8rem 1rem;">No trivia in the Question Bank yet. Add your first question to get started.</p>
+    <p class="muted" style="margin-top:1rem;background:#fff;border:1px dashed #e5e7eb;border-radius:10px;padding:.8rem 1rem;">No quizzes in the Quiz Bank yet. Add your first question to get started.</p>
   @endif
 </div>
 
 
 <div id="addOverlay" class="overlay">
   <div class="modal">
-    <h2>Add Trivia (Question Bank)</h2>
-    <form action="{{ route('curators.trivia.store') }}" method="POST">
+    <h2>Add Quiz (Quiz Bank)</h2>
+    <form action="{{ route('curators.quiz.store') }}" method="POST">
       @csrf
       @if(count($landmarkList) === 1)
         <input type="hidden" name="landmark_id" value="{{ $landmarkList[0]['id'] }}">
@@ -476,7 +476,7 @@
 
 <div id="editOverlay" class="overlay">
   <div class="modal">
-    <h2>Edit Trivia (Question Bank)</h2>
+    <h2>Edit Quiz (Quiz Bank)</h2>
     <form id="editForm" method="POST">
       @csrf @method('PUT')
 
@@ -501,8 +501,8 @@
 
 <div id="deleteOverlay" class="overlay">
   <div class="modal">
-    <h2>Delete Trivia</h2>
-    <p class="modal-message">Are you sure you want to delete this trivia?</p>
+    <h2>Delete Quiz</h2>
+    <p class="modal-message">Are you sure you want to delete this quiz?</p>
     <div class="modal-actions">
       <button type="button" class="btn btn-del" onclick="confirmDelete()">Delete</button>
       <button type="button" class="btn" onclick="closeDelete()">Cancel</button>
@@ -512,8 +512,8 @@
 
 <script>
   let pendingDeleteForm = null;
-  const triviaUpdateRouteTemplate = @json(route('curators.trivia.update', ['id' => '__TRIVIA_ID__']));
-  const triviaIndexUrl = @json(route('curators.trivia.all'));
+  const quizUpdateRouteTemplate = @json(route('curators.quiz.update', ['id' => '__QUIZ_ID__']));
+  const quizIndexUrl = @json(route('curators.quiz.all'));
 
   function openAdd(){ 
       document.getElementById('addOverlay').style.display='flex'; 
@@ -529,7 +529,7 @@
       document.getElementById('editOverlay').style.display='flex';
       document.body.style.overflow='hidden';
       const form = document.getElementById('editForm');
-      form.action = triviaUpdateRouteTemplate.replace('__TRIVIA_ID__', encodeURIComponent(t.trivia_id || ''));
+      form.action = quizUpdateRouteTemplate.replace('__QUIZ_ID__', encodeURIComponent(t.quiz_id || ''));
       document.getElementById('edit_question').value = t.question || '';
 
       const box = document.getElementById('editChoices');
@@ -553,8 +553,8 @@
       document.getElementById('editOverlay').style.display='none';
       document.body.style.overflow='';
       const path = window.location.pathname.replace(/\/+$/, '');
-      if (/^\/curators\/trivia\/[^/]+$/.test(path)) {
-          window.location.assign(triviaIndexUrl);
+      if (/^\/curators\/quiz\/[^/]+$/.test(path)) {
+          window.location.assign(quizIndexUrl);
       }
   }
 
@@ -626,10 +626,10 @@
       });
   });
 
-  @if (!empty($autoOpenTrivia))
+  @if (!empty($autoOpenQuiz))
   document.addEventListener('DOMContentLoaded', ()=>{
-      const t = @json($autoOpenTrivia);
-      if (t && t.trivia_id) {
+      const t = @json($autoOpenQuiz);
+      if (t && t.quiz_id) {
           openEdit(t);
       }
   });

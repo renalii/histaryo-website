@@ -148,9 +148,11 @@ document.addEventListener("DOMContentLoaded", function () {
     const MARKER_IMAGE_MIMES = new Set(['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif']);
 
     function markerImageDataUri(l) {
+        if (l.image_url) return l.image_url;
+        if (l.image_base64 && String(l.image_base64).startsWith('data:')) return l.image_base64;
         const mime = (l.image_mime && String(l.image_mime).toLowerCase().trim()) || '';
-        if (!l.image_base64 || !MARKER_IMAGE_MIMES.has(mime)) return null;
-        return 'data:' + mime + ';base64,' + l.image_base64;
+        if (l.image_base64 && MARKER_IMAGE_MIMES.has(mime)) return 'data:' + mime + ';base64,' + l.image_base64;
+        return null;
     }
 
     function createMarkerElement(l) {
@@ -191,7 +193,6 @@ document.addEventListener("DOMContentLoaded", function () {
                 ${thumbSrc ? `<img class="histaryo-popup-thumb" src="${escapeAttr(thumbSrc)}" alt="">` : ''}
                 <strong>${escapeHtml(l.name ?? 'Untitled')}</strong><br>
                 ${l.description ? escapeHtml(l.description) + '<br>' : ''}
-                ${l.video_url ? `<a href="${escapeAttr(l.video_url)}" target="_blank" rel="noopener">Watch Video</a><br>` : ''}
             </div>
         `;
 

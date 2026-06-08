@@ -22,7 +22,7 @@
     <div class="card" style="background:#fff; border-radius:14px; padding:1.75rem 2rem; box-shadow: 0 4px 24px rgba(0,0,0,0.07); border:1px solid #f3f4f6; max-width: 40rem;">
         <h2 style="margin: 0 0 0.75rem 0; font-size: 1.35rem; color: #111827;">Waiting for site assignment</h2>
         <p style="margin: 0 0 1rem 0; color: #4b5563; line-height: 1.6;">
-            Your account is active, but no landmark is linked to your curator profile yet. A <strong>Site Manager</strong> or administrator must assign you to a landmark in the system before you can manage trivia, QR codes, and tips.
+            Your account is active, but no landmark is linked to your curator profile yet. A <strong>Site Manager</strong> or administrator must assign you to a landmark in the system before you can manage quizzes, QR codes, and tips.
         </p>
         <p style="margin: 0 0 1.25rem 0; color: #4b5563; line-height: 1.6;">
             If you recently registered with a landmark code, ask the manager for that landmark to approve your request. If you were added manually, contact your Site Manager or support so they can set <code style="background:#f3f4f6; padding:0.15rem 0.4rem; border-radius:4px; font-size:0.9em;">assigned_landmark_id</code> on your user profile.

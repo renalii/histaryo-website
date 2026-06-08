@@ -3,7 +3,10 @@
 namespace App\Http\Controllers;
 
 use App\Services\FirebaseService;
+use App\Services\LandmarkEngagement;
 use App\Support\CuratorAssignedLandmark;
+use App\Support\LandmarkVideo;
+use App\Support\LandmarkVisibility;
 use App\Support\QrResolveUrl;
 use BaconQrCode\Common\ErrorCorrectionLevel;
 use BaconQrCode\Encoder\Encoder as BaconQrEncoder;
@@ -11,11 +14,10 @@ use Google\Cloud\Firestore\FieldValue;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Session;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Str;
 
 class QrController extends Controller
 {
-    public function __construct(private FirebaseService $firebase)
+    public function __construct(private FirebaseService $firebase, private LandmarkEngagement $engagement)
     {
         // Only curators/admins should access this in routes via middleware.
     }
@@ -252,18 +254,29 @@ class QrController extends Controller
             ], $result['status']);
         }
 
+        $landmark = $result['landmark_raw'];
+        try {
+            $landmarkId = (string) ($result['json']['landmark']['id'] ?? '');
+            $this->engagement->record($request, $landmarkId, 'qr_scan', [
+                'qr_code' => (string) ($result['json']['qr_code']['code'] ?? ''),
+            ]);
+            $this->engagement->record($request, $landmarkId, 'landmark_view', ['source' => 'qr']);
+        } catch (\Throwable $e) {
+            report($e);
+        }
+
         if ($request->wantsJson()) {
             return response()->json($result['json']);
         }
 
-        $landmark = $result['landmark_raw'];
         $lat = isset($landmark['latitude']) && is_numeric($landmark['latitude']) ? (float) $landmark['latitude'] : null;
         $lng = isset($landmark['longitude']) && is_numeric($landmark['longitude']) ? (float) $landmark['longitude'] : null;
+        $videoUrl = $this->publicVideoUrl(LandmarkVideo::url($landmark));
 
         return response()->view('qr.landmark', [
             'payload' => $result['json'],
             'landmark' => $landmark,
-            'videoEmbedUrl' => $this->videoEmbedUrl((string) ($landmark['video_url'] ?? '')),
+            'videoUrl' => $videoUrl,
             'mapUrl' => ($lat !== null && $lng !== null)
                 ? 'https://www.openstreetmap.org/?mlat='.$lat.'&mlon='.$lng.'#map=16/'.$lat.'/'.$lng
                 : null,
@@ -330,7 +343,7 @@ class QrController extends Controller
 
         $landmark = $landmarkDoc->data();
         $activation = strtolower((string) ($landmark['activation_status'] ?? 'active'));
-        if ($activation === 'pending' || $activation === 'rejected') {
+        if (! LandmarkVisibility::isPublic($landmark['visibility'] ?? '', $activation)) {
             return [
                 'ok' => false,
                 'status' => 403,
@@ -357,24 +370,45 @@ class QrController extends Controller
                     'category' => (string) ($landmark['category'] ?? ''),
                     'latitude' => isset($landmark['latitude']) && is_numeric($landmark['latitude']) ? (float) $landmark['latitude'] : null,
                     'longitude' => isset($landmark['longitude']) && is_numeric($landmark['longitude']) ? (float) $landmark['longitude'] : null,
-                    'video_url' => (string) ($landmark['video_url'] ?? ''),
+                    'video_url' => LandmarkVideo::url($landmark),
                 ],
             ],
         ];
     }
 
-    private function videoEmbedUrl(string $videoUrl): string
+    private function publicVideoUrl(string $videoUrl): string
     {
-        if ($videoUrl === '') {
-            return '';
+        if (! str_starts_with($videoUrl, 'http://127.0.0.1:8000')) {
+            return $videoUrl;
         }
-        if (Str::contains($videoUrl, 'youtube.com/watch')) {
-            return str_replace('watch?v=', 'embed/', $videoUrl);
-        }
-        if (Str::contains($videoUrl, 'youtu.be/')) {
-            $id = Str::before(Str::after($videoUrl, 'youtu.be/'), '?');
 
-            return 'https://www.youtube.com/embed/'.$id;
+        $publicBase = $this->publicBaseUrl();
+        if ($publicBase === '') {
+            return $videoUrl;
+        }
+
+        return rtrim($publicBase, '/').substr($videoUrl, strlen('http://127.0.0.1:8000'));
+    }
+
+    private function publicBaseUrl(): string
+    {
+        foreach ([config('app.public_url'), config('qr.public_base_url')] as $base) {
+            $base = trim((string) $base);
+            if ($base === '') {
+                continue;
+            }
+
+            $host = parse_url($base, PHP_URL_HOST);
+            if (! is_string($host) || $host === '') {
+                continue;
+            }
+
+            $host = strtolower($host);
+            if ($host === 'localhost' || $host === '127.0.0.1' || str_starts_with($host, '127.')) {
+                continue;
+            }
+
+            return $base;
         }
 
         return '';

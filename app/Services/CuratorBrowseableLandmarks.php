@@ -3,10 +3,11 @@
 namespace App\Services;
 
 use App\Support\LandmarkActivation;
+use App\Support\LandmarkVisibility;
 
 /**
  * Landmark document IDs a curator may view in listings, maps, and dashboard stats.
- * Scoped to their Firestore users profile ({@see assigned_landmark_id}), not the full catalog.
+ * Scoped to their Firestore curator profile ({@see assigned_landmark_id}), not the full catalog.
  */
 final class CuratorBrowseableLandmarks
 {
@@ -26,7 +27,8 @@ final class CuratorBrowseableLandmarks
         }
 
         $activation = strtolower((string) ($snap->data()['activation_status'] ?? 'active'));
-        if (! LandmarkActivation::isBrowsable($activation)) {
+        $visibility = (string) ($snap->data()['visibility'] ?? '');
+        if (! LandmarkVisibility::isAuthorizedListingVisible($visibility, $activation)) {
             return [];
         }
 
@@ -34,7 +36,7 @@ final class CuratorBrowseableLandmarks
     }
 
     /**
-     * Read assignment from users/{uid} then resolve browseable landmark ids.
+     * Read assignment from curators/{uid} then resolve browseable landmark ids.
      *
      * @return list<string>
      */
@@ -45,7 +47,7 @@ final class CuratorBrowseableLandmarks
             return [];
         }
 
-        $userDoc = $firebase->firestore()->collection('users')->document($curatorUid)->snapshot();
+        $userDoc = $firebase->userDocument($curatorUid, 'curator')->snapshot();
         if (! $userDoc->exists()) {
             return [];
         }

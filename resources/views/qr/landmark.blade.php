@@ -1,14 +1,14 @@
 @php
     /** @var array $payload */
     /** @var array $landmark */
-    /** @var string $videoEmbedUrl */
+    /** @var string $videoUrl */
     /** @var string|null $mapUrl */
     /** @var string|null $mapboxToken */
     $lm = $payload['landmark'] ?? [];
     $name = $lm['name'] ?? 'Landmark';
     $description = trim((string) ($lm['description'] ?? ''));
     $category = trim((string) ($lm['category'] ?? ''));
-    $videoUrl = trim((string) ($lm['video_url'] ?? ''));
+    $videoUrl = trim((string) ($videoUrl ?? ($lm['video_url'] ?? '')));
     $locationLabel = trim((string) ($landmark['location'] ?? ''));
     $latRaw = $landmark['latitude'] ?? $landmark['lati'] ?? null;
     $lngRaw = $landmark['longitude'] ?? $landmark['longti'] ?? null;
@@ -18,9 +18,13 @@
     $mapboxEmbedToken = isset($mapboxToken) ? trim((string) $mapboxToken) : '';
     $useLeafletFallback = $showMapEmbed && $mapboxEmbedToken === '';
     $imageSrc = null;
-    if (!empty($landmark['image_base64'])) {
+    if (!empty($landmark['image_url'])) {
+        $imageSrc = $landmark['image_url'];
+    } elseif (!empty($landmark['image_base64'])) {
         $imageMime = $landmark['image_mime'] ?? 'image/jpeg';
-        $imageSrc = 'data:' . $imageMime . ';base64,' . $landmark['image_base64'];
+        $imageSrc = str_starts_with($landmark['image_base64'], 'data:')
+            ? $landmark['image_base64']
+            : 'data:' . $imageMime . ';base64,' . $landmark['image_base64'];
     }
 @endphp
 <!DOCTYPE html>
@@ -137,6 +141,13 @@
             height: 100%;
             border: 0;
         }
+        .video-player {
+            width: 100%;
+            display: block;
+            border-radius: 12px;
+            background: #111;
+            border: 1px solid rgba(110, 75, 58, 0.15);
+        }
         .video-fallback {
             margin-top: 8px;
         }
@@ -224,17 +235,13 @@
             </div>
         @endif
 
-        @if ($videoEmbedUrl !== '')
-            <div class="video-block">
-                <h2>Video</h2>
-                <div class="video-wrap">
-                    <iframe src="{{ $videoEmbedUrl }}" title="Landmark video" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
-                </div>
-            </div>
-        @elseif ($videoUrl !== '')
+        @if ($videoUrl !== '')
             <div class="video-block video-fallback">
                 <h2>Video</h2>
-                <p><a href="{{ $videoUrl }}" rel="noopener noreferrer" target="_blank">Open video</a></p>
+                <video class="video-player" controls preload="metadata">
+                    <source src="{{ $videoUrl }}" type="{{ $landmark['video_mime'] ?? 'video/mp4' }}">
+                    Your browser does not support the video tag.
+                </video>
             </div>
         @endif
     </article>

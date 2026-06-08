@@ -34,7 +34,7 @@ final class CuratorAssignedLandmark
         return $one !== null ? [$one] : [];
     }
 
-    /** @return list<string> Landmarks this curator may edit, add trivia/QR for, etc. */
+    /** @return list<string> Landmarks this curator may edit, add quiz/QR for, etc. */
     public static function writableIds(): array
     {
         $ids = Session::get('writable_landmark_ids');

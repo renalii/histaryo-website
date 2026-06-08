@@ -27,7 +27,7 @@ class DashboardController extends Controller
             return redirect()->route('login');
         }
 
-        $userDoc = $this->firestore->collection('users')->document($uid)->snapshot();
+        $userDoc = $this->firebase->userDocument($uid, 'curator')->snapshot();
         $raw = $userDoc->exists() ? ($userDoc['assigned_landmark_id'] ?? null) : null;
         $trimmed = is_string($raw) ? trim($raw) : '';
 
@@ -53,9 +53,9 @@ class DashboardController extends Controller
 
         $landmarksCount = count($browseableIds);
 
-        $triviaCount = 0;
+        $quizCount = 0;
         foreach ($browseableIds as $lid) {
-            $triviaCount += iterator_count($db->collection('question_bank')
+            $quizCount += iterator_count($db->collection('question_bank')
                 ->where('landmark_id', '==', $lid)
                 ->documents());
         }
@@ -66,7 +66,7 @@ class DashboardController extends Controller
 
         $weekLabels = [];
         $landmarksPerWeek = [];
-        $triviaPerWeek = [];
+        $quizPerWeek = [];
 
         $scopedLandmarkDocs = [];
         foreach ($browseableIds as $lid) {
@@ -76,10 +76,10 @@ class DashboardController extends Controller
             }
         }
 
-        $triviaForWeeksDocs = [];
+        $quizForWeeksDocs = [];
         foreach ($browseableIds as $lid) {
-            $triviaForWeeksDocs = array_merge(
-                $triviaForWeeksDocs,
+            $quizForWeeksDocs = array_merge(
+                $quizForWeeksDocs,
                 iterator_to_array($db->collection('question_bank')->where('landmark_id', '==', $lid)->documents())
             );
         }
@@ -109,7 +109,7 @@ class DashboardController extends Controller
             $landmarksPerWeek[] = $lCount;
 
             $tCount = 0;
-            foreach ($triviaForWeeksDocs as $doc) {
+            foreach ($quizForWeeksDocs as $doc) {
                 if (! $doc->exists()) {
                     continue;
                 }
@@ -125,7 +125,7 @@ class DashboardController extends Controller
                 } catch (\Exception $e) {
                 }
             }
-            $triviaPerWeek[] = $tCount;
+            $quizPerWeek[] = $tCount;
         }
 
         $recentLogs = [];
@@ -159,7 +159,6 @@ class DashboardController extends Controller
 
         $writableSet = $this->tipLandmarkKeySet(CuratorAssignedLandmark::writableIds());
         $browseableSet = $this->tipLandmarkKeySet($browseableIds);
-
         $pending = 0;
         foreach (FirestoreTipCollections::names() as $tipsCollection) {
             $scopeSet = FirestoreTipCollections::usesBrowseableScope($tipsCollection) ? $browseableSet : $writableSet;
@@ -184,7 +183,7 @@ class DashboardController extends Controller
         return view('curators.dashboard', [
             'stats' => [
                 'landmarks' => $landmarksCount,
-                'trivia' => $triviaCount,
+                'quiz' => $quizCount,
                 'pending' => $pending,
                 'logs' => count($recentLogs),
             ],
@@ -192,7 +191,7 @@ class DashboardController extends Controller
             'recentLogs' => $recentLogs,
             'weekLabels' => $weekLabels,
             'landmarksPerWeek' => $landmarksPerWeek,
-            'triviaPerWeek' => $triviaPerWeek,
+            'quizPerWeek' => $quizPerWeek,
         ]);
     }
 

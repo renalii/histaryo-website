@@ -29,10 +29,16 @@ class PasswordController extends Controller
             ]);
         }
 
-        $userDoc = $this->firebase->firestore()->collection('users')->document($uid)->snapshot();
+        $userDoc = $this->firebase->userDocument($uid, 'curator')->snapshot();
         if (! $userDoc->exists() || strtolower((string) ($userDoc['role'] ?? '')) !== 'curator') {
             return redirect()->route('curators.login')->withErrors([
                 'error' => 'This password setup link is invalid or has expired.',
+            ]);
+        }
+
+        if (strtolower((string) ($userDoc['account_status'] ?? 'active')) === 'inactive') {
+            return redirect()->route('curators.login')->withErrors([
+                'error' => 'Your curator account is inactive. Please contact your Site Manager.',
             ]);
         }
 
@@ -66,10 +72,16 @@ class PasswordController extends Controller
             ]);
         }
 
-        $userDoc = $this->firebase->firestore()->collection('users')->document($uid)->snapshot();
+        $userDoc = $this->firebase->userDocument($uid, 'curator')->snapshot();
         if (! $userDoc->exists() || strtolower((string) ($userDoc['role'] ?? '')) !== 'curator') {
             return redirect()->route('curators.login')->withErrors([
                 'error' => 'This password setup link is invalid or has expired.',
+            ]);
+        }
+
+        if (strtolower((string) ($userDoc['account_status'] ?? 'active')) === 'inactive') {
+            return redirect()->route('curators.login')->withErrors([
+                'error' => 'Your curator account is inactive. Please contact your Site Manager.',
             ]);
         }
 
@@ -92,7 +104,7 @@ class PasswordController extends Controller
             $this->firebase->getAuth()->changeUserPassword($uid, $validated['password']);
 
             $now = now()->toDateTimeString();
-            $this->firebase->firestore()->collection('users')->document($uid)->set([
+            $this->firebase->userDocument($uid, 'curator')->set([
                 'must_change_password' => false,
                 'password_changed_at' => $now,
                 'updated_at' => $now,
@@ -110,6 +122,7 @@ class PasswordController extends Controller
             Session::put('role', $role);
             Session::put('email', $email);
             Session::put('name', (string) ($userDoc['name'] ?? ''));
+            Session::put('account_status', strtolower((string) ($userDoc['account_status'] ?? 'active')));
             Session::put('assigned_landmark_id', $assignedTrimmed);
             Session::forget('must_change_password');
             Session::put('browseable_landmark_ids', CuratorBrowseableLandmarks::resolveIds($this->firebase, $assignedTrimmed));
@@ -187,7 +200,7 @@ class PasswordController extends Controller
             $this->firebase->getAuth()->changeUserPassword($uid, $validated['password']);
 
             $now = now()->toDateTimeString();
-            $this->firebase->firestore()->collection('users')->document($uid)->set([
+            $this->firebase->userDocument($uid, 'curator')->set([
                 'must_change_password' => false,
                 'password_changed_at' => $now,
                 'updated_at' => $now,

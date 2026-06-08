@@ -26,7 +26,7 @@ class ResendCuratorSetupEmail extends Command
             return self::FAILURE;
         }
 
-        $users = $firebase->firestore()->collection('users')
+        $users = $firebase->userCollection('curator')
             ->where('email', '=', $email)
             ->limit(1)
             ->documents();
@@ -60,12 +60,19 @@ class ResendCuratorSetupEmail extends Command
         $landmarkLabel = $landmarkId !== ''
             ? ($landmarks->landmarkLabel($landmarkId) ?? $landmarkId)
             : 'Assigned landmark';
+        $temporaryPassword = $this->temporaryPassword();
+
+        $firebase->getAuth()->changeUserPassword($uid, $temporaryPassword);
+        $firebase->userDocument($uid, 'curator')->set([
+            'must_change_password' => true,
+            'updated_at' => now()->toDateTimeString(),
+        ], ['merge' => true]);
 
         $result = $mailer->send(
             firstName: (string) ($doc['first_name'] ?? 'Curator'),
             lastName: (string) ($doc['last_name'] ?? ''),
             email: $email,
-            plainPassword: '(use the temporary password from your original welcome email)',
+            plainPassword: $temporaryPassword,
             landmarkLabel: $landmarkLabel,
             uid: $uid,
         );
@@ -84,5 +91,30 @@ class ResendCuratorSetupEmail extends Command
         }
 
         return self::FAILURE;
+    }
+
+    private function temporaryPassword(): string
+    {
+        $letters = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
+        $digits = '23456789';
+        $symbols = '!@#$%';
+        $pool = $letters.$digits.$symbols;
+
+        $password = [
+            $letters[random_int(0, strlen($letters) - 1)],
+            $digits[random_int(0, strlen($digits) - 1)],
+            $symbols[random_int(0, strlen($symbols) - 1)],
+        ];
+
+        while (count($password) < 12) {
+            $password[] = $pool[random_int(0, strlen($pool) - 1)];
+        }
+
+        for ($i = count($password) - 1; $i > 0; $i--) {
+            $j = random_int(0, $i);
+            [$password[$i], $password[$j]] = [$password[$j], $password[$i]];
+        }
+
+        return implode('', $password);
     }
 }
