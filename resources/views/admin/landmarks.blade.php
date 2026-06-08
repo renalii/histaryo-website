@@ -241,12 +241,13 @@
             padding: .9rem 1rem;
         }
         .pager {
-            margin-top: 1rem;
+            margin: 1rem 0 0 auto;
             display: flex;
             align-items: center;
-            justify-content: center;
-            gap: .55rem;
-            flex-wrap: wrap;
+            justify-content: flex-end;
+            gap: .65rem;
+            flex-wrap: nowrap;
+            width: fit-content;
         }
         .pager-btn {
             display: inline-flex;
@@ -280,6 +281,21 @@
             font-size: .9rem;
             font-weight: 600;
             padding: 0 .25rem;
+            white-space: nowrap;
+        }
+        @media (max-width: 640px) {
+            .pager {
+                gap: .4rem;
+                max-width: 100%;
+            }
+            .pager-btn {
+                padding: .42rem .58rem;
+                font-size: .8rem;
+            }
+            .pager-text {
+                padding: 0;
+                font-size: .8rem;
+            }
         }
 
         .lm-create-modal {
@@ -484,10 +500,6 @@
         .land-visibility-pill--published { background:#ecfdf5; color:#166534; border-color:#bbf7d0; }
         .land-visibility-pill--archived { background:#f3f4f6; color:#4b5563; border-color:#d1d5db; }
         .land-visibility-pill--hidden { background:#eef2ff; color:#4338ca; border-color:#c7d2fe; }
-        .lm-visibility-form { display:flex; gap:.55rem; align-items:end; flex-wrap:wrap; padding:.8rem; border:1px solid #e5e7eb; border-radius:10px; background:#f9fafb; }
-        .lm-visibility-form label { display:grid; gap:.3rem; font-size:.72rem; font-weight:700; color:#57534e; text-transform:uppercase; }
-        .lm-visibility-form select { min-width:160px; padding:.5rem .65rem; border:1px solid #d1d5db; border-radius:8px; background:#fff; }
-        .lm-visibility-form button { padding:.52rem .8rem; border:1px solid #F3C96A; border-radius:8px; background:#E8B34B; color:#7A2E1F; font-weight:700; cursor:pointer; }
         .land-card-link {
             color: inherit;
             text-decoration: none;
@@ -767,35 +779,36 @@
             text-decoration: none;
         }
         .land-table .row-name-btn:hover { text-decoration: none; }
-        .land-status-tabs {
+        .land-status-filter {
             display: inline-flex;
-            flex-wrap: wrap;
-            gap: .35rem;
-            background: #fff;
-            border: 1px solid #eceff3;
-            border-radius: 10px;
-            padding: .35rem;
+            align-items: center;
+            gap: .5rem;
         }
-        .land-status-tabs a {
-            padding: .4rem .75rem;
-            border-radius: 8px;
-            text-decoration: none;
+        .land-status-filter label {
             font-weight: 700;
             font-size: .85rem;
             color: #374151;
         }
-        .land-status-tabs a.active {
-            background: #E8B34B;
-            color: #7A2E1F;
+        .land-status-filter select {
+            min-width: 125px;
+            padding: .42rem .65rem;
+            border: 1px solid #d1d5db;
+            border-radius: 8px;
+            background: #fff;
+            color: #374151;
+            font: inherit;
+            font-size: .85rem;
+            font-weight: 700;
+            cursor: pointer;
         }
     </style>
     <div class="land-wrap">
     <div class="land-header">
         <div class="land-header-main">
-            <h2 class="land-title">{{ $isLandmarkApprovalQueue ? 'Landmark approvals' : 'All Landmarks' }}</h2>
-            @if ($panelRoutePrefix !== 'sitemanager' && ! $isLandmarkApprovalQueue)
+            <h2 class="land-title">{{ $isLandmarkApprovalQueue ? 'Landmark Approvals' : 'All Landmarks' }}</h2>
+            @if ($panelRoutePrefix !== 'sitemanager')
                 <p class="land-sub">
-                    {{ $landmarkCount }} submission{{ $landmarkCount !== 1 ? 's' : '' }}.
+                    {{ $landmarkCount }} submission{{ $landmarkCount !== 1 ? 's' : '' }}
                 </p>
             @endif
         </div>
@@ -811,12 +824,16 @@
                 </button>
             @endif
             @if ($isLandmarkApprovalQueue)
-                <div class="land-status-tabs" role="tablist" aria-label="Landmark status">
-                    @foreach (['pending' => 'Pending', 'active' => 'Approved', 'rejected' => 'Rejected', 'all' => 'All'] as $statusKey => $statusLabel)
-                        <a href="{{ route('admin.landmarks', ['status' => $statusKey, 'view' => $currentView]) }}"
-                           class="{{ $landmarkStatusFilter === $statusKey ? 'active' : '' }}">{{ $statusLabel }}</a>
-                    @endforeach
-                </div>
+                <form method="GET" action="{{ route('admin.landmarks') }}" class="land-status-filter">
+                    <label for="landmark-status-filter">Status:</label>
+                    <input type="hidden" name="view" value="{{ $currentView }}">
+                    <select id="landmark-status-filter" name="status" onchange="this.form.submit()">
+                        <option value="pending" @selected($landmarkStatusFilter === 'pending')>Pending</option>
+                        <option value="all" @selected($landmarkStatusFilter === 'all')>All</option>
+                        <option value="active" @selected($landmarkStatusFilter === 'active')>Approved</option>
+                        <option value="rejected" @selected($landmarkStatusFilter === 'rejected')>Rejected</option>
+                    </select>
+                </form>
             @endif
             @if ($panelRoutePrefix !== 'sitemanager')
                 <div class="view-switch">
@@ -855,7 +872,9 @@
                         }
 
                         $activation = strtolower((string) ($data['activation_status'] ?? 'active'));
-                        $visibility = LandmarkVisibility::normalize($data['visibility'] ?? '', $activation);
+                        $visibility = $panelRoutePrefix !== 'sitemanager'
+                            ? LandmarkVisibility::normalize($data['visibility'] ?? '', $activation)
+                            : null;
                         $activationLabel = $isLandmarkApprovalQueue
                             ? match ($activation) {
                                 'pending' => 'Pending',
@@ -884,9 +903,9 @@
                                 <span class="land-activation-pill land-activation-pill--{{ $activation === 'pending' || $activation === 'rejected' ? $activation : 'active' }}">
                                     {{ $activationLabel }}
                                 </span>
-                                @unless ($isLandmarkApprovalQueue)
+                                @if ($panelRoutePrefix !== 'sitemanager' && ! $isLandmarkApprovalQueue)
                                     <span class="land-visibility-pill land-visibility-pill--{{ $visibility }}">{{ LandmarkVisibility::label($visibility) }}</span>
-                                @endunless
+                                @endif
                             </div>
                         @else
                             <a class="land-card-link" href="{{ $showRoute }}">
@@ -895,9 +914,9 @@
                                     <span class="land-activation-pill land-activation-pill--{{ $activation === 'pending' || $activation === 'rejected' ? $activation : 'active' }}">
                                         {{ $activationLabel }}
                                     </span>
-                                    @unless ($isLandmarkApprovalQueue)
+                                    @if ($panelRoutePrefix !== 'sitemanager' && ! $isLandmarkApprovalQueue)
                                         <span class="land-visibility-pill land-visibility-pill--{{ $visibility }}">{{ LandmarkVisibility::label($visibility) }}</span>
-                                    @endunless
+                                    @endif
                                 </div>
                             </a>
                         @endif
@@ -984,7 +1003,9 @@
                                 }
 
                                 $activation = strtolower((string) ($data['activation_status'] ?? 'active'));
-                                $visibility = LandmarkVisibility::normalize($data['visibility'] ?? '', $activation);
+                                $visibility = $panelRoutePrefix !== 'sitemanager'
+                                    ? LandmarkVisibility::normalize($data['visibility'] ?? '', $activation)
+                                    : null;
                                 $activationLabel = $isLandmarkApprovalQueue
                                     ? match ($activation) {
                                         'pending' => 'Pending',
@@ -1015,9 +1036,9 @@
                                     <span class="land-activation-pill land-activation-pill--{{ $activation === 'pending' || $activation === 'rejected' ? $activation : 'active' }}">
                                         {{ $activationLabel }}
                                     </span>
-                                    @unless ($isLandmarkApprovalQueue)
+                                    @if ($panelRoutePrefix !== 'sitemanager' && ! $isLandmarkApprovalQueue)
                                         <span class="land-visibility-pill land-visibility-pill--{{ $visibility }}">{{ LandmarkVisibility::label($visibility) }}</span>
-                                    @endunless
+                                    @endif
                                 </td>
                                 <td style="font-family:ui-monospace,monospace;">{{ $data['landmarkcode'] ?? '—' }}</td>
                                 <td>{{ $data['latitude'] ?? 'N/A' }}, {{ $data['longitude'] ?? 'N/A' }}</td>

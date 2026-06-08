@@ -9,6 +9,9 @@
             ? 'sitemanager.curators'
             : ($siteManagersOnly ? 'admin.site-managers' : ($panelRoutePrefix.'.users'));
         $userActionsRoutePrefix = $curatorsOnly ? 'sitemanager.curators' : ($panelRoutePrefix.'.users');
+        $usersIsPaginated = $users instanceof \Illuminate\Contracts\Pagination\LengthAwarePaginator;
+        $usersTotal = $usersIsPaginated ? $users->total() : count($users);
+        $usersIsEmpty = $usersTotal === 0;
     @endphp
     <style>
         .users-wrap { max-width: 2000px; margin: 0 auto; }
@@ -236,12 +239,69 @@
             border-radius: 10px;
             padding: .9rem 1rem;
         }
+        .users-pagination {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1rem;
+            flex-wrap: wrap;
+            padding: .85rem 0 0;
+        }
+        .users-pagination__summary {
+            color: #6b7280;
+            font-size: .88rem;
+            font-weight: 600;
+        }
+        .users-pagination__controls {
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            gap: .65rem;
+            flex-wrap: nowrap;
+            margin-left: auto;
+        }
+        .users-page-link,
+        .users-page-disabled {
+            padding: .52rem .85rem;
+            border-radius: 8px;
+            border: 1px solid #e5e7eb;
+            text-align: center;
+            font-size: .85rem;
+            font-weight: 700;
+            text-decoration: none;
+        }
+        .users-page-link--previous { background: #fff; color: #6b7280; }
+        .users-page-link--previous:hover { background: #f9fafb; color: #374151; }
+        .users-page-link--next { background: #E8B34B; border-color: #F3C96A; color: #7A2E1F; }
+        .users-page-link--next:hover { background: #F3C96A; }
+        .users-page-disabled { background: #f9fafb; color: #9ca3af; }
+        .users-pagination__page-count {
+            color: #4b5563;
+            font-size: .88rem;
+            font-weight: 600;
+        }
         @media (max-width: 640px) {
             .users-input { width: 100%; }
             .users-filter { padding: .7rem; }
             .users-btn { flex: 1 1 auto; }
             .curator-status-modal__actions { flex-direction: column-reverse; }
             .curator-status-modal__btn { width: 100%; }
+            .users-pagination {
+                align-items: flex-start;
+                flex-direction: column;
+                gap: .4rem;
+            }
+            .users-pagination__controls {
+                width: 100%;
+                gap: .4rem;
+                margin-left: 0;
+            }
+            .users-page-link,
+            .users-page-disabled {
+                padding: .45rem .6rem;
+                font-size: .8rem;
+            }
+            .users-pagination__page-count { font-size: .8rem; }
         }
     </style>
 
@@ -259,11 +319,11 @@
             </h2>
             <p class="users-sub" style="margin-bottom:0;">
                 @if ($curatorsOnly)
-                    {{ count($users) }} curator{{ count($users) !== 1 ? 's' : '' }} found
+                    {{ $usersTotal }} curator{{ $usersTotal !== 1 ? 's' : '' }} found
                 @elseif ($siteManagersOnly)
                     {{ count($users) }} Site Manager{{ count($users) !== 1 ? 's' : '' }} — approve or reject pending registrations
                 @else
-                    {{ count($users) }} user{{ count($users) !== 1 ? 's' : '' }} found
+                    {{ $usersTotal }} user{{ $usersTotal !== 1 ? 's' : '' }} found
                 @endif
             </p>
         </div>
@@ -308,7 +368,7 @@
         </a>
     </form>
 
-    @if (count($users) === 0)
+    @if ($usersIsEmpty)
         <p class="empty-box">
             @if ($curatorsOnly)
                 No curators found. Try a different search.
@@ -427,6 +487,30 @@
                     @endforeach
                 </tbody>
             </table>
+            @if ($usersIsPaginated && $users->hasPages())
+                <nav class="users-pagination" aria-label="Users pagination">
+                    <span class="users-pagination__summary">
+                        Showing {{ $users->firstItem() }}–{{ $users->lastItem() }} of {{ $users->total() }} users
+                    </span>
+                    <div class="users-pagination__controls">
+                        @if ($users->onFirstPage())
+                            <span class="users-page-disabled">&larr; Prev</span>
+                        @else
+                            <a class="users-page-link users-page-link--previous" href="{{ $users->previousPageUrl() }}">&larr; Prev</a>
+                        @endif
+
+                        <span class="users-pagination__page-count">
+                            Page {{ $users->currentPage() }} of {{ $users->lastPage() }}
+                        </span>
+
+                        @if ($users->hasMorePages())
+                            <a class="users-page-link users-page-link--next" href="{{ $users->nextPageUrl() }}">Next &rarr;</a>
+                        @else
+                            <span class="users-page-disabled">Next &rarr;</span>
+                        @endif
+                    </div>
+                </nav>
+            @endif
         </div>
     @endif
     </div>

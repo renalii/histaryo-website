@@ -290,6 +290,7 @@
                     'data' => $data,
                     'headerActionsView' => 'curators.landmarks.partials.detail-actions',
                     'mapboxToken' => $mapboxToken ?? config('services.mapbox.token'),
+                    'showVisibilityBadge' => false,
                 ])
                 @include('curators.landmarks.partials.edit-modal', [
                     'landmarkId' => $lid,

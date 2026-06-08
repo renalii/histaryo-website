@@ -6,7 +6,10 @@
     $data = $data ?? [];
     $landmarkId = (string) ($landmarkId ?? '');
     $activationStatus = strtolower((string) ($data['activation_status'] ?? 'active'));
-    $visibility = LandmarkVisibility::normalize($data['visibility'] ?? '', $activationStatus);
+    $showVisibilityBadge = $showVisibilityBadge ?? true;
+    $visibility = $showVisibilityBadge
+        ? LandmarkVisibility::normalize($data['visibility'] ?? '', $activationStatus)
+        : null;
 
     $latOut = $data['latitude'] ?? $data['lati'] ?? null;
     $lngOut = $data['longitude'] ?? $data['longti'] ?? null;
@@ -283,9 +286,11 @@
                     <span class="lm-detail-status lm-detail-status--{{ $activationStatus === 'pending' || $activationStatus === 'rejected' ? $activationStatus : 'active' }}">
                         {{ LandmarkActivation::label($activationStatus) }}
                     </span>
-                    <span class="lm-detail-status lm-detail-visibility--{{ $visibility }}">
-                        {{ LandmarkVisibility::label($visibility) }}
-                    </span>
+                    @if ($showVisibilityBadge)
+                        <span class="lm-detail-status lm-detail-visibility--{{ $visibility }}">
+                            {{ LandmarkVisibility::label($visibility) }}
+                        </span>
+                    @endif
                 </div>
             </div>
             <h1 class="lm-detail-card__title">{{ $data['name'] ?? 'Unnamed landmark' }}</h1>

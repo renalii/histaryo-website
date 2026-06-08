@@ -1,7 +1,6 @@
 @php
     use App\Support\LandmarkActivation;
     use App\Support\LandmarkEvidence;
-    use App\Support\LandmarkVisibility;
 
     $activationStatus = strtolower((string) ($data['activation_status'] ?? 'active'));
     $evidenceDocuments = is_array($data['evidence_documents'] ?? null) ? $data['evidence_documents'] : [];
@@ -12,7 +11,6 @@
     $hasCoords = is_numeric($latRaw) && is_numeric($lngRaw);
     $mapContainerId = 'lm-view-map-' . ($modalSafe ?? 'landmark');
     $videoFileUrl = trim((string) ($videoFileUrl ?? ''));
-    $visibility = LandmarkVisibility::normalize($data['visibility'] ?? '', $activationStatus);
     $isAdminApprovalView = ($panelRoutePrefix ?? '') !== 'sitemanager';
     $activationLabel = $isAdminApprovalView
         ? match ($activationStatus) {
@@ -53,27 +51,7 @@
             <span class="lm-view-status lm-view-status--{{ $activationStatus === 'pending' || $activationStatus === 'rejected' ? $activationStatus : 'active' }}">
                 {{ $activationLabel }}
             </span>
-            @if (($panelRoutePrefix ?? '') === 'sitemanager')
-                <span class="land-visibility-pill land-visibility-pill--{{ $visibility }}">{{ LandmarkVisibility::label($visibility) }}</span>
-            @endif
         </div>
-
-        @if (($panelRoutePrefix ?? '') === 'sitemanager')
-            <h3 class="lm-view-modal__section">Visibility</h3>
-            <form class="lm-visibility-form" method="POST" action="{{ route('sitemanager.landmarks.visibility', $landmarkId) }}">
-                @csrf
-                @method('PATCH')
-                <label>
-                    Visitor access
-                    <select name="visibility">
-                        <option value="published" @selected($visibility === 'published')>Published</option>
-                        <option value="archived" @selected($visibility === 'archived')>Archived</option>
-                        <option value="hidden" @selected($visibility === 'hidden')>Hidden</option>
-                    </select>
-                </label>
-                <button type="submit">Update visibility</button>
-            </form>
-        @endif
 
         @if (! empty($data['description'] ?? ''))
             <h3 class="lm-view-modal__section">Description</h3>

@@ -64,117 +64,14 @@
     .admin-chart-lg { grid-column: span 7; }
     .admin-chart-sm { grid-column: span 5; }
     .admin-chart canvas { width: 100% !important; height: 320px !important; }
-    .landmark-analytics {
-        margin-top: 1rem;
-        background: #fff;
-        border: 1px solid #eceff3;
-        border-radius: 14px;
-        padding: 1rem 1.1rem;
-        box-shadow: 0 6px 16px rgba(0,0,0,0.05);
-    }
-    .landmark-analytics__header {
-        display: flex;
-        align-items: end;
-        justify-content: space-between;
-        gap: 1rem;
-        margin-bottom: 1rem;
-    }
-    .landmark-analytics__header h2 { margin: 0; color: #7A2E1F; font-size: 1.2rem; }
-    .landmark-analytics__header p { margin: .25rem 0 0; color: #6b7280; font-size: .88rem; }
-    .landmark-analytics__filter { display: grid; gap: .3rem; min-width: min(100%, 280px); }
-    .landmark-analytics__filter label {
-        color: #6b7280;
-        font-size: .72rem;
-        font-weight: 700;
-        text-transform: uppercase;
-    }
-    .landmark-analytics__filter select {
-        width: 100%;
-        padding: .55rem .7rem;
-        border: 1px solid #d1d5db;
-        border-radius: 8px;
-        background: #fff;
-        color: #374151;
-        font: inherit;
-        font-weight: 600;
-    }
-    .landmark-analytics__grid {
-        display: grid;
-        grid-template-columns: repeat(5, minmax(0, 1fr));
-        gap: .75rem;
-    }
-    .landmark-analytics__stat {
-        border: 1px solid #eee7df;
-        border-radius: 10px;
-        padding: .85rem;
-        background: #fffcf8;
-    }
-    .landmark-analytics__stat span {
-        display: block;
-        color: #78716c;
-        font-size: .72rem;
-        font-weight: 700;
-        text-transform: uppercase;
-    }
-    .landmark-analytics__stat strong {
-        display: block;
-        margin-top: .3rem;
-        color: #7A2E1F;
-        font-size: 1.45rem;
-    }
-    .landmark-analytics__stat--activity strong { font-size: .9rem; line-height: 1.35; }
-    .landmark-analytics__empty { margin: 0; color: #6b7280; }
-    .landmark-analytics__activity {
-        margin-top: 1rem;
-        border-top: 1px solid #f1e8dc;
-        padding-top: .95rem;
-    }
-    .landmark-analytics__activity h3 {
-        margin: 0 0 .65rem;
-        color: #4b5563;
-        font-size: .96rem;
-        font-weight: 800;
-    }
-    .landmark-analytics__activity-list {
-        display: grid;
-        gap: .5rem;
-        margin: 0;
-        padding: 0;
-        list-style: none;
-    }
-    .landmark-analytics__activity-item {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: .75rem;
-        padding: .7rem .8rem;
-        border: 1px solid #eee7df;
-        border-radius: 10px;
-        background: #fffdfa;
-    }
-    .landmark-analytics__activity-type {
-        color: #7A2E1F;
-        font-weight: 800;
-        font-size: .9rem;
-    }
-    .landmark-analytics__activity-site,
-    .landmark-analytics__activity-time {
-        color: #6b7280;
-        font-size: .82rem;
-        font-weight: 600;
-    }
     @media (max-width: 1024px) {
         .admin-stat { grid-column: span 6; }
         .admin-chart-lg, .admin-chart-sm { grid-column: span 12; }
-        .landmark-analytics__grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     }
     @media (max-width: 640px) {
         .admin-stat { grid-column: span 12; }
         .admin-hero { padding: 1.2rem 1rem; }
         .admin-hero h1 { font-size: 1.55rem; }
-        .landmark-analytics__header { align-items: stretch; flex-direction: column; }
-        .landmark-analytics__filter { min-width: 0; }
-        .landmark-analytics__grid { grid-template-columns: 1fr; }
     }
 </style>
 
@@ -223,46 +120,6 @@
     @endif
 </div>
 
-@if ($isSiteManager)
-<section class="landmark-analytics" aria-labelledby="landmark-analytics-title">
-    <div class="landmark-analytics__header">
-        <div>
-            <h2 id="landmark-analytics-title">Landmark Engagement Analytics</h2>
-            <p>Review engagement across your portfolio or focus on one landmark.</p>
-        </div>
-        @if (! empty($dashboardLandmarks))
-            <div class="landmark-analytics__filter">
-                <label for="landmark-analytics-select">Landmark</label>
-                <select id="landmark-analytics-select">
-                    <option value="all">All Landmarks</option>
-                    @foreach ($dashboardLandmarks as $landmark)
-                        <option value="{{ $landmark['id'] }}" data-name="{{ $landmark['name'] }}">{{ $landmark['name'] }}</option>
-                    @endforeach
-                </select>
-            </div>
-        @endif
-    </div>
-
-    @if (! empty($dashboardLandmarks))
-        <div class="landmark-analytics__grid" aria-live="polite">
-            <div class="landmark-analytics__stat"><span>QR Scans</span><strong id="analytics-qr-scans">0</strong></div>
-            <div class="landmark-analytics__stat"><span>Views</span><strong id="analytics-views">0</strong></div>
-            <div class="landmark-analytics__stat"><span>Quiz Attempts</span><strong id="analytics-quiz-attempts">0</strong></div>
-            <div class="landmark-analytics__stat"><span>Unique Visitors</span><strong id="analytics-unique-visitors">0</strong></div>
-            <div class="landmark-analytics__stat landmark-analytics__stat--activity"><span>Last Activity</span><strong id="analytics-last-activity">No activity yet</strong></div>
-        </div>
-        <div class="landmark-analytics__activity">
-            <h3>Recent Activity</h3>
-            <ul id="analytics-recent-activity" class="landmark-analytics__activity-list" aria-live="polite">
-                <li class="landmark-analytics__empty">No activity yet.</li>
-            </ul>
-        </div>
-    @else
-        <p class="landmark-analytics__empty">No managed landmarks are available yet.</p>
-    @endif
-</section>
-@endif
-
 @if ($showInsights)
 <div class="admin-grid">
     <div class="admin-chart admin-chart-lg">
@@ -279,109 +136,6 @@
 </div>
 @endif
 </div>
-
-@if ($isSiteManager && ! empty($dashboardLandmarks))
-<script>
-    const landmarkAnalyticsUrl = @json(route('sitemanager.dashboard.landmark-analytics'));
-
-    function formatLandmarkActivity(value) {
-        if (!value) return 'No activity yet';
-        const date = new Date(value);
-        if (Number.isNaN(date.getTime())) return 'No activity yet';
-        return date.toLocaleString([], {
-            month: 'short',
-            day: 'numeric',
-            year: 'numeric',
-            hour: 'numeric',
-            minute: '2-digit'
-        });
-    }
-
-    function renderLandmarkAnalytics(analytics) {
-        document.getElementById('analytics-qr-scans').textContent = Number(analytics.qr_scans || 0).toLocaleString();
-        document.getElementById('analytics-views').textContent = Number(analytics.landmark_views || 0).toLocaleString();
-        document.getElementById('analytics-quiz-attempts').textContent = Number(analytics.quiz_attempts || 0).toLocaleString();
-        document.getElementById('analytics-unique-visitors').textContent = Number(analytics.unique_visitors || 0).toLocaleString();
-        document.getElementById('analytics-last-activity').textContent = formatLandmarkActivity(analytics.last_activity);
-    }
-
-    function landmarkActivityLabel(type) {
-        if (type === 'qr_scan') return 'QR scan';
-        if (type === 'landmark_view') return 'View';
-        if (type === 'quiz_attempt') return 'Quiz attempt';
-        return 'Activity';
-    }
-
-    function escapeAnalyticsHtml(value) {
-        return String(value || '')
-            .replace(/&/g, '&amp;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;')
-            .replace(/"/g, '&quot;')
-            .replace(/'/g, '&#039;');
-    }
-
-    function renderRecentLandmarkActivity(records, selectedLandmarkName) {
-        const list = document.getElementById('analytics-recent-activity');
-        if (!list) return;
-
-        const recent = Array.isArray(records) ? records.slice(0, 6) : [];
-        if (recent.length === 0) {
-            list.innerHTML = '<li class="landmark-analytics__empty">No activity yet.</li>';
-            return;
-        }
-
-        list.innerHTML = recent.map((record) => {
-            const type = escapeAnalyticsHtml(landmarkActivityLabel(record.activity_type));
-            const time = escapeAnalyticsHtml(formatLandmarkActivity(record.occurred_at));
-            const site = escapeAnalyticsHtml(record.landmark_name || selectedLandmarkName || 'Selected landmark');
-
-            return `
-                <li class="landmark-analytics__activity-item">
-                    <div>
-                        <div class="landmark-analytics__activity-type">${type}</div>
-                        <div class="landmark-analytics__activity-site">${site}</div>
-                    </div>
-                    <time class="landmark-analytics__activity-time">${time}</time>
-                </li>
-            `;
-        }).join('');
-    }
-
-    async function updateLandmarkAnalytics() {
-        const selectedOption = landmarkAnalyticsSelect.options[landmarkAnalyticsSelect.selectedIndex];
-        const landmarkId = selectedOption.value;
-        const landmarkName = selectedOption.dataset.name || selectedOption.textContent.trim();
-
-        console.log('[Landmark Analytics] selected landmark ID:', landmarkId);
-        console.log('[Landmark Analytics] selected landmark name:', landmarkName);
-
-        try {
-            const url = new URL(landmarkAnalyticsUrl, window.location.origin);
-            url.searchParams.set('landmark_id', landmarkId);
-            const response = await fetch(url, {
-                headers: { Accept: 'application/json' },
-                credentials: 'same-origin'
-            });
-            if (!response.ok) throw new Error(`Analytics request failed (${response.status})`);
-
-            const payload = await response.json();
-            console.log('[Landmark Analytics] fetched engagement records:', payload.records);
-            console.log('[Landmark Analytics] calculated totals:', payload.totals);
-            renderLandmarkAnalytics(payload.totals || {});
-            renderRecentLandmarkActivity(payload.records || [], payload.selected_landmark_name || landmarkName);
-        } catch (error) {
-            console.error('[Landmark Analytics] fetch error:', error);
-            renderLandmarkAnalytics({});
-            renderRecentLandmarkActivity([], landmarkName);
-        }
-    }
-
-    const landmarkAnalyticsSelect = document.getElementById('landmark-analytics-select');
-    landmarkAnalyticsSelect.addEventListener('change', updateLandmarkAnalytics);
-    updateLandmarkAnalytics();
-</script>
-@endif
 
 @if ($showInsights)
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
@@ -401,10 +155,14 @@
     };
 
     const usageData = {
-        labels: ['Admins', 'Curators'],
+        labels: ['Admins', 'Curators', 'Visitors'],
         datasets: [{
-            data: [{{ (int) ($adminCount ?? 0) }}, {{ (int) ($curatorCount ?? 0) }}],
-            backgroundColor: ['#7A2E1F', '#E8B34B'],
+            data: [
+                {{ (int) ($adminCount ?? 0) }},
+                {{ (int) ($curatorCount ?? 0) }},
+                {{ (int) ($visitorCount ?? 0) }}
+            ],
+            backgroundColor: ['#7A2E1F', '#E8B34B', '#4F46E5'],
             borderWidth: 1
         }]
     };
@@ -420,15 +178,53 @@
         }
     });
 
-    new Chart(document.getElementById('roleUsageChart'), {
+    const roleUsageChart = new Chart(document.getElementById('roleUsageChart'), {
         type: 'doughnut',
         data: usageData,
         options: {
             responsive: true,
             maintainAspectRatio: false,
-            plugins: { legend: { position: 'bottom' } }
+            plugins: {
+                legend: { position: 'bottom' },
+                tooltip: {
+                    callbacks: {
+                        label(context) {
+                            const values = context.dataset.data.map(Number);
+                            const total = values.reduce((sum, value) => sum + value, 0);
+                            const value = Number(context.raw || 0);
+                            const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : '0.0';
+
+                            return `${context.label}: ${value.toLocaleString()} (${percentage}%)`;
+                        }
+                    }
+                }
+            }
         }
     });
+
+    const roleUsageUrl = @json(route('admin.dashboard.role-usage'));
+
+    async function refreshRoleUsageChart() {
+        try {
+            const response = await fetch(roleUsageUrl, {
+                headers: { Accept: 'application/json' },
+                credentials: 'same-origin'
+            });
+            if (!response.ok) return;
+
+            const counts = await response.json();
+            roleUsageChart.data.datasets[0].data = [
+                Number(counts.admins || 0),
+                Number(counts.curators || 0),
+                Number(counts.visitors || 0)
+            ];
+            roleUsageChart.update();
+        } catch (error) {
+            console.error('Could not refresh dashboard role usage.', error);
+        }
+    }
+
+    window.setInterval(refreshRoleUsageChart, 30000);
 </script>
 @endif
 @endsection
