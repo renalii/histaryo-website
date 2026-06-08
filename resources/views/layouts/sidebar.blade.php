@@ -29,8 +29,8 @@
     $pageTitle = 'Assignment pending';
   } elseif (request()->routeIs('curators.tips.*')) {
     $pageTitle = 'Curator Tips Review';
-  } elseif (request()->routeIs('curators.trivia.*')) {
-    $pageTitle = 'Question Bank';
+  } elseif (request()->routeIs('curators.quiz.*')) {
+    $pageTitle = 'Quiz Bank';
   } elseif (request()->routeIs('landmarks.*')) {
     $pageTitle = 'Landmarks';
   }
@@ -177,7 +177,7 @@
           @if($curatorHasLandmark)
             <a href="{{ route('curators.dashboard') }}"><span class="nav-label">Dashboard</span></a>
             <a href="{{ route('landmarks.show', session('assigned_landmark_id')) }}"><span class="nav-label">Landmarks</span></a>
-            <a href="{{ route('curators.trivia.all') }}"><span class="nav-label">Trivia</span></a>
+            <a href="{{ route('curators.quiz.all') }}"><span class="nav-label">Quiz Bank</span></a>
             <a href="{{ route('curators.tips.index') }}"><span class="nav-label">Tips Review</span></a>
             <a href="{{ route('curators.map') }}"><span class="nav-label">Map</span></a>
             <a href="{{ route('curators.qr') }}"><span class="nav-label">QR Codes</span></a>
@@ -193,8 +193,8 @@
             {{-- Landmark Approvals removed as requested --}}
         @elseif(session('role') === 'site_manager')
           <a href="{{ route('sitemanager.dashboard') }}"><span class="nav-label">Dashboard</span></a>
-          <a href="{{ route('sitemanager.curators') }}"><span class="nav-label">Curators</span></a>
           <a href="{{ route('sitemanager.landmarks') }}"><span class="nav-label">Landmarks</span></a>
+          <a href="{{ route('sitemanager.curators') }}"><span class="nav-label">Curators</span></a>
         @endif
       </nav>
     </div>
@@ -211,6 +211,14 @@
   <main class="main-content">
     @yield('content')
   </main>
+
+  <script>
+    window.addEventListener('pageshow', function (event) {
+      if (event.persisted) {
+        window.location.reload();
+      }
+    });
+  </script>
 
 </body>
 </html>
