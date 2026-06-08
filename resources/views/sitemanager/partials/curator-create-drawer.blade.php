@@ -1,10 +1,15 @@
 @php
     $landmarks = $landmarks ?? [];
-    $allActiveLandmarksAssigned = $allActiveLandmarksAssigned ?? false;
+    $editCurator = $editCurator ?? null;
+    $isEditMode = $editCurator !== null;
     $openDrawer = request()->boolean('create')
+        || $isEditMode
         || session('open_curator_drawer')
         || ($errors->any() && ($errors->has('first_name') || $errors->has('email') || $errors->has('assigned_landmark_id') || $errors->has('password')));
-    $selectedLandmarkId = old('assigned_landmark_id', '');
+    $selectedLandmarkId = old('assigned_landmark_id', $isEditMode ? ($editCurator->assigned_landmark_id ?? '') : '');
+    $firstNameValue = old('first_name', $isEditMode ? ($editCurator->first_name ?? '') : '');
+    $lastNameValue = old('last_name', $isEditMode ? ($editCurator->last_name ?? '') : '');
+    $emailValue = old('email', $isEditMode ? ($editCurator->email ?? '') : '');
     $selectedLandmarkLabel = '';
     foreach ($landmarks as $landmark) {
         if ($landmark['id'] === $selectedLandmarkId) {
@@ -130,12 +135,6 @@
         background: #fafafa;
         box-sizing: border-box;
     }
-    .cd-input:focus, .cd-select:focus {
-        outline: none;
-        border-color: #E8B34B;
-        background: #fff;
-        box-shadow: 0 0 0 3px rgba(232, 179, 75, 0.22);
-    }
     .cd-select {
         cursor: pointer;
         appearance: none;
@@ -245,7 +244,7 @@
            onclick="event.stopPropagation()">
         <header class="curator-drawer__head">
             <div>
-                <h2 id="curatorDrawerTitle" class="curator-drawer__title">Create curator account</h2>
+                <h2 id="curatorDrawerTitle" class="curator-drawer__title">{{ $isEditMode ? 'Edit curator account' : 'Create curator account' }}</h2>
             </div>
             <button type="button"
                     class="curator-drawer__close"
@@ -260,15 +259,10 @@
 
             @if (count($landmarks) === 0)
                 <div class="cd-empty">
-                    @if ($allActiveLandmarksAssigned)
-                        <p style="margin:0 0 .5rem 0;">Every active landmark in your portfolio already has a curator assigned.</p>
-                        <p style="margin:0;">Reassign or remove a curator, or <a href="{{ route('sitemanager.landmarks') }}#create-landmark">add another landmark</a>, before creating a new curator account.</p>
-                    @else
-                        <p style="margin:0 0 .5rem 0;">You need at least one active landmark before you can create a curator.</p>
-                        <p style="margin:0;">
-                            <a href="{{ route('sitemanager.landmarks') }}#create-landmark">Create a landmark</a> first, then return here.
-                        </p>
-                    @endif
+                    <p style="margin:0 0 .5rem 0;">You need at least one active landmark before you can create a curator.</p>
+                    <p style="margin:0;">
+                        <a href="{{ route('sitemanager.landmarks') }}#create-landmark">Create a landmark</a> first, then return here.
+                    </p>
                 </div>
             @else
                 @if ($errors->any() && ! $errors->has('error'))
@@ -282,8 +276,11 @@
                     </div>
                 @endif
 
-                <form method="POST" action="{{ route('sitemanager.curators.store') }}" id="curatorCreateForm">
+                <form method="POST" action="{{ $isEditMode ? route('sitemanager.curators.update', ['uid' => $editCurator->uid]) : route('sitemanager.curators.store') }}" id="curatorCreateForm">
                     @csrf
+                    @if ($isEditMode)
+                        @method('PUT')
+                    @endif
 
                     <div class="cd-section">
                         <h3 class="cd-section-title">Curator profile</h3>
@@ -291,18 +288,18 @@
                             <div class="cd-field">
                                 <label for="drawer_first_name">First name</label>
                                 <input class="cd-input" id="drawer_first_name" name="first_name" type="text"
-                                       autocomplete="given-name" value="{{ old('first_name') }}" required>
+                                       autocomplete="given-name" value="{{ $firstNameValue }}" required>
                             </div>
                             <div class="cd-field">
                                 <label for="drawer_last_name">Last name</label>
                                 <input class="cd-input" id="drawer_last_name" name="last_name" type="text"
-                                       autocomplete="family-name" value="{{ old('last_name') }}" required>
+                                       autocomplete="family-name" value="{{ $lastNameValue }}" required>
                             </div>
                         </div>
                         <div class="cd-field">
                             <label for="drawer_email">Email address</label>
                             <input class="cd-input" id="drawer_email" name="email" type="email"
-                                   autocomplete="email" value="{{ old('email') }}" required>
+                                   autocomplete="email" value="{{ $emailValue }}" required>
                         </div>
                     </div>
 
@@ -331,29 +328,29 @@
                                     role="listbox"
                                     aria-label="Landmarks"></ul>
                             </div>
-                            <p class="cd-hint">Only active, unassigned landmarks in your portfolio are listed. Type to search.</p>
                         </div>
                     </div>
 
-                    <div class="cd-section">
-                        <h3 class="cd-section-title">Sign-in credentials</h3>
-                        <div class="cd-grid-2">
-                            <div class="cd-field">
-                                <label for="drawer_password">Temporary password</label>
-                                <input class="cd-input" id="drawer_password" name="password" type="password"
-                                       autocomplete="new-password" minlength="8" required>
-                                <p class="cd-hint">Minimum 8 characters.</p>
-                            </div>
-                            <div class="cd-field">
-                                <label for="drawer_password_confirmation">Confirm password</label>
-                                <input class="cd-input" id="drawer_password_confirmation" name="password_confirmation"
-                                       type="password" autocomplete="new-password" minlength="8" required>
+                    @if (! $isEditMode)
+                        <div class="cd-section">
+                            <h3 class="cd-section-title">Sign-in credentials</h3>
+                            <div class="cd-grid-2">
+                                <div class="cd-field">
+                                    <label for="drawer_password">Temporary password</label>
+                                    <input class="cd-input" id="drawer_password" name="password" type="password"
+                                           autocomplete="new-password" minlength="8" required>
+                                </div>
+                                <div class="cd-field">
+                                    <label for="drawer_password_confirmation">Confirm password</label>
+                                    <input class="cd-input" id="drawer_password_confirmation" name="password_confirmation"
+                                           type="password" autocomplete="new-password" minlength="8" required>
+                                </div>
                             </div>
                         </div>
-                    </div>
+                    @endif
 
                     <div class="cd-actions">
-                        <button type="submit" class="cd-btn-primary">Create curator</button>
+                        <button type="submit" class="cd-btn-primary">{{ $isEditMode ? 'Save changes' : 'Create curator' }}</button>
                         <button type="button" class="cd-btn-secondary" id="cancelCuratorDrawer">Cancel</button>
                     </div>
                 </form>
@@ -378,7 +375,7 @@
         backdrop.classList.add('is-open');
         backdrop.setAttribute('aria-hidden', 'false');
         document.body.style.overflow = 'hidden';
-        if (window.location.search.indexOf('create=1') === -1) {
+        if (window.location.search.indexOf('create=1') === -1 && window.location.search.indexOf('edit=') === -1) {
             try {
                 history.replaceState(null, '', curatorsBaseUrl() + '?create=1');
             } catch (e) { /* ignore */ }
@@ -390,7 +387,7 @@
         backdrop.setAttribute('aria-hidden', 'true');
         document.body.style.overflow = '';
         try {
-            if (window.location.search.indexOf('create=1') !== -1) {
+            if (window.location.search.indexOf('create=1') !== -1 || window.location.search.indexOf('edit=') !== -1) {
                 history.replaceState(null, '', curatorsBaseUrl());
             }
         } catch (e) { /* ignore */ }

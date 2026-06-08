@@ -1,20 +1,23 @@
 <?php
 
-namespace App\Http\Controllers\LandmarkManager;
+namespace App\Http\Controllers\SiteManager;
 
 use App\Http\Controllers\Controller;
+use App\Services\CloudinaryImageService;
 use App\Services\FirebaseService;
-use App\Services\LandmarkImageStorage;
 use App\Support\LandmarkEvidence;
+use App\Support\LandmarkVisibility;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Session;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 
-class LandmarkManageController extends Controller
+class SiteManagerController extends Controller
 {
     public function __construct(
         protected FirebaseService $firebase,
+        protected CloudinaryImageService $cloudinary,
     ) {}
 
     public function create()
@@ -33,11 +36,13 @@ class LandmarkManageController extends Controller
                 'description' => 'nullable|string',
                 'latitude' => 'nullable|numeric',
                 'longitude' => 'nullable|numeric',
-                'video_url' => 'nullable|url',
+                'video' => 'nullable|file|mimes:mp4,mov,avi,webm,mkv|max:51200',
                 'image' => 'nullable|image|max:512',
             ], LandmarkEvidence::validationRules()),
             array_merge([
                 'image.max' => 'The landmark photo must be 512 KB or smaller. Compress or resize the image, then choose it again—the file box clears after Save when validation fails.',
+                'video.mimes' => 'The video must be an MP4, MOV, AVI, WebM, or MKV file.',
+                'video.max' => 'The video must be 50 MB or smaller.',
             ], LandmarkEvidence::validationMessages())
         );
 
@@ -77,15 +82,6 @@ class LandmarkManageController extends Controller
             }
         }
 
-        $imageBase64 = null;
-        $imageMime = null;
-        if ($request->hasFile('image')) {
-            $file = $request->file('image');
-            $raw = file_get_contents($file->getRealPath());
-            $imageBase64 = $raw !== false ? base64_encode($raw) : null;
-            $imageMime = $file->getMimeType();
-        }
-
         $managerUid = (string) Session::get('uid');
         $submittedAt = now()->toDateTimeString();
 
@@ -94,11 +90,14 @@ class LandmarkManageController extends Controller
             'landmarkcode' => $landmarkCode,
             'category' => (string) $request->category,
             'description' => $request->filled('description') ? (string) $request->description : '',
-            'video_url' => $request->filled('video_url') ? (string) $request->video_url : '',
-            'image_base64' => $imageBase64 ?? '',
-            'image_mime' => $imageMime ?? '',
+            'video_url' => '',
+            'image_url' => '',
+            'image_public_id' => '',
+            'image_base64' => '',
+            'image_mime' => '',
             'manager_uid' => $managerUid,
             'activation_status' => 'pending',
+            'visibility' => LandmarkVisibility::HIDDEN,
             'submitted_at' => $submittedAt,
             'created_at' => $submittedAt,
         ];
@@ -113,6 +112,18 @@ class LandmarkManageController extends Controller
             $ref = $this->firebase->firestore()->collection('landmarks')->add($payload);
             $landmarkId = $ref->id();
 
+            if ($request->hasFile('video')) {
+                $videoFile = $request->file('video');
+                $videoPath = $videoFile->store('landmark-videos/'.$landmarkId, 'public');
+                $ref->set([
+                    'video_url' => asset(Storage::url($videoPath)),
+                    'video_path' => $videoPath,
+                    'video_mime' => $videoFile->getMimeType(),
+                    'video_filename' => $videoFile->getClientOriginalName(),
+                    'video_is_upload' => true,
+                ], ['merge' => true]);
+            }
+
             $evidenceDocuments = LandmarkEvidence::storeUploadedFiles($landmarkId, $evidenceFiles);
             if ($evidenceDocuments === []) {
                 $ref->delete();
@@ -125,9 +136,10 @@ class LandmarkManageController extends Controller
 
             $ref->set(['evidence_documents' => $evidenceDocuments], ['merge' => true]);
 
-            if (! empty($imageBase64)) {
-                LandmarkImageStorage::persistFromBase64($landmarkId, $imageBase64, $imageMime);
+            if ($request->hasFile('image')) {
+                $ref->set($this->cloudinary->uploadLandmark($request->file('image'), $landmarkId), ['merge' => true]);
             }
+
         } catch (\Throwable $e) {
             report($e);
 
@@ -145,7 +157,45 @@ class LandmarkManageController extends Controller
         ]);
 
         return redirect()->route('sitemanager.landmarks')
-            ->with('status', 'Landmark submitted for administrator approval (code '.$landmarkCode.').');
+            ->with('status', 'Landmark submitted for administrator approval.');
+    }
+
+    public function updateVisibility(Request $request, string $id)
+    {
+        $validated = $request->validate([
+            'visibility' => ['required', 'string', 'in:published,archived,hidden'],
+        ]);
+
+        $managerUid = trim((string) Session::get('uid', ''));
+        $ref = $this->firebase->firestore()->collection('landmarks')->document($id);
+        $snapshot = $ref->snapshot();
+        if (! $snapshot->exists()) {
+            abort(404);
+        }
+
+        $data = $snapshot->data();
+        $ownerUid = trim((string) ($data['manager_uid'] ?? $data['managerUid'] ?? ''));
+        if ($managerUid === '' || $ownerUid === '' || $managerUid !== $ownerUid) {
+            abort(403);
+        }
+
+        $visibility = LandmarkVisibility::normalize($validated['visibility']);
+        $ref->set([
+            'visibility' => $visibility,
+            'visibility_updated_at' => now()->toISOString(),
+            'visibility_updated_by_uid' => $managerUid,
+            'updated_at' => now()->toDateTimeString(),
+        ], ['merge' => true]);
+
+        $this->firebase->firestore()->collection('logs')->add([
+            'email' => (string) Session::get('email', ''),
+            'action' => 'Site Manager changed landmark visibility to '.LandmarkVisibility::label($visibility),
+            'landmark_id' => $id,
+            'timestamp' => now()->toISOString(),
+        ]);
+
+        return redirect()->route('sitemanager.landmarks.show', $id)
+            ->with('status', 'Landmark visibility updated to '.LandmarkVisibility::label($visibility).'.');
     }
 
     protected function generateUniqueLandmarkCode(): string
