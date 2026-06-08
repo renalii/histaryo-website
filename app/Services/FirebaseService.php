@@ -5,6 +5,7 @@ namespace App\Services;
 use Kreait\Firebase\Auth;
 use Kreait\Firebase\Factory;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 
 class FirebaseService
 {
@@ -12,10 +13,11 @@ class FirebaseService
         'admin' => 'admin',
         'site_manager' => 'site_managers',
         'curator' => 'curators',
-        'visitor' => 'visitor',
+        'visitor' => 'visitors',
     ];
 
     public const USER_PROFILE_SUBCOLLECTION = 'users';
+    public const VISITOR_ROLE = 'visitor';
 
     protected $auth;
 
@@ -128,11 +130,19 @@ class FirebaseService
 
         $data = $snapshot->data();
         $profileRole = $this->normalizeUserRole($data['role'] ?? $role);
+        $collectionPath = $this->userCollectionPath($profileRole);
+
+        if ($profileRole === self::VISITOR_ROLE) {
+            Log::info('Visitor profile loaded from Firestore.', [
+                'uid' => $uid,
+                'collection' => $collectionPath,
+            ]);
+        }
 
         return [
             'uid' => $uid,
             'role' => $profileRole,
-            'collection' => $this->userCollectionPath($profileRole),
+            'collection' => $collectionPath,
             'ref' => $this->userDocument($uid, $profileRole),
             'snapshot' => $snapshot,
             'data' => array_merge($data, ['role' => $profileRole]),
@@ -144,6 +154,7 @@ class FirebaseService
         $profiles = [];
 
         foreach (array_keys(self::USER_COLLECTIONS) as $role) {
+            $collectionPath = $this->userCollectionPath($role);
             foreach ($this->userCollection($role)->documents() as $doc) {
                 if (! $doc->exists()) {
                     continue;
@@ -151,9 +162,17 @@ class FirebaseService
 
                 $data = $doc->data();
                 $profileRole = $this->normalizeUserRole($data['role'] ?? $role);
-                $profiles[$doc->id()] = array_merge($data, ['role' => $profileRole]);
+                $profiles[$doc->id()] = array_merge($data, [
+                    'role' => $profileRole,
+                    '_profile_collection' => $collectionPath,
+                ]);
             }
         }
+
+        Log::info('Firestore user profiles loaded for dashboard and user analytics.', [
+            'visitor_collection' => $this->userCollectionPath(self::VISITOR_ROLE),
+            'profile_count' => count($profiles),
+        ]);
 
         return $profiles;
     }

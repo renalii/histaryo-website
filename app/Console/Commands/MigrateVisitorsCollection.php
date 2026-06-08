@@ -9,7 +9,7 @@ class MigrateVisitorsCollection extends Command
 {
     protected $signature = 'firestore:migrate-visitors-collection {--dry-run : Show planned moves without writing}';
 
-    protected $description = 'Move visitor profiles from legacy Firestore paths to users/visitor/users/{uid}';
+    protected $description = 'Move visitor profiles from legacy Firestore paths to users/visitors/users/{uid}';
 
     public function __construct(private readonly FirebaseService $firebase)
     {
@@ -21,6 +21,8 @@ class MigrateVisitorsCollection extends Command
         $dryRun = (bool) $this->option('dry-run');
         $moved = 0;
         $skipped = 0;
+        $targetCollection = $this->firebase->userCollectionPath('visitor');
+
         foreach ($this->visitorProfileSources() as $source) {
             $doc = $source['doc'];
             if (! $doc->exists()) {
@@ -31,15 +33,15 @@ class MigrateVisitorsCollection extends Command
             $data = $doc->data();
             $targetRef = $this->firebase->userDocument($uid, 'visitor');
 
-            $this->line("{$uid}: {$source['label']} -> users/visitor/users");
+            $this->line("{$uid}: {$source['label']} -> {$targetCollection}");
 
             if ($dryRun) {
                 $skipped++;
                 continue;
             }
 
-            $targetRef->set(array_merge($data, ['role' => 'visitor']), ['merge' => true]);
-            $doc->reference()->delete();
+            $this->copyDocumentTree($doc->reference(), $targetRef, array_merge($data, ['role' => 'visitor']));
+            $this->deleteDocumentTree($doc->reference());
             $moved++;
         }
 
@@ -49,7 +51,7 @@ class MigrateVisitorsCollection extends Command
             return self::SUCCESS;
         }
 
-        $this->info("Migration complete. Moved {$moved} visitor profile(s) to users/visitor/users/{uid}.");
+        $this->info("Migration complete. Moved {$moved} visitor profile(s) to {$targetCollection}/{uid}.");
 
         return self::SUCCESS;
     }
@@ -59,7 +61,7 @@ class MigrateVisitorsCollection extends Command
         $sources = [];
         $reservedUserDocumentIds = array_merge(
             array_values(FirebaseService::USER_COLLECTIONS),
-            ['visitors']
+            ['visitor', 'visitors']
         );
 
         foreach ($this->firebase->firestore()->collection('users')->documents() as $doc) {
@@ -79,19 +81,55 @@ class MigrateVisitorsCollection extends Command
             ];
         }
 
+        $legacyVisitorRoleDoc = 'visitor';
         foreach ($this->firebase->firestore()
             ->collection('users')
-            ->document('visitors')
+            ->document($legacyVisitorRoleDoc)
             ->collection(FirebaseService::USER_PROFILE_SUBCOLLECTION)
             ->documents() as $doc) {
             if ($doc->exists()) {
                 $sources[] = [
                     'doc' => $doc,
-                    'label' => 'users/visitors/users',
+                    'label' => 'users/'.$legacyVisitorRoleDoc.'/'.FirebaseService::USER_PROFILE_SUBCOLLECTION,
                 ];
             }
         }
 
         return $sources;
+    }
+
+    private function copyDocumentTree($sourceRef, $targetRef, ?array $sourceData = null): void
+    {
+        $data = $sourceData ?? $sourceRef->snapshot()->data();
+        $targetRef->set($data, ['merge' => true]);
+
+        foreach ($sourceRef->collections() as $sourceCollection) {
+            $targetCollection = $targetRef->collection($sourceCollection->id());
+
+            foreach ($sourceCollection->documents() as $childDoc) {
+                if (! $childDoc->exists()) {
+                    continue;
+                }
+
+                $this->copyDocumentTree(
+                    $childDoc->reference(),
+                    $targetCollection->document($childDoc->id()),
+                    $childDoc->data()
+                );
+            }
+        }
+    }
+
+    private function deleteDocumentTree($documentRef): void
+    {
+        foreach ($documentRef->collections() as $collection) {
+            foreach ($collection->documents() as $childDoc) {
+                if ($childDoc->exists()) {
+                    $this->deleteDocumentTree($childDoc->reference());
+                }
+            }
+        }
+
+        $documentRef->delete();
     }
 }

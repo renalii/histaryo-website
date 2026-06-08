@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Auth;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Services\FirebaseService;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\Rule;
 use Kreait\Firebase\Exception\Auth\EmailExists;
 
@@ -158,6 +159,24 @@ class RegisterController extends Controller
             }
 
             $this->firebase->userDocument($uid, $role)->set($userData);
+            $profilePath = $this->firebase->userCollectionPath($role);
+            $createdSnapshot = $this->firebase->userDocument($uid, $role)->snapshot();
+            if (! $createdSnapshot->exists()) {
+                Log::error('User registration profile was not created in expected Firestore collection.', [
+                    'uid' => $uid,
+                    'role' => $role,
+                    'collection' => $profilePath,
+                ]);
+
+                throw new \RuntimeException('Registration profile was not saved in the expected Firestore collection.');
+            }
+
+            if ($this->firebase->normalizeUserRole($role) === FirebaseService::VISITOR_ROLE) {
+                Log::info('Visitor registration created Firestore profile.', [
+                    'uid' => $uid,
+                    'collection' => $profilePath,
+                ]);
+            }
 
             if ($requiresApproval && $role === 'site_manager') {
                 $successMessage = 'Registration submitted successfully! Your account is pending admin approval.';

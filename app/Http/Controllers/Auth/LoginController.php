@@ -10,6 +10,7 @@ use App\Services\CuratorAccessibleLandmarks;
 use App\Services\CuratorBrowseableLandmarks;
 use App\Services\FirebaseService;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Session;
 use Kreait\Firebase\Auth\SignIn\FailedToSignIn;
 use Kreait\Firebase\Exception\Auth\InvalidPassword;
@@ -106,6 +107,12 @@ class LoginController extends Controller
             if ($fsRole === 'visitor') {
                 $approvalStatus = 'approved';
                 $requiresApproval = false;
+
+                Log::info('Visitor login loaded Firestore profile.', [
+                    'uid' => $uid,
+                    'collection' => $profile['collection'] ?? $this->firebase->userCollectionPath('visitor'),
+                    'profile_found' => $profile !== null,
+                ]);
             }
 
             if ($fsRole === 'curator' && strtolower((string) ($userData['account_status'] ?? 'active')) === 'inactive') {

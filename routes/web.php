@@ -73,6 +73,7 @@ Route::get('/qr/resolve/{code}', [QrController::class, 'resolve'])->name('qr.res
     
 Route::prefix('admin')->middleware(['web', 'panel.admin'])->group(function () {
     Route::get('/', [AdminController::class, 'dashboard'])->name('admin.dashboard');
+    Route::get('/dashboard/role-usage', [AdminController::class, 'dashboardRoleUsage'])->name('admin.dashboard.role-usage');
     Route::get('/users', [AdminController::class, 'users'])->name('admin.users');
     Route::get('/site-managers', [AdminController::class, 'users'])->name('admin.site-managers');
     Route::post('/users/{uid}/approve', [AdminController::class, 'approveUser'])->name('admin.users.approve');
@@ -90,7 +91,6 @@ Route::prefix('admin')->middleware(['web', 'panel.admin'])->group(function () {
 
 Route::prefix('sitemanager')->middleware(['web', 'panel.sitemanager'])->group(function () {
     Route::get('/', [AdminController::class, 'dashboard'])->name('sitemanager.dashboard');
-    Route::get('/dashboard/landmark-analytics', [AdminController::class, 'dashboardLandmarkAnalytics'])->name('sitemanager.dashboard.landmark-analytics');
     Route::get('/curators', [AdminController::class, 'users'])->name('sitemanager.curators');
     Route::get('/curators/create', [SiteManagerCuratorController::class, 'create'])->name('sitemanager.curators.create');
     Route::post('/curators', [SiteManagerCuratorController::class, 'store'])->name('sitemanager.curators.store');

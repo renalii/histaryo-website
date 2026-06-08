@@ -6,7 +6,6 @@ use App\Http\Controllers\Controller;
 use App\Services\CuratorAccessibleLandmarks;
 use App\Services\FirebaseService;
 use App\Services\LandmarkImageStorage;
-use App\Services\LandmarkEngagement;
 use App\Services\SiteManagerLandmarks;
 use App\Support\FirestoreBool;
 use App\Support\UserApprovalPolicy;
@@ -14,6 +13,7 @@ use Carbon\Carbon;
 use Google\Cloud\Firestore\FieldValue;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Facades\Log;
 
 class AdminController extends Controller
 {
@@ -22,8 +22,6 @@ class AdminController extends Controller
     protected $firestore;
 
     protected FirebaseService $firebase;
-
-    protected LandmarkEngagement $engagement;
 
     /** Route name for the users listing in the panel the current session uses. */
     protected function usersIndexRouteName(?Request $request = null): string
@@ -39,12 +37,11 @@ class AdminController extends Controller
         return 'sitemanager.curators';
     }
 
-    public function __construct(FirebaseService $firebaseService, LandmarkEngagement $engagement)
+    public function __construct(FirebaseService $firebaseService)
     {
         $this->firebase = $firebaseService;
         $this->auth = $firebaseService->auth();
         $this->firestore = $firebaseService->firestore();
-        $this->engagement = $engagement;
     }
 
     public function dashboard()
@@ -54,10 +51,14 @@ class AdminController extends Controller
         $firestore = $this->firestore;
 
         $users = $this->firebase->allUserProfiles();
+        Log::info('Dashboard user analytics using Firestore visitor collection.', [
+            'visitor_collection' => $this->firebase->userCollectionPath('visitor'),
+        ]);
 
         $userCount = 0;
         $curatorCount = 0;
         $adminCount = 0;
+        $visitorCount = 0;
 
         foreach ($users as $user) {
             $role = strtolower((string) ($user['role'] ?? ''));
@@ -68,11 +69,15 @@ class AdminController extends Controller
             if ($role === 'admin') {
                 $adminCount++;
             }
+            if ($role === 'visitor') {
+                $visitorCount++;
+            }
         }
 
         $landmarkCount = 0;
+        $assignedLandmarkCount = 0;
+        $unassignedLandmarkCount = 0;
         $managedLandmarkIds = [];
-        $dashboardLandmarks = [];
         foreach ($firestore->collection('landmarks')->documents() as $doc) {
             if ($doc->exists()) {
                 $landmarkCount++;
@@ -83,29 +88,25 @@ class AdminController extends Controller
             $managedLandmarkIds = $this->landmarkIdsManagedBy($sessionUid);
             $managedSet = array_flip($managedLandmarkIds);
             $landmarkCount = count($managedLandmarkIds);
+            $assignedLandmarkSet = [];
 
-            foreach ($managedLandmarkIds as $landmarkId) {
-                $landmark = $firestore->collection('landmarks')->document($landmarkId)->snapshot();
-                if (! $landmark->exists()) {
-                    continue;
-                }
-                $data = $landmark->data();
-                $dashboardLandmarks[] = [
-                    'id' => $landmarkId,
-                    'name' => trim((string) ($data['name'] ?? 'Unnamed landmark')),
-                ];
-            }
-            usort($dashboardLandmarks, fn ($a, $b) => strcasecmp($a['name'], $b['name']));
-
-            $curatorCount = count(array_filter($users, function ($user) use ($managedSet) {
+            $curatorCount = count(array_filter($users, function ($user) use ($managedSet, &$assignedLandmarkSet) {
                 $d = is_array($user) ? $user : [];
                 if (($d['role'] ?? '') !== 'curator') {
                     return false;
                 }
-                $lid = isset($d['assigned_landmark_id']) ? (string) $d['assigned_landmark_id'] : '';
+                $lid = trim((string) ($d['assigned_landmark_id'] ?? ''));
+                if ($lid !== '' && isset($managedSet[$lid])) {
+                    $assignedLandmarkSet[$lid] = true;
 
-                return $lid !== '' && isset($managedSet[$lid]);
+                    return true;
+                }
+
+                return false;
             }));
+
+            $assignedLandmarkCount = count($assignedLandmarkSet);
+            $unassignedLandmarkCount = max(0, $landmarkCount - $assignedLandmarkCount);
         }
 
         $logCount = 0;
@@ -145,59 +146,37 @@ class AdminController extends Controller
             'userCount' => $userCount,
             'curatorCount' => $curatorCount,
             'adminCount' => $adminCount,
+            'visitorCount' => $visitorCount,
             'landmarkCount' => $landmarkCount,
+            'assignedLandmarkCount' => $assignedLandmarkCount,
+            'unassignedLandmarkCount' => $unassignedLandmarkCount,
             'logCount' => $logCount,
             'visitsByDay' => $visitsByDayValues,
             'showSystemInsights' => $isSystemAdmin,
-            'dashboardLandmarks' => $dashboardLandmarks,
         ]);
     }
 
-    public function dashboardLandmarkAnalytics(Request $request)
+    public function dashboardRoleUsage()
     {
-        $managerUid = trim((string) $request->session()->get('uid', ''));
-        $selectedLandmarkId = trim((string) $request->query('landmark_id', 'all'));
-        $managedLandmarkIds = $this->landmarkIdsManagedBy($managerUid);
-        $managedLandmarkNames = [];
-        foreach ($managedLandmarkIds as $managedLandmarkId) {
-            $landmark = $this->firestore->collection('landmarks')->document($managedLandmarkId)->snapshot();
-            if ($landmark->exists()) {
-                $managedLandmarkNames[$managedLandmarkId] = trim((string) ($landmark->data()['name'] ?? 'Unnamed landmark'));
+        $counts = [
+            'admins' => 0,
+            'curators' => 0,
+            'visitors' => 0,
+        ];
+
+        foreach ($this->firebase->allUserProfiles() as $user) {
+            $role = strtolower((string) ($user['role'] ?? ''));
+
+            if ($role === 'admin') {
+                $counts['admins']++;
+            } elseif ($role === 'curator') {
+                $counts['curators']++;
+            } elseif ($role === 'visitor') {
+                $counts['visitors']++;
             }
         }
 
-        if ($selectedLandmarkId === '' || $selectedLandmarkId === 'all') {
-            $selectedLandmarkId = 'all';
-            $selectedLandmarkName = 'All Landmarks';
-            $analyticsLandmarkIds = $managedLandmarkIds;
-        } else {
-            if (! in_array($selectedLandmarkId, $managedLandmarkIds, true)) {
-                abort(403);
-            }
-
-            $landmark = $this->firestore->collection('landmarks')->document($selectedLandmarkId)->snapshot();
-            if (! $landmark->exists()) {
-                abort(404);
-            }
-
-            $selectedLandmarkName = trim((string) ($landmark->data()['name'] ?? 'Unnamed landmark'));
-            $analyticsLandmarkIds = [$selectedLandmarkId];
-        }
-
-        $analytics = $this->engagement->analyticsForLandmarks($analyticsLandmarkIds);
-        $records = array_map(function (array $record) use ($managedLandmarkNames): array {
-            $landmarkId = (string) ($record['landmark_id'] ?? '');
-            $record['landmark_name'] = $managedLandmarkNames[$landmarkId] ?? 'Unknown landmark';
-
-            return $record;
-        }, $analytics['records']);
-
-        return response()->json([
-            'selected_landmark_id' => $selectedLandmarkId,
-            'selected_landmark_name' => $selectedLandmarkName,
-            'records' => $records,
-            'totals' => $analytics['totals'],
-        ]);
+        return response()->json($counts);
     }
 
     public function users(Request $request)
@@ -229,6 +208,9 @@ class AdminController extends Controller
         $authUsers = iterator_to_array($this->auth->listUsers());
 
         $firestoreProfiles = $this->firebase->allUserProfiles();
+        Log::info('Admin visitor statistics using Firestore visitor collection.', [
+            'visitor_collection' => $this->firebase->userCollectionPath('visitor'),
+        ]);
 
         $mergedUsers = [];
         foreach ($authUsers as $user) {
@@ -332,8 +314,26 @@ class AdminController extends Controller
             }
         }
 
+        $usersForView = $mergedUsers;
+        if ($request->routeIs('admin.users')) {
+            $perPage = 10;
+            $totalUsers = count($mergedUsers);
+            $lastPage = max(1, (int) ceil($totalUsers / $perPage));
+            $page = min(max(1, (int) $request->query('page', 1)), $lastPage);
+            $usersForView = new LengthAwarePaginator(
+                array_slice($mergedUsers, ($page - 1) * $perPage, $perPage),
+                $totalUsers,
+                $perPage,
+                $page,
+                [
+                    'path' => route('admin.users'),
+                    'query' => $request->except('page'),
+                ]
+            );
+        }
+
         return view('admin.users', [
-            'users' => $mergedUsers,
+            'users' => $usersForView,
             'search' => $search,
             'roleFilter' => $roleFilter,
             'curatorsOnly' => $curatorsOnly,

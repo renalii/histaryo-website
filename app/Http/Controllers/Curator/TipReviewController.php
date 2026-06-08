@@ -3,7 +3,6 @@
 namespace App\Http\Controllers\Curator;
 
 use App\Http\Controllers\Controller;
-use App\Support\CuratorAssignedLandmark;
 use App\Support\FirestoreTipCollections;
 use App\Services\FirebaseService;
 use Illuminate\Pagination\LengthAwarePaginator;
@@ -14,8 +13,11 @@ class TipReviewController extends Controller
 {
     protected $firestore;
 
+    protected FirebaseService $firebase;
+
     public function __construct(FirebaseService $firebaseService)
     {
+        $this->firebase = $firebaseService;
         $this->firestore = $firebaseService->firestore();
     }
 
@@ -60,7 +62,10 @@ class TipReviewController extends Controller
 
     private function fetchTips(string $statusFilter = 'all'): array
     {
-        $writableSet = $this->landmarkIdKeySet(CuratorAssignedLandmark::writableIds());
+        $assignedLandmarkId = $this->assignedLandmarkId();
+        if ($assignedLandmarkId === '') {
+            return [];
+        }
 
         $tips = [];
         foreach (FirestoreTipCollections::names() as $collectionName) {
@@ -72,6 +77,11 @@ class TipReviewController extends Controller
                 }
 
                 $data = $doc->data();
+                $tipLandmarkId = FirestoreTipCollections::landmarkIdFromData($data);
+                if ($tipLandmarkId !== $assignedLandmarkId) {
+                    continue;
+                }
+
                 $status = strtolower((string) ($data['status'] ?? 'pending'));
 
                 if ($status === '') {
@@ -82,10 +92,6 @@ class TipReviewController extends Controller
                 if ($statusFilter !== 'all' && $status !== $statusFilter) {
                     continue;
                 }
-
-                $tipLandmarkId = FirestoreTipCollections::landmarkIdFromData($data);
-
-                $canModerate = $writableSet !== [] && $tipLandmarkId !== '' && isset($writableSet[$tipLandmarkId]);
 
                 $createdAtRaw = $data['created_at'] ?? $data['createdAt'] ?? null;
                 $reviewedAtRaw = $data['reviewed_at'] ?? $data['reviewedAt'] ?? null;
@@ -113,7 +119,7 @@ class TipReviewController extends Controller
                     'landmark_name' => (string) ($data['landmark_name'] ?? $data['landmarkName'] ?? ''),
                     'content' => (string) ($data['content'] ?? $data['message'] ?? ''),
                     'title' => $title,
-                    'can_moderate' => $canModerate,
+                    'can_moderate' => true,
                     'type' => (string) ($data['type'] ?? ''),
                     'submitted_by' => $submittedBy,
                     'submitted_email' => $submittedEmail,
@@ -158,7 +164,7 @@ class TipReviewController extends Controller
 
         $tipData = $tipDoc->data();
         $tipLm = FirestoreTipCollections::landmarkIdFromData($tipData);
-        if (! CuratorAssignedLandmark::canAccess($tipLm)) {
+        if ($tipLm === '' || $tipLm !== $this->assignedLandmarkId()) {
             abort(403);
         }
 
@@ -188,21 +194,16 @@ class TipReviewController extends Controller
             ->with('success', 'Tip has been ' . $decision . '.');
     }
 
-    /**
-     * @param  list<string>  $ids
-     * @return array<string, true>
-     */
-    private function landmarkIdKeySet(array $ids): array
+    private function assignedLandmarkId(): string
     {
-        $set = [];
-        foreach ($ids as $id) {
-            $k = trim((string) $id);
-            if ($k !== '') {
-                $set[$k] = true;
-            }
+        $curatorUid = trim((string) Session::get('uid', ''));
+        if ($curatorUid === '') {
+            return '';
         }
 
-        return $set;
+        $profile = $this->firebase->userProfile($curatorUid, 'curator');
+
+        return trim((string) ($profile['data']['assigned_landmark_id'] ?? ''));
     }
 
     private function formatDate($value): string
