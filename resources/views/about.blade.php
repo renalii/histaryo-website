@@ -200,7 +200,7 @@
         <p>
             Histaryo is an AR-powered platform that transforms how locals and visitors explore Cebu’s rich cultural heritage.
             With just a mobile device, users can scan QR codes or GPS-based markers to unlock immersive AR experiences —
-            including historical overlays, old photographs, trivia challenges, and gamified tours.
+            including historical overlays, old photographs, quiz challenges, and gamified tours.
         </p>
         <p>
             Built to educate, entertain, and inspire, Histaryo bridges culture and technology to make history come alive like never before.

@@ -59,7 +59,9 @@ class LoginController extends Controller
             }
         }
 
-        return view('auth.login');
+        return response()
+            ->view('auth.login')
+            ->withHeaders($this->noAuthPageCacheHeaders());
     }
 
     public function login(Request $request)
@@ -79,34 +81,37 @@ class LoginController extends Controller
             $uid = $firebaseUser->claims()->get('sub');
             $role = $firebaseUser->claims()->get('role');
 
-            
-            $userDoc = $this->firebase->firestore()->collection('users')->document($uid)->snapshot();
-            $name = $userDoc->exists() ? ($userDoc['name'] ?? null) : null;
-            $fsRole = strtolower((string) ($userDoc->exists() ? ($userDoc['role'] ?? $role) : $role));
-            if ($fsRole === '') {
-                $fsRole = 'visitor';
-            }
+            $profile = $this->firebase->userProfile($uid, is_string($role) ? $role : null);
+            $userData = $profile['data'] ?? [];
+            $name = $profile ? ($userData['name'] ?? null) : null;
+            $fsRole = $profile
+                ? (string) $profile['role']
+                : $this->firebase->normalizeUserRole(is_string($role) ? $role : null);
 
-            if ($userDoc->exists() && $fsRole === 'visitor') {
-                $visitorPatch = UserApprovalPolicy::visitorAutoApprovalPatch($userDoc->data());
+            if ($profile && $fsRole === 'visitor') {
+                $visitorPatch = UserApprovalPolicy::visitorAutoApprovalPatch($userData);
                 if ($visitorPatch !== null) {
-                    $this->firebase->firestore()
-                        ->collection('users')
-                        ->document($uid)
-                        ->set($visitorPatch, ['merge' => true]);
+                    $profile['ref']->set($visitorPatch, ['merge' => true]);
+                    $userData = array_merge($userData, $visitorPatch);
                 }
             }
 
-            $approvalStatus = $userDoc->exists()
-                ? strtolower((string) ($userDoc['approval_status'] ?? 'approved'))
+            $approvalStatus = $profile
+                ? strtolower((string) ($userData['approval_status'] ?? 'approved'))
                 : 'approved';
-            $requiresApproval = $userDoc->exists()
-                ? UserApprovalPolicy::effectiveRequiresApproval($fsRole, $userDoc['requires_approval'] ?? null)
+            $requiresApproval = $profile
+                ? UserApprovalPolicy::effectiveRequiresApproval($fsRole, $userData['requires_approval'] ?? null)
                 : false;
 
             if ($fsRole === 'visitor') {
                 $approvalStatus = 'approved';
                 $requiresApproval = false;
+            }
+
+            if ($fsRole === 'curator' && strtolower((string) ($userData['account_status'] ?? 'active')) === 'inactive') {
+                return back()->withErrors([
+                    'error' => 'Your curator account is inactive. Please contact your Site Manager.',
+                ]);
             }
 
             if ($requiresApproval && $approvalStatus === 'rejected') {
@@ -137,8 +142,9 @@ class LoginController extends Controller
             }
 
             if ($fsRole === 'curator') {
-                $assignedLandmarkIdRaw = $userDoc->exists() ? ($userDoc['assigned_landmark_id'] ?? '') : '';
+                $assignedLandmarkIdRaw = $profile ? ($userData['assigned_landmark_id'] ?? '') : '';
                 $assignedTrimmed = is_string($assignedLandmarkIdRaw) ? trim($assignedLandmarkIdRaw) : '';
+                Session::put('account_status', strtolower((string) ($userData['account_status'] ?? 'active')));
                 Session::put('assigned_landmark_id', $assignedTrimmed);
                 Session::put('browseable_landmark_ids', CuratorBrowseableLandmarks::resolveIds($this->firebase, $assignedTrimmed));
                 Session::put(
@@ -147,13 +153,14 @@ class LoginController extends Controller
                         ? CuratorAccessibleLandmarks::resolveIds($this->firebase, $assignedTrimmed)
                         : []
                 );
-                if ($userDoc->exists() && FirestoreBool::isTrue($userDoc['must_change_password'] ?? false)) {
+                if ($profile && FirestoreBool::isTrue($userData['must_change_password'] ?? false)) {
                     Session::put('must_change_password', true);
                 } else {
                     Session::forget('must_change_password');
                 }
             } else {
                 Session::forget('assigned_landmark_id');
+                Session::forget('account_status');
                 Session::forget('browseable_landmark_ids');
                 Session::forget('writable_landmark_ids');
             }
@@ -219,7 +226,7 @@ class LoginController extends Controller
         $request->session()->invalidate();
         $request->session()->regenerateToken();
 
-        return redirect()->route('login')->with('success', 'Logged out successfully.');
+        return redirect('/login')->with('success', 'Logged out successfully.');
     }
 
     private function storeCuratorRedirectIfValid(string $url): void
@@ -241,5 +248,14 @@ class LoginController extends Controller
         }
 
         return route('curators.dashboard');
+    }
+
+    private function noAuthPageCacheHeaders(): array
+    {
+        return [
+            'Cache-Control' => 'no-store, no-cache, must-revalidate, max-age=0',
+            'Pragma' => 'no-cache',
+            'Expires' => '0',
+        ];
     }
 }

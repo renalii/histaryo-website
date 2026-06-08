@@ -240,13 +240,6 @@
             color: #9f938a;
         }
 
-        form input:focus,
-        form select:focus,
-        form textarea:focus {
-            border-color: #b17853;
-            box-shadow: 0 0 0 4px var(--focus-ring);
-        }
-
         .password-wrap {
             position: relative;
             width: 100%;
@@ -640,7 +633,6 @@
                 <input type="hidden" name="role" value="site_manager">
                 <div class="role-summary" role="status" aria-label="Account type">
                     <h3>Site Manager</h3>
-                    <p class="role-summary-intro">This registration is for Site Manager accounts only. Your account will be reviewed by an admin before you can sign in.</p>
                 </div>
 
                 <button type="submit">Register</button>

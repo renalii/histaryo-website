@@ -147,11 +147,6 @@
             color: #9f938a;
         }
 
-        form input:focus {
-            border-color: #b17853;
-            box-shadow: 0 0 0 4px var(--focus-ring);
-        }
-
         .password-wrap {
             position: relative;
             width: 100%;
@@ -490,6 +485,12 @@
 
 <script>
     (function () {
+        window.addEventListener('pageshow', function (event) {
+            if (event.persisted) {
+                window.location.reload();
+            }
+        });
+
         document.querySelectorAll('.password-wrap').forEach((wrap) => {
             const input = wrap.querySelector('input');
             const btn = wrap.querySelector('.password-toggle');

@@ -157,10 +157,7 @@ class RegisterController extends Controller
                 $userData['profile_image_mime'] = $profileImageMime;
             }
 
-            $this->firebase->firestore()
-                ->collection('users')
-                ->document($uid)
-                ->set($userData);
+            $this->firebase->userDocument($uid, $role)->set($userData);
 
             if ($requiresApproval && $role === 'site_manager') {
                 $successMessage = 'Registration submitted successfully! Your account is pending admin approval.';
