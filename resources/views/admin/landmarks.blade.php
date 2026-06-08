@@ -1,20 +1,28 @@
 @extends('layouts.sidebar')
 
 @php
+    use App\Services\LandmarkImageStorage;
     use App\Support\LandmarkActivation;
-    use Illuminate\Support\Str;
-    $currentView = request()->get('view', 'card');
+    use App\Support\LandmarkVideo;
+    use App\Support\LandmarkVisibility;
     $landmarkCount = method_exists($landmarks, 'total') ? $landmarks->total() : $landmarks->count();
     $panelRoutePrefix = session('role') === 'site_manager' ? 'sitemanager' : 'admin';
+    $currentView = $panelRoutePrefix === 'sitemanager' ? 'card' : request()->get('view', 'card');
     $isLandmarkApprovalQueue = $isLandmarkApprovalQueue ?? false;
     $landmarkStatusFilter = $landmarkStatusFilter ?? 'all';
     $landmarksListUrl = route($panelRoutePrefix . '.landmarks', array_filter([
         'view' => request()->get('view'),
         'status' => $isLandmarkApprovalQueue ? $landmarkStatusFilter : null,
     ]));
+    $mapboxToken = config('services.mapbox.token');
+    $createMapLat = is_numeric(old('latitude')) ? (float) old('latitude') : 10.3157;
+    $createMapLng = is_numeric(old('longitude')) ? (float) old('longitude') : 123.8854;
 @endphp
 
 @section('content')
+    @if ($panelRoutePrefix === 'sitemanager' && $mapboxToken)
+        <link href="https://api.mapbox.com/mapbox-gl-js/v3.6.0/mapbox-gl.css" rel="stylesheet">
+    @endif
     @if (session('status') || session('status_err'))
         <style>
             .flash-ok-lm {
@@ -127,8 +135,18 @@
             flex-direction:column;
             gap:.6rem;
         }
-        .land-card h3 { font-size:1.2rem; color:#111827; margin:0; }
+        .land-card h3 { font-size:1.2rem; color:#111827; margin:0; text-decoration:none; }
         .meta { margin:0; font-size:.9rem; color:#4b5563; }
+        .land-card-section-title {
+            margin:0 0 .2rem;
+            font-size:.78rem;
+            font-weight:700;
+            color:#92400e;
+            text-transform:uppercase;
+        }
+        .land-card-location {
+            margin:0;
+        }
         .desc {
             margin:0;
             font-size:.92rem;
@@ -139,7 +157,14 @@
             -webkit-box-orient:vertical;
             line-height:1.35;
         }
-        .media-box img, .media-box iframe { width:100%; border-radius:8px; display:block; }
+        .media-box img, .media-box iframe, .media-box video {
+            width:100%;
+            border-radius:8px;
+            display:block;
+            aspect-ratio:16 / 10;
+            object-fit:cover;
+            background:#f3f4f6;
+        }
         .table-wrap {
             margin-top: .5rem;
             border: 1px solid #eceff3;
@@ -177,7 +202,8 @@
             min-width: 0;
         }
         .list-media-row .media-box img,
-        .list-media-row .media-box iframe {
+        .list-media-row .media-box iframe,
+        .list-media-row .media-box video {
             width: 100% !important;
             height: 350px !important;
             border-radius: 0 !important;
@@ -185,17 +211,20 @@
             object-fit: cover;
         }
         .list-media-row .media-box:first-child img,
-        .list-media-row .media-box:first-child iframe {
+        .list-media-row .media-box:first-child iframe,
+        .list-media-row .media-box:first-child video {
             border-top-left-radius: 8px !important;
             border-bottom-left-radius: 8px !important;
         }
         .list-media-row .media-box:last-child img,
-        .list-media-row .media-box:last-child iframe {
+        .list-media-row .media-box:last-child iframe,
+        .list-media-row .media-box:last-child video {
             border-top-right-radius: 8px !important;
             border-bottom-right-radius: 8px !important;
         }
         .list-media-row .media-box:only-child img,
-        .list-media-row .media-box:only-child iframe {
+        .list-media-row .media-box:only-child iframe,
+        .list-media-row .media-box:only-child video {
             border-radius: 8px !important;
         }
         @media (max-width: 760px) {
@@ -354,6 +383,74 @@
             margin: .25rem 0 0;
             padding-left: 1.15rem;
         }
+        .lm-create-location-map-wrap {
+            position: relative;
+            width: 100%;
+            overflow: hidden;
+            border: 1px solid #d1d5db;
+            border-radius: 8px;
+            background: #eef2f7;
+        }
+        .lm-create-location-map {
+            width: 100%;
+            height: 260px;
+            overflow: hidden;
+        }
+        .lm-create-location-map .mapboxgl-canvas {
+            outline: none;
+        }
+        .lm-create-location-search {
+            position: absolute;
+            z-index: 5;
+            top: .75rem;
+            left: .75rem;
+            width: min(310px, calc(100% - 1.5rem));
+            padding: .55rem;
+            border-radius: 8px;
+            background: #fff;
+            box-shadow: 0 8px 24px rgba(15, 23, 42, .18);
+            box-sizing: border-box;
+        }
+        .lm-create-location-search label {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            padding: 0;
+            margin: -1px;
+            overflow: hidden;
+            clip: rect(0, 0, 0, 0);
+            white-space: nowrap;
+            border: 0;
+        }
+        .lm-create-location-search input[type="search"] {
+            width: 100%;
+            min-width: 0;
+            padding: .5rem .65rem;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            background: #f9fafb;
+            color: #111827;
+            font: inherit;
+            font-size: .86rem;
+            box-sizing: border-box;
+            outline: none;
+        }
+        .lm-create-location-search input[type="search"]:focus {
+            border-color: #7A2E1F;
+            box-shadow: 0 0 0 3px rgba(122, 46, 31, .14);
+            background: #fff;
+        }
+        @media (max-width: 520px) {
+            .lm-create-location-search {
+                top: .55rem;
+                left: .55rem;
+                width: calc(100% - 1.1rem);
+                padding: .45rem;
+            }
+            .lm-create-location-map {
+                height: 240px;
+            }
+        }
         .land-activation-pill {
             display: inline-block;
             font-size: .72rem;
@@ -365,11 +462,37 @@
         .land-activation-pill--pending { background: #fffbeb; color: #b45309; border: 1px solid #fde68a; }
         .land-activation-pill--active { background: #ecfdf5; color: #166534; border: 1px solid #bbf7d0; }
         .land-activation-pill--rejected { background: #fef2f2; color: #991b1b; border: 1px solid #fecaca; }
+        .land-card-badges {
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: .35rem;
+        }
+        .land-card-badges .land-activation-pill {
+            margin-top: 0;
+        }
+        .land-visibility-pill {
+            display: inline-flex;
+            align-items: center;
+            width: fit-content;
+            font-size: .72rem;
+            font-weight: 700;
+            padding: .2rem .55rem;
+            border-radius: 999px;
+            border: 1px solid transparent;
+        }
+        .land-visibility-pill--published { background:#ecfdf5; color:#166534; border-color:#bbf7d0; }
+        .land-visibility-pill--archived { background:#f3f4f6; color:#4b5563; border-color:#d1d5db; }
+        .land-visibility-pill--hidden { background:#eef2ff; color:#4338ca; border-color:#c7d2fe; }
+        .lm-visibility-form { display:flex; gap:.55rem; align-items:end; flex-wrap:wrap; padding:.8rem; border:1px solid #e5e7eb; border-radius:10px; background:#f9fafb; }
+        .lm-visibility-form label { display:grid; gap:.3rem; font-size:.72rem; font-weight:700; color:#57534e; text-transform:uppercase; }
+        .lm-visibility-form select { min-width:160px; padding:.5rem .65rem; border:1px solid #d1d5db; border-radius:8px; background:#fff; }
+        .lm-visibility-form button { padding:.52rem .8rem; border:1px solid #F3C96A; border-radius:8px; background:#E8B34B; color:#7A2E1F; font-weight:700; cursor:pointer; }
         .land-card-link {
             color: inherit;
             text-decoration: none;
         }
-        .land-card-link:hover h3 { text-decoration: underline; }
+        .land-card-link:hover h3 { text-decoration: none; }
         .land-card--clickable {
             cursor: pointer;
             transition: box-shadow .15s ease, border-color .15s ease;
@@ -382,7 +505,7 @@
             outline: 2px solid #E8B34B;
             outline-offset: 2px;
         }
-        .land-card--clickable:hover h3 { text-decoration: underline; }
+        .land-card--clickable:hover h3 { text-decoration: none; }
         .lm-view-modal {
             display: none;
             position: fixed;
@@ -641,8 +764,9 @@
             font-weight: 600;
             cursor: pointer;
             text-align: left;
+            text-decoration: none;
         }
-        .land-table .row-name-btn:hover { text-decoration: underline; }
+        .land-table .row-name-btn:hover { text-decoration: none; }
         .land-status-tabs {
             display: inline-flex;
             flex-wrap: wrap;
@@ -669,13 +793,11 @@
     <div class="land-header">
         <div class="land-header-main">
             <h2 class="land-title">{{ $isLandmarkApprovalQueue ? 'Landmark approvals' : 'All Landmarks' }}</h2>
-            <p class="land-sub">
-                @if ($panelRoutePrefix === 'sitemanager')
-                    {{ $landmarkCount }} landmark{{ $landmarkCount !== 1 ? 's' : '' }} in your portfolio. Upload evidence when creating; landmarks go live after Super Admin approval.
-                @else
-                    {{ $landmarkCount }} submission{{ $landmarkCount !== 1 ? 's' : '' }} — open each landmark to review evidence, then approve or reject.
-                @endif
-            </p>
+            @if ($panelRoutePrefix !== 'sitemanager' && ! $isLandmarkApprovalQueue)
+                <p class="land-sub">
+                    {{ $landmarkCount }} submission{{ $landmarkCount !== 1 ? 's' : '' }}.
+                </p>
+            @endif
         </div>
 
         <div class="land-header-actions">
@@ -696,16 +818,18 @@
                     @endforeach
                 </div>
             @endif
-            <div class="view-switch">
-                <a href="{{ route($panelRoutePrefix . '.landmarks', array_filter(['view' => 'card', 'status' => $isLandmarkApprovalQueue ? $landmarkStatusFilter : null])) }}"
-                   class="view-btn {{ $currentView === 'card' ? 'active' : '' }}">
-                    Card View
-                </a>
-                <a href="{{ route($panelRoutePrefix . '.landmarks', array_filter(['view' => 'list', 'status' => $isLandmarkApprovalQueue ? $landmarkStatusFilter : null])) }}"
-                   class="view-btn {{ $currentView === 'list' ? 'active' : '' }}">
-                    List View
-                </a>
-            </div>
+            @if ($panelRoutePrefix !== 'sitemanager')
+                <div class="view-switch">
+                    <a href="{{ route($panelRoutePrefix . '.landmarks', array_filter(['view' => 'card', 'status' => $isLandmarkApprovalQueue ? $landmarkStatusFilter : null])) }}"
+                       class="view-btn {{ $currentView === 'card' ? 'active' : '' }}">
+                        Card View
+                    </a>
+                    <a href="{{ route($panelRoutePrefix . '.landmarks', array_filter(['view' => 'list', 'status' => $isLandmarkApprovalQueue ? $landmarkStatusFilter : null])) }}"
+                       class="view-btn {{ $currentView === 'list' ? 'active' : '' }}">
+                        List View
+                    </a>
+                </div>
+            @endif
         </div>
     </div>
 
@@ -722,36 +846,24 @@
                         $modalSafe = preg_replace('/[^a-zA-Z0-9_-]/', '_', $lid);
                         $viewModalId = 'viewModal_' . $modalSafe;
                         $data = $landmark->data();
-                        $videoUrl = trim((string) ($data['video_url'] ?? ''));
-                        $embedUrl = '';
-                        $youtubeIframeSrc = '';
-                        $showVideoLinkOnly = false;
-                        $videoOutValid = $videoUrl !== '' && filter_var($videoUrl, FILTER_VALIDATE_URL);
+                        $videoFileUrl = LandmarkVideo::url($data);
                         $imageSrc = null;
+                        $storedImageUrl = $data['image_url'] ?? LandmarkImageStorage::publicUrl($lid);
 
-                        if (!empty($data['image_base64'])) {
-                            $imageMime = $data['image_mime'] ?? 'image/jpeg';
-                            $imageSrc = 'data:' . $imageMime . ';base64,' . $data['image_base64'];
+                        if (!empty($data['image_base64']) || $storedImageUrl !== null) {
+                            $imageSrc = $storedImageUrl ?? route($panelRoutePrefix . '.landmarks.image', $lid);
                         }
 
-                        if (Str::contains($videoUrl, 'youtube.com/watch')) {
-                            parse_str((string) parse_url($videoUrl, PHP_URL_QUERY), $queryParams);
-                            if (isset($queryParams['v'])) {
-                                $embedUrl = 'https://www.youtube.com/embed/' . $queryParams['v'];
-                                $youtubeIframeSrc = $embedUrl;
-                            }
-                        } elseif (Str::contains($videoUrl, 'youtu.be/')) {
-                            $path = parse_url($videoUrl, PHP_URL_PATH);
-                            $videoId = $path ? basename($path) : '';
-                            if ($videoId !== '') {
-                                $embedUrl = 'https://www.youtube.com/embed/' . $videoId;
-                                $youtubeIframeSrc = $embedUrl;
-                            }
-                        } elseif ($videoUrl !== '' && filter_var($videoUrl, FILTER_VALIDATE_URL)) {
-                            $embedUrl = $videoUrl;
-                        }
-                        $showVideoLinkOnly = $videoOutValid && $youtubeIframeSrc === '';
                         $activation = strtolower((string) ($data['activation_status'] ?? 'active'));
+                        $visibility = LandmarkVisibility::normalize($data['visibility'] ?? '', $activation);
+                        $activationLabel = $isLandmarkApprovalQueue
+                            ? match ($activation) {
+                                'pending' => 'Pending',
+                                'active' => 'Approved',
+                                'rejected' => 'Rejected',
+                                default => LandmarkActivation::label($activation),
+                            }
+                            : LandmarkActivation::label($activation);
                         $useViewModal = true;
                         $canApproveLandmark = $isLandmarkApprovalQueue
                             && $activation === 'pending';
@@ -768,43 +880,62 @@
                          @endif>
                         @if ($useViewModal)
                             <h3>{{ $data['name'] ?? 'Unnamed Landmark' }}</h3>
-                            <span class="land-activation-pill land-activation-pill--{{ $activation === 'pending' || $activation === 'rejected' ? $activation : 'active' }}">
-                                {{ LandmarkActivation::label($activation) }}
-                            </span>
+                            <div class="land-card-badges">
+                                <span class="land-activation-pill land-activation-pill--{{ $activation === 'pending' || $activation === 'rejected' ? $activation : 'active' }}">
+                                    {{ $activationLabel }}
+                                </span>
+                                @unless ($isLandmarkApprovalQueue)
+                                    <span class="land-visibility-pill land-visibility-pill--{{ $visibility }}">{{ LandmarkVisibility::label($visibility) }}</span>
+                                @endunless
+                            </div>
                         @else
                             <a class="land-card-link" href="{{ $showRoute }}">
                                 <h3>{{ $data['name'] ?? 'Unnamed Landmark' }}</h3>
-                                <span class="land-activation-pill land-activation-pill--{{ $activation === 'pending' || $activation === 'rejected' ? $activation : 'active' }}">
-                                    {{ LandmarkActivation::label($activation) }}
-                                </span>
+                                <div class="land-card-badges">
+                                    <span class="land-activation-pill land-activation-pill--{{ $activation === 'pending' || $activation === 'rejected' ? $activation : 'active' }}">
+                                        {{ $activationLabel }}
+                                    </span>
+                                    @unless ($isLandmarkApprovalQueue)
+                                        <span class="land-visibility-pill land-visibility-pill--{{ $visibility }}">{{ LandmarkVisibility::label($visibility) }}</span>
+                                    @endunless
+                                </div>
                             </a>
                         @endif
-                        @if (! empty($data['landmarkcode'] ?? ''))
+                        @if ($panelRoutePrefix !== 'sitemanager' && ! $isLandmarkApprovalQueue && ! empty($data['landmarkcode'] ?? ''))
                             <p class="meta" style="font-family:ui-monospace,monospace;font-weight:600;color:#92400e;">{{ $data['landmarkcode'] }}</p>
                         @endif
 
-                        <p class="meta">
-                            Lat: {{ $data['latitude'] ?? 'N/A' }}<br>
-                            Lng: {{ $data['longitude'] ?? 'N/A' }}
-                        </p>
+                        @if (!empty($data['description']))
+                            <div @if ($useViewModal) onclick="event.stopPropagation()" @endif>
+                                <p class="land-card-section-title">Description</p>
+                                <p class="desc">{{ $data['description'] }}</p>
+                            </div>
+                        @endif
+
+                        <div class="land-card-location">
+                            <p class="land-card-section-title">Location</p>
+                            <p class="meta">
+                                Latitude: {{ $data['latitude'] ?? 'N/A' }}<br>
+                                Longitude: {{ $data['longitude'] ?? 'N/A' }}
+                            </p>
+                        </div>
+
+                        @if (!empty($imageSrc) || !empty($videoFileUrl))
+                            <p class="land-card-section-title">Photos &amp; Media</p>
+                        @endif
 
                         @if (!empty($imageSrc))
                             <div class="media-box" @if ($useViewModal) onclick="event.stopPropagation()" @endif>
-                                <img src="{{ $imageSrc }}" alt="Landmark Image">
+                                <img src="{{ $imageSrc }}" alt="Landmark Image" loading="lazy" decoding="async">
                             </div>
                         @endif
 
-                        @if (!empty($embedUrl))
+                        @if (!empty($videoFileUrl))
                             <div class="media-box" @if ($useViewModal) onclick="event.stopPropagation()" @endif>
-                                <iframe width="100%" height="180" src="{{ $embedUrl }}" frameborder="0"
-                                    allowfullscreen></iframe>
+                                <video controls preload="metadata">
+                                    <source src="{{ $videoFileUrl }}" type="{{ $data['video_mime'] ?? 'video/mp4' }}">
+                                </video>
                             </div>
-                        @endif
-
-                        @if (!empty($data['description']))
-                            <p class="desc" @if ($useViewModal) onclick="event.stopPropagation()" @endif>
-                                {{ $data['description'] }}
-                            </p>
                         @endif
                     </div>
 
@@ -815,10 +946,9 @@
                             'landmarkId' => $lid,
                             'data' => $data,
                             'imageSrc' => $imageSrc,
-                            'youtubeIframeSrc' => $youtubeIframeSrc,
-                            'showVideoLinkOnly' => $showVideoLinkOnly,
-                            'videoUrl' => $videoUrl,
+                            'videoFileUrl' => $videoFileUrl,
                             'canApproveLandmark' => $canApproveLandmark,
+                            'panelRoutePrefix' => $panelRoutePrefix,
                         ])
                     @endif
                 @endforeach
@@ -845,36 +975,24 @@
                                 $modalSafe = preg_replace('/[^a-zA-Z0-9_-]/', '_', $lid);
                                 $viewModalId = 'viewModal_' . $modalSafe;
                                 $data = $landmark->data();
-                                $videoUrl = trim((string) ($data['video_url'] ?? ''));
-                                $embedUrl = '';
-                                $youtubeIframeSrc = '';
-                                $showVideoLinkOnly = false;
-                                $videoOutValid = $videoUrl !== '' && filter_var($videoUrl, FILTER_VALIDATE_URL);
+                                $videoFileUrl = LandmarkVideo::url($data);
                                 $imageSrc = null;
+                                $storedImageUrl = $data['image_url'] ?? LandmarkImageStorage::publicUrl($lid);
 
-                                if (!empty($data['image_base64'])) {
-                                    $imageMime = $data['image_mime'] ?? 'image/jpeg';
-                                    $imageSrc = 'data:' . $imageMime . ';base64,' . $data['image_base64'];
+                                if (!empty($data['image_base64']) || $storedImageUrl !== null) {
+                                    $imageSrc = $storedImageUrl ?? route($panelRoutePrefix . '.landmarks.image', $lid);
                                 }
 
-                                if (Str::contains($videoUrl, 'youtube.com/watch')) {
-                                    parse_str((string) parse_url($videoUrl, PHP_URL_QUERY), $queryParams);
-                                    if (isset($queryParams['v'])) {
-                                        $embedUrl = 'https://www.youtube.com/embed/' . $queryParams['v'];
-                                        $youtubeIframeSrc = $embedUrl;
-                                    }
-                                } elseif (Str::contains($videoUrl, 'youtu.be/')) {
-                                    $path = parse_url($videoUrl, PHP_URL_PATH);
-                                    $videoId = $path ? basename($path) : '';
-                                    if ($videoId !== '') {
-                                        $embedUrl = 'https://www.youtube.com/embed/' . $videoId;
-                                        $youtubeIframeSrc = $embedUrl;
-                                    }
-                                } elseif ($videoUrl !== '' && filter_var($videoUrl, FILTER_VALIDATE_URL)) {
-                                    $embedUrl = $videoUrl;
-                                }
-                                $showVideoLinkOnly = $videoOutValid && $youtubeIframeSrc === '';
                                 $activation = strtolower((string) ($data['activation_status'] ?? 'active'));
+                                $visibility = LandmarkVisibility::normalize($data['visibility'] ?? '', $activation);
+                                $activationLabel = $isLandmarkApprovalQueue
+                                    ? match ($activation) {
+                                        'pending' => 'Pending',
+                                        'active' => 'Approved',
+                                        'rejected' => 'Rejected',
+                                        default => LandmarkActivation::label($activation),
+                                    }
+                                    : LandmarkActivation::label($activation);
                                 $useViewModal = true;
                                 $canApproveLandmark = $isLandmarkApprovalQueue
                                     && $activation === 'pending';
@@ -895,8 +1013,11 @@
                                     @endif
                                     <br>
                                     <span class="land-activation-pill land-activation-pill--{{ $activation === 'pending' || $activation === 'rejected' ? $activation : 'active' }}">
-                                        {{ LandmarkActivation::label($activation) }}
+                                        {{ $activationLabel }}
                                     </span>
+                                    @unless ($isLandmarkApprovalQueue)
+                                        <span class="land-visibility-pill land-visibility-pill--{{ $visibility }}">{{ LandmarkVisibility::label($visibility) }}</span>
+                                    @endunless
                                 </td>
                                 <td style="font-family:ui-monospace,monospace;">{{ $data['landmarkcode'] ?? '—' }}</td>
                                 <td>{{ $data['latitude'] ?? 'N/A' }}, {{ $data['longitude'] ?? 'N/A' }}</td>
@@ -905,17 +1026,18 @@
                             <tr id="expand-{{ $index }}" class="row-expanded" style="display: none;">
                                 <td colspan="4">
                                     <div class="row-content">
-                                    @if (!empty($imageSrc) || !empty($embedUrl))
-                                        <div class="{{ !empty($imageSrc) && !empty($embedUrl) ? 'list-media-row' : '' }}">
+                                    @if (!empty($imageSrc) || !empty($videoFileUrl))
+                                        <div class="{{ (!empty($imageSrc) && !empty($videoFileUrl)) ? 'list-media-row' : '' }}">
                                             @if (!empty($imageSrc))
                                                 <div class="media-box">
-                                                    <img src="{{ $imageSrc }}" alt="Landmark Image">
+                                                    <img src="{{ $imageSrc }}" alt="Landmark Image" loading="lazy" decoding="async">
                                                 </div>
                                             @endif
-                                            @if (!empty($embedUrl))
+                                            @if (!empty($videoFileUrl))
                                                 <div class="media-box">
-                                                    <iframe width="100%" height="180" src="{{ $embedUrl }}" frameborder="0"
-                                                        allowfullscreen></iframe>
+                                                    <video controls preload="metadata">
+                                                        <source src="{{ $videoFileUrl }}" type="{{ $data['video_mime'] ?? 'video/mp4' }}">
+                                                    </video>
                                                 </div>
                                             @endif
                                         </div>
@@ -940,10 +1062,9 @@
                                     'landmarkId' => $lid,
                                     'data' => $data,
                                     'imageSrc' => $imageSrc,
-                                    'youtubeIframeSrc' => $youtubeIframeSrc,
-                                    'showVideoLinkOnly' => $showVideoLinkOnly,
-                                    'videoUrl' => $videoUrl,
+                                    'videoFileUrl' => $videoFileUrl,
                                     'canApproveLandmark' => $canApproveLandmark,
+                                    'panelRoutePrefix' => $panelRoutePrefix,
                                 ])
                             @endif
                         @endforeach
@@ -998,6 +1119,7 @@
                 @endif
 
                 <form method="POST"
+                      id="lm-create-form"
                       action="{{ route('sitemanager.landmarks.store') }}"
                       enctype="multipart/form-data">
                     @csrf
@@ -1015,20 +1137,25 @@
                     <label for="lm-create-description">Description</label>
                     <textarea id="lm-create-description" name="description" rows="4">{{ old('description') }}</textarea>
 
-                    <label for="lm-create-lat">Latitude</label>
-                    <input id="lm-create-lat" type="text" name="latitude" inputmode="decimal" value="{{ old('latitude') }}" placeholder="e.g. 10.3157">
+                    <label for="lm-create-map">Location</label>
+                    <div class="lm-create-location-map-wrap">
+                        <div class="lm-create-location-search">
+                            <label for="lm-create-location-search">Search location</label>
+                            <input id="lm-create-location-search" type="search" autocomplete="off" placeholder="Search Cebu landmark or place...">
+                        </div>
+                        <div id="lm-create-map" class="lm-create-location-map"></div>
+                    </div>
+                    <input id="lm-create-lat" type="hidden" name="latitude" value="{{ old('latitude') }}">
+                    <input id="lm-create-lng" type="hidden" name="longitude" value="{{ old('longitude') }}">
 
-                    <label for="lm-create-lng">Longitude</label>
-                    <input id="lm-create-lng" type="text" name="longitude" inputmode="decimal" value="{{ old('longitude') }}" placeholder="e.g. 123.8854">
-
-                    <label for="lm-create-video">Video URL</label>
-                    <input id="lm-create-video" type="url" name="video_url" value="{{ old('video_url') }}" placeholder="https://…">
+                    <label for="lm-create-video">Video (optional)</label>
+                    <input id="lm-create-video" type="file" name="video" accept="video/*" data-max-bytes="52428800">
 
                     <label for="lm-create-image">Landmark photo <span style="font-weight:500;color:#666;">(optional)</span></label>
-                    <input id="lm-create-image" type="file" name="image" accept="image/*">
+                    <input id="lm-create-image" type="file" name="image" accept="image/*" data-max-bytes="524288">
 
                     <label for="lm-create-evidence">Evidence / supporting documents <span style="color:#b45309;">(required)</span></label>
-                    <input id="lm-create-evidence" type="file" name="evidence_files[]" accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx,image/*,application/pdf" multiple required>
+                    <input id="lm-create-evidence" type="file" name="evidence_files[]" accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx,image/*,application/pdf" multiple required data-max-files="5" data-max-file-bytes="5242880">
 
                     <button type="submit">Submit for approval</button>
                 </form>
@@ -1036,6 +1163,9 @@
         </div>
     @endif
 
+    @if ($panelRoutePrefix === 'sitemanager' && $mapboxToken)
+        <script src="https://api.mapbox.com/mapbox-gl-js/v3.6.0/mapbox-gl.js"></script>
+    @endif
     <script>
         function toggleRow(index) {
             const row = document.getElementById('expand-' + index);
@@ -1128,6 +1258,7 @@
             if (!modal) return;
             modal.style.display = 'flex';
             modal.setAttribute('aria-hidden', 'false');
+            lmInitCreateMap();
             smSyncBodyScrollLock();
             try {
                 history.replaceState(null, '', lmCreateModalBaseUrl() + '#create-landmark');
@@ -1151,8 +1282,256 @@
             return window.location.hash === '#create-landmark';
         }
 
+        @if ($panelRoutePrefix === 'sitemanager' && $mapboxToken)
+        var lmCreateMap = null;
+        var lmCreateMarker = null;
+        var lmDefaultLat = Number(@json($createMapLat));
+        var lmDefaultLng = Number(@json($createMapLng));
+        var lmCreateGeocodeTimer = null;
+        var lmCreateGeocodeRequestId = 0;
+        var lmCebuGeocodeBounds = {
+            west: 123.25,
+            south: 9.35,
+            east: 124.30,
+            north: 11.35
+        };
+
+        if (!Number.isFinite(lmDefaultLat)) lmDefaultLat = 10.3157;
+        if (!Number.isFinite(lmDefaultLng)) lmDefaultLng = 123.8854;
+
+        function lmSetCreateCoordinates(lngLat) {
+            var latInput = document.getElementById('lm-create-lat');
+            var lngInput = document.getElementById('lm-create-lng');
+            if (!latInput || !lngInput) return;
+            latInput.value = Number(lngLat.lat).toFixed(6);
+            lngInput.value = Number(lngLat.lng).toFixed(6);
+        }
+
+        function lmMoveCreateMarker(lng, lat, zoom) {
+            if (!lmCreateMap || !lmCreateMarker) return;
+            var lngLat = { lng: Number(lng), lat: Number(lat) };
+            if (!Number.isFinite(lngLat.lng) || !Number.isFinite(lngLat.lat)) return;
+            lmCreateMarker.setLngLat([lngLat.lng, lngLat.lat]);
+            lmSetCreateCoordinates(lngLat);
+            lmCreateMap.flyTo({
+                center: [lngLat.lng, lngLat.lat],
+                zoom: zoom || 15,
+                essential: true
+            });
+        }
+
+        function lmIsInCebuBounds(lng, lat) {
+            lng = Number(lng);
+            lat = Number(lat);
+            return Number.isFinite(lng)
+                && Number.isFinite(lat)
+                && lng >= lmCebuGeocodeBounds.west
+                && lng <= lmCebuGeocodeBounds.east
+                && lat >= lmCebuGeocodeBounds.south
+                && lat <= lmCebuGeocodeBounds.north;
+        }
+
+        function lmFeatureIsInCebu(feature) {
+            if (!feature || !Array.isArray(feature.center) || feature.center.length < 2) return false;
+            if (!lmIsInCebuBounds(feature.center[0], feature.center[1])) return false;
+
+            var searchableText = [
+                feature.place_name || '',
+                feature.text || ''
+            ];
+            (feature.context || []).forEach(function (part) {
+                searchableText.push(part.text || '');
+                searchableText.push(part.short_code || '');
+            });
+
+            var haystack = searchableText.join(' ').toLowerCase();
+            var isPhilippines = haystack.indexOf('philippines') !== -1 || /\bph\b/.test(haystack);
+            return haystack.indexOf('cebu') !== -1 && isPhilippines;
+        }
+
+        function lmGeocodeCreateLandmarkName(name) {
+            var query = String(name || '').trim();
+            if (query.length < 3 || !lmCreateMap || !lmCreateMarker) return;
+
+            var requestId = ++lmCreateGeocodeRequestId;
+            var params = new URLSearchParams({
+                access_token: @json($mapboxToken),
+                autocomplete: 'true',
+                bbox: [
+                    lmCebuGeocodeBounds.west,
+                    lmCebuGeocodeBounds.south,
+                    lmCebuGeocodeBounds.east,
+                    lmCebuGeocodeBounds.north
+                ].join(','),
+                country: 'ph',
+                limit: '5',
+                types: 'poi,address,place,locality',
+                proximity: lmDefaultLng + ',' + lmDefaultLat
+            });
+            var url = 'https://api.mapbox.com/geocoding/v5/mapbox.places/'
+                + encodeURIComponent(query + ' Cebu Philippines')
+                + '.json?'
+                + params.toString();
+
+            fetch(url)
+                .then(function (response) {
+                    if (!response.ok) throw new Error('Mapbox geocoding failed');
+                    return response.json();
+                })
+                .then(function (payload) {
+                    if (requestId !== lmCreateGeocodeRequestId) return;
+                    var feature = payload && payload.features
+                        ? payload.features.find(lmFeatureIsInCebu)
+                        : null;
+                    if (!feature || !Array.isArray(feature.center) || feature.center.length < 2) return;
+                    lmMoveCreateMarker(feature.center[0], feature.center[1], 15);
+                })
+                .catch(function () {});
+        }
+
+        function lmScheduleCreateNameGeocode() {
+            var nameInput = document.getElementById('lm-create-name');
+            if (!nameInput) return;
+            clearTimeout(lmCreateGeocodeTimer);
+            lmCreateGeocodeTimer = setTimeout(function () {
+                lmGeocodeCreateLandmarkName(nameInput.value);
+            }, 650);
+        }
+
+        function lmScheduleCreateLocationSearchGeocode() {
+            var searchInput = document.getElementById('lm-create-location-search');
+            if (!searchInput) return;
+            clearTimeout(lmCreateGeocodeTimer);
+            lmCreateGeocodeTimer = setTimeout(function () {
+                lmGeocodeCreateLandmarkName(searchInput.value);
+            }, 450);
+        }
+
+        function lmInitCreateMap() {
+            if (!window.mapboxgl) return;
+            var mapEl = document.getElementById('lm-create-map');
+            if (!mapEl) return;
+
+            if (lmCreateMap) {
+                setTimeout(function () {
+                    lmCreateMap.resize();
+                }, 80);
+                return;
+            }
+
+            mapboxgl.accessToken = @json($mapboxToken);
+            var startLngLat = { lng: lmDefaultLng, lat: lmDefaultLat };
+            lmSetCreateCoordinates(startLngLat);
+
+            lmCreateMap = new mapboxgl.Map({
+                container: mapEl,
+                style: 'mapbox://styles/mapbox/streets-v12',
+                center: [startLngLat.lng, startLngLat.lat],
+                zoom: 13
+            });
+
+            lmCreateMap.addControl(new mapboxgl.NavigationControl({ showCompass: false }), 'top-right');
+
+            lmCreateMarker = new mapboxgl.Marker({ draggable: true })
+                .setLngLat([startLngLat.lng, startLngLat.lat])
+                .addTo(lmCreateMap);
+
+            lmCreateMap.on('click', function (event) {
+                lmCreateMarker.setLngLat(event.lngLat);
+                lmSetCreateCoordinates(event.lngLat);
+            });
+
+            lmCreateMarker.on('dragend', function () {
+                lmSetCreateCoordinates(lmCreateMarker.getLngLat());
+            });
+
+            var nameInput = document.getElementById('lm-create-name');
+            if (nameInput) {
+                nameInput.addEventListener('input', lmScheduleCreateNameGeocode);
+                nameInput.addEventListener('change', lmScheduleCreateNameGeocode);
+            }
+            var locationSearchInput = document.getElementById('lm-create-location-search');
+            if (locationSearchInput) {
+                locationSearchInput.addEventListener('input', lmScheduleCreateLocationSearchGeocode);
+                locationSearchInput.addEventListener('change', lmScheduleCreateLocationSearchGeocode);
+            }
+
+            setTimeout(function () {
+                lmCreateMap.resize();
+            }, 120);
+        }
+        @else
+        function lmInitCreateMap() {}
+        @endif
+
+        @if ($panelRoutePrefix === 'sitemanager')
+        function lmBytesToMegabytes(bytes) {
+            return Math.round((Number(bytes || 0) / 1024 / 1024) * 10) / 10;
+        }
+
+        function lmCreateFileValidationErrors() {
+            var errors = [];
+            var videoInput = document.getElementById('lm-create-video');
+            var imageInput = document.getElementById('lm-create-image');
+            var evidenceInput = document.getElementById('lm-create-evidence');
+            var totalBytes = 0;
+            var maxPostBytes = 115 * 1024 * 1024;
+
+            if (videoInput && videoInput.files && videoInput.files[0]) {
+                var videoFile = videoInput.files[0];
+                totalBytes += videoFile.size;
+                var videoMax = Number(videoInput.dataset.maxBytes || 0);
+                if (videoMax > 0 && videoFile.size > videoMax) {
+                    errors.push('Video must be 50 MB or smaller. Selected file is ' + lmBytesToMegabytes(videoFile.size) + ' MB.');
+                }
+            }
+
+            if (imageInput && imageInput.files && imageInput.files[0]) {
+                var imageFile = imageInput.files[0];
+                totalBytes += imageFile.size;
+                var imageMax = Number(imageInput.dataset.maxBytes || 0);
+                if (imageMax > 0 && imageFile.size > imageMax) {
+                    errors.push('Landmark photo must be 512 KB or smaller.');
+                }
+            }
+
+            if (evidenceInput && evidenceInput.files) {
+                var evidenceMaxFiles = Number(evidenceInput.dataset.maxFiles || 0);
+                var evidenceMaxBytes = Number(evidenceInput.dataset.maxFileBytes || 0);
+                if (evidenceMaxFiles > 0 && evidenceInput.files.length > evidenceMaxFiles) {
+                    errors.push('Upload up to five evidence files only.');
+                }
+                for (var i = 0; i < evidenceInput.files.length; i++) {
+                    var evidenceFile = evidenceInput.files[i];
+                    totalBytes += evidenceFile.size;
+                    if (evidenceMaxBytes > 0 && evidenceFile.size > evidenceMaxBytes) {
+                        errors.push('Each evidence file must be 5 MB or smaller. "' + evidenceFile.name + '" is ' + lmBytesToMegabytes(evidenceFile.size) + ' MB.');
+                    }
+                }
+            }
+
+            if (totalBytes > maxPostBytes) {
+                errors.push('Combined uploads are too large. Keep the video, photo, and evidence under about 115 MB total.');
+            }
+
+            return errors;
+        }
+
+        function lmAttachCreateUploadGuard() {
+            var form = document.getElementById('lm-create-form');
+            if (!form) return;
+            form.addEventListener('submit', function (event) {
+                var errors = lmCreateFileValidationErrors();
+                if (errors.length === 0) return;
+                event.preventDefault();
+                alert(errors.join('\n'));
+            });
+        }
+        @endif
+
         document.addEventListener('DOMContentLoaded', function () {
             @if ($panelRoutePrefix === 'sitemanager')
+            lmAttachCreateUploadGuard();
             if (lmShouldOpenCreateModal() || @json($errors->any())) {
                 lmOpenCreateModal();
                 return;

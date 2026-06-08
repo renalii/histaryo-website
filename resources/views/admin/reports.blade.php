@@ -72,7 +72,7 @@
 
     <div class="reports-wrap">
         <h2 class="reports-title">Reports</h2>
-        <p class="reports-sub">Export users, landmarks, visits/logs, and trivia engagement as PDF or Excel for offline analysis.</p>
+        <p class="reports-sub">Export users, landmarks, visits/logs, and quiz engagement as PDF or Excel for offline analysis.</p>
 
     <div class="reports-card">
         <form action="{{ route('admin.reports.export', 'custom') }}" method="GET" style="margin-bottom: 0;">
@@ -83,7 +83,7 @@
                 <option value="users">Users</option>
                 <option value="landmarks">Landmarks</option>
                 <option value="visits">Visits / Logs</option>
-                <option value="trivia">Trivia Engagement</option>
+                <option value="quiz">Quiz Engagement</option>
             </select>
             </div>
 

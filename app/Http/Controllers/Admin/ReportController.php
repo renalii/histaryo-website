@@ -33,7 +33,7 @@ class ReportController extends Controller
 
         $data = $this->getReportData($type, $from, $to);
 
-        $fileName = ucfirst($type) . '_Report_' . now()->format('Y-m-d_His');
+        $fileName = ($type === 'quiz' ? 'Quiz' : ucfirst($type)) . '_Report_' . now()->format('Y-m-d_His');
 
         if ($format === 'excel') {
             return Excel::download(new ArrayExport($data), $fileName . '.xlsx');
@@ -98,7 +98,7 @@ class ReportController extends Controller
                     ];
                     break;
 
-                case 'trivia':
+                case 'quiz':
                     $results[] = [
                         'Question'   => $data['question'] ?? '',
                         'Answer'     => $data['answer'] ?? '',

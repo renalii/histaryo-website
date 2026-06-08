@@ -1,6 +1,7 @@
 @php
     use App\Support\LandmarkActivation;
     use App\Support\LandmarkEvidence;
+    use App\Support\LandmarkVisibility;
 
     $activationStatus = strtolower((string) ($data['activation_status'] ?? 'active'));
     $evidenceDocuments = is_array($data['evidence_documents'] ?? null) ? $data['evidence_documents'] : [];
@@ -10,6 +11,17 @@
     $lngDisplay = ($lngRaw !== null && $lngRaw !== '') ? $lngRaw : 'N/A';
     $hasCoords = is_numeric($latRaw) && is_numeric($lngRaw);
     $mapContainerId = 'lm-view-map-' . ($modalSafe ?? 'landmark');
+    $videoFileUrl = trim((string) ($videoFileUrl ?? ''));
+    $visibility = LandmarkVisibility::normalize($data['visibility'] ?? '', $activationStatus);
+    $isAdminApprovalView = ($panelRoutePrefix ?? '') !== 'sitemanager';
+    $activationLabel = $isAdminApprovalView
+        ? match ($activationStatus) {
+            'pending' => 'Pending',
+            'active' => 'Approved',
+            'rejected' => 'Rejected',
+            default => LandmarkActivation::label($activationStatus),
+        }
+        : LandmarkActivation::label($activationStatus);
 @endphp
 
 <div id="{{ $viewModalId }}"
@@ -39,39 +51,33 @@
                 <span class="lm-view-chip__v">{{ $latDisplay }}, {{ $lngDisplay }}</span>
             </span>
             <span class="lm-view-status lm-view-status--{{ $activationStatus === 'pending' || $activationStatus === 'rejected' ? $activationStatus : 'active' }}">
-                {{ LandmarkActivation::label($activationStatus) }}
+                {{ $activationLabel }}
             </span>
+            @if (($panelRoutePrefix ?? '') === 'sitemanager')
+                <span class="land-visibility-pill land-visibility-pill--{{ $visibility }}">{{ LandmarkVisibility::label($visibility) }}</span>
+            @endif
         </div>
 
-        @if ($imageSrc || $youtubeIframeSrc !== '' || $showVideoLinkOnly)
-            <h3 class="lm-view-modal__section">Photos &amp; media</h3>
-            <div class="lm-view-media-grid @if ($imageSrc && ($youtubeIframeSrc !== '' || $showVideoLinkOnly)) lm-view-media-grid--two @endif">
-                @if ($imageSrc)
-                    <figure class="lm-view-media-frame">
-                        <img src="{{ $imageSrc }}" alt="Photo of {{ $data['name'] ?? 'landmark' }}">
-                        <figcaption class="lm-view-media-frame__cap">Featured image</figcaption>
-                    </figure>
-                @endif
+        @if (($panelRoutePrefix ?? '') === 'sitemanager')
+            <h3 class="lm-view-modal__section">Visibility</h3>
+            <form class="lm-visibility-form" method="POST" action="{{ route('sitemanager.landmarks.visibility', $landmarkId) }}">
+                @csrf
+                @method('PATCH')
+                <label>
+                    Visitor access
+                    <select name="visibility">
+                        <option value="published" @selected($visibility === 'published')>Published</option>
+                        <option value="archived" @selected($visibility === 'archived')>Archived</option>
+                        <option value="hidden" @selected($visibility === 'hidden')>Hidden</option>
+                    </select>
+                </label>
+                <button type="submit">Update visibility</button>
+            </form>
+        @endif
 
-                @if ($youtubeIframeSrc !== '')
-                    <div class="lm-view-media-frame">
-                        <div class="lm-view-ratio">
-                            <iframe src="{{ $youtubeIframeSrc }}"
-                                title="Video: {{ $data['name'] ?? 'landmark' }}"
-                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                                allowfullscreen
-                                loading="lazy"
-                                referrerpolicy="strict-origin-when-cross-origin"></iframe>
-                        </div>
-                        <div class="lm-view-media-frame__cap">Video</div>
-                    </div>
-                @elseif ($showVideoLinkOnly)
-                    <div class="lm-view-video-card">
-                        <p>This video link can’t be embedded here. Open it in your browser to watch.</p>
-                        <a href="{{ $videoUrl }}" class="lm-view-video-card__btn" target="_blank" rel="noopener noreferrer">Open video ↗</a>
-                    </div>
-                @endif
-            </div>
+        @if (! empty($data['description'] ?? ''))
+            <h3 class="lm-view-modal__section">Description</h3>
+            <p class="lm-view-modal__desc">{{ $data['description'] }}</p>
         @endif
 
         @if ($hasCoords)
@@ -85,9 +91,25 @@
             ])
         @endif
 
-        @if (! empty($data['description'] ?? ''))
-            <h3 class="lm-view-modal__section">Description</h3>
-            <p class="lm-view-modal__desc">{{ $data['description'] }}</p>
+        @if ($imageSrc || $videoFileUrl !== '')
+            <h3 class="lm-view-modal__section">Photos &amp; media</h3>
+            <div class="lm-view-media-grid @if ($imageSrc && $videoFileUrl !== '') lm-view-media-grid--two @endif">
+                @if ($imageSrc)
+                    <figure class="lm-view-media-frame">
+                        <img src="{{ $imageSrc }}" alt="Photo of {{ $data['name'] ?? 'landmark' }}" loading="lazy" decoding="async">
+                        <figcaption class="lm-view-media-frame__cap">Featured image</figcaption>
+                    </figure>
+                @endif
+
+                @if ($videoFileUrl !== '')
+                    <div class="lm-view-media-frame">
+                        <video controls preload="metadata" style="width:100%;display:block;background:#1c1917;">
+                            <source src="{{ $videoFileUrl }}" type="{{ $data['video_mime'] ?? 'video/mp4' }}">
+                        </video>
+                        <div class="lm-view-media-frame__cap">Video</div>
+                    </div>
+                @endif
+            </div>
         @endif
 
         <h3 class="lm-view-modal__section">Evidence &amp; supporting documents</h3>
@@ -254,7 +276,7 @@
                     <div class="lm-approve-confirm-dialog__header">
                         <h2 id="lm-approve-modal-title-{{ $modalSafe }}" class="lm-approve-confirm-dialog__title">Approve Landmark</h2>
                     </div>
-                    <p class="lm-approve-confirm-dialog__body">Are you sure you want to approve and publish this landmark?</p>
+                    <p class="lm-approve-confirm-dialog__body">Are you sure you want to approve and publish "{{ $data['name'] ?? 'Unnamed landmark' }}"?</p>
                     <div class="lm-approve-confirm-dialog__actions">
                         <button type="button" class="lm-approve-confirm-btn lm-approve-confirm-btn--cancel" onclick="lmCloseApproveModal('lm-approve-modal-{{ $modalSafe }}')">Cancel</button>
                         <button type="button" class="lm-approve-confirm-btn lm-approve-confirm-btn--approve" onclick="lmConfirmApprove('lm-approve-form-{{ $modalSafe }}', 'lm-approve-modal-{{ $modalSafe }}')">Approve</button>
@@ -360,10 +382,6 @@
                     }
                 });
             </script>
-        @elseif ($activationStatus === 'pending')
-            <p class="lm-view-modal__pending-note">
-                This landmark is awaiting administrator review. After approval, create the site QR code in QR Codes using the landmark code.
-            </p>
         @endif
     </div>
 </div>

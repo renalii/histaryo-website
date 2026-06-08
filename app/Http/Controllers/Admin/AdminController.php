@@ -5,6 +5,8 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Services\CuratorAccessibleLandmarks;
 use App\Services\FirebaseService;
+use App\Services\LandmarkImageStorage;
+use App\Services\LandmarkEngagement;
 use App\Services\SiteManagerLandmarks;
 use App\Support\FirestoreBool;
 use App\Support\UserApprovalPolicy;
@@ -21,6 +23,8 @@ class AdminController extends Controller
 
     protected FirebaseService $firebase;
 
+    protected LandmarkEngagement $engagement;
+
     /** Route name for the users listing in the panel the current session uses. */
     protected function usersIndexRouteName(?Request $request = null): string
     {
@@ -35,11 +39,12 @@ class AdminController extends Controller
         return 'sitemanager.curators';
     }
 
-    public function __construct(FirebaseService $firebaseService)
+    public function __construct(FirebaseService $firebaseService, LandmarkEngagement $engagement)
     {
         $this->firebase = $firebaseService;
         $this->auth = $firebaseService->auth();
         $this->firestore = $firebaseService->firestore();
+        $this->engagement = $engagement;
     }
 
     public function dashboard()
@@ -48,19 +53,14 @@ class AdminController extends Controller
         $sessionUid = (string) request()->session()->get('uid', '');
         $firestore = $this->firestore;
 
-        $usersCollection = $firestore->collection('users');
-        $allUsers = $usersCollection->documents();
-        $users = iterator_to_array($allUsers->rows());
+        $users = $this->firebase->allUserProfiles();
 
         $userCount = 0;
         $curatorCount = 0;
         $adminCount = 0;
 
         foreach ($users as $user) {
-            if (! $user->exists()) {
-                continue;
-            }
-            $role = strtolower((string) ($user->data()['role'] ?? ''));
+            $role = strtolower((string) ($user['role'] ?? ''));
             $userCount++;
             if ($role === 'curator') {
                 $curatorCount++;
@@ -71,6 +71,8 @@ class AdminController extends Controller
         }
 
         $landmarkCount = 0;
+        $managedLandmarkIds = [];
+        $dashboardLandmarks = [];
         foreach ($firestore->collection('landmarks')->documents() as $doc) {
             if ($doc->exists()) {
                 $landmarkCount++;
@@ -82,11 +84,21 @@ class AdminController extends Controller
             $managedSet = array_flip($managedLandmarkIds);
             $landmarkCount = count($managedLandmarkIds);
 
-            $curatorCount = count(array_filter($users, function ($user) use ($managedSet) {
-                if (! $user->exists()) {
-                    return false;
+            foreach ($managedLandmarkIds as $landmarkId) {
+                $landmark = $firestore->collection('landmarks')->document($landmarkId)->snapshot();
+                if (! $landmark->exists()) {
+                    continue;
                 }
-                $d = $user->data();
+                $data = $landmark->data();
+                $dashboardLandmarks[] = [
+                    'id' => $landmarkId,
+                    'name' => trim((string) ($data['name'] ?? 'Unnamed landmark')),
+                ];
+            }
+            usort($dashboardLandmarks, fn ($a, $b) => strcasecmp($a['name'], $b['name']));
+
+            $curatorCount = count(array_filter($users, function ($user) use ($managedSet) {
+                $d = is_array($user) ? $user : [];
                 if (($d['role'] ?? '') !== 'curator') {
                     return false;
                 }
@@ -137,6 +149,54 @@ class AdminController extends Controller
             'logCount' => $logCount,
             'visitsByDay' => $visitsByDayValues,
             'showSystemInsights' => $isSystemAdmin,
+            'dashboardLandmarks' => $dashboardLandmarks,
+        ]);
+    }
+
+    public function dashboardLandmarkAnalytics(Request $request)
+    {
+        $managerUid = trim((string) $request->session()->get('uid', ''));
+        $selectedLandmarkId = trim((string) $request->query('landmark_id', 'all'));
+        $managedLandmarkIds = $this->landmarkIdsManagedBy($managerUid);
+        $managedLandmarkNames = [];
+        foreach ($managedLandmarkIds as $managedLandmarkId) {
+            $landmark = $this->firestore->collection('landmarks')->document($managedLandmarkId)->snapshot();
+            if ($landmark->exists()) {
+                $managedLandmarkNames[$managedLandmarkId] = trim((string) ($landmark->data()['name'] ?? 'Unnamed landmark'));
+            }
+        }
+
+        if ($selectedLandmarkId === '' || $selectedLandmarkId === 'all') {
+            $selectedLandmarkId = 'all';
+            $selectedLandmarkName = 'All Landmarks';
+            $analyticsLandmarkIds = $managedLandmarkIds;
+        } else {
+            if (! in_array($selectedLandmarkId, $managedLandmarkIds, true)) {
+                abort(403);
+            }
+
+            $landmark = $this->firestore->collection('landmarks')->document($selectedLandmarkId)->snapshot();
+            if (! $landmark->exists()) {
+                abort(404);
+            }
+
+            $selectedLandmarkName = trim((string) ($landmark->data()['name'] ?? 'Unnamed landmark'));
+            $analyticsLandmarkIds = [$selectedLandmarkId];
+        }
+
+        $analytics = $this->engagement->analyticsForLandmarks($analyticsLandmarkIds);
+        $records = array_map(function (array $record) use ($managedLandmarkNames): array {
+            $landmarkId = (string) ($record['landmark_id'] ?? '');
+            $record['landmark_name'] = $managedLandmarkNames[$landmarkId] ?? 'Unknown landmark';
+
+            return $record;
+        }, $analytics['records']);
+
+        return response()->json([
+            'selected_landmark_id' => $selectedLandmarkId,
+            'selected_landmark_name' => $selectedLandmarkName,
+            'records' => $records,
+            'totals' => $analytics['totals'],
         ]);
     }
 
@@ -168,14 +228,7 @@ class AdminController extends Controller
 
         $authUsers = iterator_to_array($this->auth->listUsers());
 
-        $usersCollection = $this->firestore->collection('users')->documents();
-        $firestoreProfiles = [];
-
-        foreach ($usersCollection as $doc) {
-            if ($doc->exists()) {
-                $firestoreProfiles[$doc->id()] = $doc->data();
-            }
-        }
+        $firestoreProfiles = $this->firebase->allUserProfiles();
 
         $mergedUsers = [];
         foreach ($authUsers as $user) {
@@ -197,7 +250,7 @@ class AdminController extends Controller
 
             $visitorPatch = UserApprovalPolicy::visitorAutoApprovalPatch(array_merge($profile, ['role' => $role]));
             if ($visitorPatch !== null) {
-                $this->firestore->collection('users')->document($uid)->set($visitorPatch, ['merge' => true]);
+                $this->firebase->userDocument($uid, $role)->set($visitorPatch, ['merge' => true]);
                 $profile = array_merge($profile, $visitorPatch);
             }
 
@@ -236,8 +289,14 @@ class AdminController extends Controller
                     'email' => $user->email,
                     'uid' => $uid,
                     'role' => $role,
+                    'first_name' => (string) ($profile['first_name'] ?? ''),
+                    'last_name' => (string) ($profile['last_name'] ?? ''),
+                    'name' => (string) ($profile['name'] ?? ($user->displayName ?? '')),
                     'requires_approval' => $requiresApproval,
                     'approval_status' => $approvalStatus,
+                    'account_status' => strtolower((string) ($profile['account_status'] ?? 'active')) === 'inactive'
+                        ? 'inactive'
+                        : 'active',
                     'curator_registration_type' => $curatorRegistrationType,
                     'assigned_landmark_id' => $assignedLandmarkId,
                     'approval_actions' => $approvalActions,
@@ -257,11 +316,20 @@ class AdminController extends Controller
         }
 
         $assignableLandmarks = [];
-        $allActiveLandmarksAssigned = false;
         if ($curatorsOnly && $sessionRole === 'site_manager' && $sessionUid !== '') {
             $assignmentLandmarks = app(SiteManagerLandmarks::class)->curatorAssignmentLandmarks($sessionUid);
             $assignableLandmarks = $assignmentLandmarks['assignable'];
-            $allActiveLandmarksAssigned = $assignmentLandmarks['all_active_assigned'];
+        }
+
+        $editCurator = null;
+        $editUid = trim((string) $request->query('edit', ''));
+        if ($curatorsOnly && $editUid !== '') {
+            foreach ($mergedUsers as $mergedUser) {
+                if ($mergedUser->uid === $editUid) {
+                    $editCurator = $mergedUser;
+                    break;
+                }
+            }
         }
 
         return view('admin.users', [
@@ -271,20 +339,20 @@ class AdminController extends Controller
             'curatorsOnly' => $curatorsOnly,
             'siteManagersOnly' => $siteManagersOnly,
             'assignableLandmarks' => $assignableLandmarks,
-            'allActiveLandmarksAssigned' => $allActiveLandmarksAssigned,
+            'editCurator' => $editCurator,
         ]);
     }
 
     public function approveUser(Request $request, string $uid)
     {
-        $snapshot = $this->firestore->collection('users')->document($uid)->snapshot();
+        $profile = $this->firebase->userProfile($uid, $request->input('role'));
 
-        if (! $snapshot->exists()) {
+        if ($profile === null) {
             return redirect()->route($this->usersIndexRouteName(), $request->only(['search', 'role']))
                 ->with('status_err', 'User profile not found in database.');
         }
 
-        $data = $snapshot->data();
+        $data = $profile['data'];
         $targetRole = strtolower((string) ($data['role'] ?? 'visitor'));
         if (! UserApprovalPolicy::roleRequiresApproval($targetRole)) {
             return redirect()->route($this->usersIndexRouteName(), $request->only(['search', 'role']))
@@ -328,7 +396,7 @@ class AdminController extends Controller
                 ], ['merge' => true]);
             }
 
-            $docRef = $this->firestore->collection('users')->document($uid);
+            $docRef = $profile['ref'];
             $approvalPaths = [
                 ['path' => 'approval_status', 'value' => 'approved'],
                 ['path' => 'requires_approval', 'value' => false],
@@ -375,14 +443,14 @@ class AdminController extends Controller
 
     public function rejectUser(Request $request, string $uid)
     {
-        $snapshot = $this->firestore->collection('users')->document($uid)->snapshot();
+        $profile = $this->firebase->userProfile($uid, $request->input('role'));
 
-        if (! $snapshot->exists()) {
+        if ($profile === null) {
             return redirect()->route($this->usersIndexRouteName(), $request->only(['search', 'role']))
                 ->with('status_err', 'User profile not found in database.');
         }
 
-        $data = $snapshot->data();
+        $data = $profile['data'];
         $targetRole = strtolower((string) ($data['role'] ?? 'visitor'));
         if (! UserApprovalPolicy::roleRequiresApproval($targetRole)) {
             return redirect()->route($this->usersIndexRouteName(), $request->only(['search', 'role']))
@@ -425,13 +493,26 @@ class AdminController extends Controller
 
             $this->firestore->collection('logs')->add([
                 'email' => $email,
-                'action' => 'User rejected by '.$rejectedByLabel.' (Firebase Auth deleted)',
+                'action' => 'User rejected by '.$rejectedByLabel.(($actorRole === 'site_manager' && ($data['role'] ?? '') === 'curator') ? ' (marked inactive)' : ' (Firebase Auth deleted)'),
                 'uid' => $uid,
                 'timestamp' => now()->toISOString(),
             ]);
 
+            if ($actorRole === 'site_manager' && ($data['role'] ?? '') === 'curator') {
+                $profile['ref']->set([
+                    'approval_status' => 'rejected',
+                    'requires_approval' => false,
+                    'account_status' => 'inactive',
+                    'rejected_at' => now()->toDateTimeString(),
+                    'updated_at' => now()->toDateTimeString(),
+                ], ['merge' => true]);
+
+                return redirect()->route($this->usersIndexRouteName(), $request->only(['search', 'role']))
+                    ->with('status', 'Curator registration rejected and marked inactive.');
+            }
+
             $this->auth->deleteUser($uid);
-            $this->firestore->collection('users')->document($uid)->delete();
+            $profile['ref']->delete();
         } catch (\Throwable $e) {
             report($e);
 
@@ -582,6 +663,52 @@ class AdminController extends Controller
         abort(403);
     }
 
+    public function landmarkImage(Request $request, string $id)
+    {
+        $snap = $this->firestore->collection('landmarks')->document($id)->snapshot();
+        if (! $snap->exists()) {
+            abort(404);
+        }
+
+        $data = $snap->data();
+        if (! $this->actorMayViewLandmark($request, $data)) {
+            abort(403);
+        }
+
+        $cloudinaryUrl = trim((string) ($data['image_url'] ?? ''));
+        if ($cloudinaryUrl !== '' && filter_var($cloudinaryUrl, FILTER_VALIDATE_URL)) {
+            return redirect()->away($cloudinaryUrl, 302);
+        }
+
+        $base64 = (string) ($data['image_base64'] ?? '');
+        if ($base64 !== '') {
+            $mime = (string) ($data['image_mime'] ?? 'image/jpeg');
+            if (preg_match('/^data:([^;]+);base64,/', $base64, $matches) === 1) {
+                $mime = $matches[1];
+            }
+            if (! in_array(strtolower($mime), ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif'], true)) {
+                $mime = 'image/jpeg';
+            }
+
+            $binary = base64_decode(str_contains($base64, ',') ? explode(',', $base64, 2)[1] : $base64, true);
+            if ($binary === false) {
+                abort(404);
+            }
+
+            return response($binary, 200, [
+                'Content-Type' => $mime,
+                'Cache-Control' => 'public, max-age=604800',
+            ]);
+        }
+
+        $storedUrl = LandmarkImageStorage::publicUrl($id);
+        if ($storedUrl !== null) {
+            return redirect($storedUrl, 302);
+        }
+
+        abort(404);
+    }
+
     public function approveLandmark(Request $request, string $id)
     {
         if ($request->session()->get('role') !== 'admin') {
@@ -614,6 +741,7 @@ class AdminController extends Controller
         try {
             $landmarkRef->set([
                 'activation_status' => 'active',
+                'visibility' => 'published',
                 'activated_at' => $now,
                 'approved_by_uid' => $actorUid !== '' ? $actorUid : null,
                 'updated_at' => $now,
@@ -689,11 +817,9 @@ class AdminController extends Controller
         $logsSnapshot = $this->firestore->collection('logs')->documents();
         $logs = iterator_to_array($logsSnapshot->rows());
 
-        $usersSnapshot = $this->firestore->collection('users')->documents();
         $userRoles = [];
 
-        foreach ($usersSnapshot as $userDoc) {
-            $data = $userDoc->data();
+        foreach ($this->firebase->allUserProfiles() as $data) {
             if (isset($data['email'], $data['role'])) {
                 $userRoles[$data['email']] = $data['role'];
             }
@@ -809,7 +935,7 @@ class AdminController extends Controller
     private function countPendingSiteManagerRegistrations(): int
     {
         $count = 0;
-        foreach ($this->firestore->collection('users')->documents() as $doc) {
+        foreach ($this->firebase->userCollection('site_manager')->documents() as $doc) {
             if (! $doc->exists()) {
                 continue;
             }
@@ -843,4 +969,3 @@ class AdminController extends Controller
         return $count;
     }
 }
-

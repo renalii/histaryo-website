@@ -106,8 +106,22 @@
         .status-approved { background: #ecfdf5; color: #166534; border-color: #bbf7d0; }
         .status-pending { background: #fffbeb; color: #b45309; border-color: #fde68a; }
         .status-rejected { background: #fef2f2; color: #991b1b; border-color: #fecaca; }
+        .status-active { background: #ecfdf5; color: #166534; border-color: #bbf7d0; }
+        .status-inactive { background: #f3f4f6; color: #4b5563; border-color: #d1d5db; }
         .user-actions { display: inline-flex; flex-wrap: wrap; gap: .4rem; align-items: center; }
         .user-actions form { display: inline-block; margin: 0; }
+        .btn-edit {
+            padding: .35rem .65rem;
+            border-radius: 8px;
+            border: 1px solid #d1d5db;
+            font-weight: 700;
+            font-size: .78rem;
+            cursor: pointer;
+            background: #fff;
+            color: #374151;
+            text-decoration: none;
+        }
+        .btn-edit:hover { background: #f9fafb; }
         .btn-approve {
             padding: .35rem .65rem;
             border-radius: 8px;
@@ -130,6 +144,73 @@
             color: #991b1b;
         }
         .btn-reject:hover { background: #fef2f2; }
+        .curator-status-modal {
+            position: fixed;
+            inset: 0;
+            z-index: 1100;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 1rem;
+            background: rgba(17, 24, 39, 0.55);
+        }
+        .curator-status-modal.is-open { display: flex; }
+        .curator-status-modal__panel {
+            width: min(100%, 430px);
+            background: #fff;
+            border-radius: 12px;
+            box-shadow: 0 24px 70px rgba(15, 23, 42, 0.28);
+            padding: 1.4rem;
+            border: 1px solid #f1f5f9;
+        }
+        .curator-status-modal__title {
+            margin: 0 0 .65rem;
+            color: #7A2E1F;
+            font-size: 1.25rem;
+            font-weight: 800;
+        }
+        .curator-status-modal__message,
+        .curator-status-modal__detail {
+            margin: 0;
+            color: #374151;
+            line-height: 1.55;
+        }
+        .curator-status-modal__detail {
+            margin-top: .75rem;
+            color: #6b7280;
+        }
+        .curator-status-modal__actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: .6rem;
+            margin-top: 1.25rem;
+        }
+        .curator-status-modal__btn {
+            border-radius: 8px;
+            border: 1px solid transparent;
+            padding: .6rem .9rem;
+            font-weight: 800;
+            cursor: pointer;
+            transition: all .15s ease;
+        }
+        .curator-status-modal__btn--secondary {
+            background: #f3f4f6;
+            color: #374151;
+            border-color: #e5e7eb;
+        }
+        .curator-status-modal__btn--secondary:hover { background: #e5e7eb; }
+        .curator-status-modal__btn--danger {
+            background: #991b1b;
+            color: #fff;
+            border-color: #991b1b;
+        }
+        .curator-status-modal__btn--danger:hover { background: #7f1d1d; }
+        .curator-status-modal__btn--success {
+            background: #166534;
+            color: #fff;
+            border-color: #166534;
+        }
+        .curator-status-modal__btn--success:hover { background: #14532d; }
         .flash-ok {
             padding: .75rem 1rem;
             border-radius: 10px;
@@ -159,6 +240,8 @@
             .users-input { width: 100%; }
             .users-filter { padding: .7rem; }
             .users-btn { flex: 1 1 auto; }
+            .curator-status-modal__actions { flex-direction: column-reverse; }
+            .curator-status-modal__btn { width: 100%; }
         }
     </style>
 
@@ -243,6 +326,9 @@
                         <th>Email</th>
                         <th>Role</th>
                         <th>Approval</th>
+                        @if ($curatorsOnly)
+                            <th>Status</th>
+                        @endif
                         <th>UID</th>
                         <th>Actions</th>
                     </tr>
@@ -255,6 +341,8 @@
                             $roleLabel = $user->role === 'site_manager'
                                 ? 'Site Manager'
                                 : ucfirst(str_replace('_', ' ', $user->role));
+                            $accountStatus = $user->account_status ?? 'active';
+                            $accountStatusLabel = ucfirst($accountStatus);
                         @endphp
                         <tr>
                             <td>{{ $user->email }}</td>
@@ -270,9 +358,47 @@
                                     <span class="status-pill status-{{ $user->approval_status }}">{{ $approvalLabel }}</span>
                                 @endif
                             </td>
+                            @if ($curatorsOnly)
+                                <td>
+                                    <span class="status-pill status-{{ $accountStatus }}">{{ $accountStatusLabel }}</span>
+                                </td>
+                            @endif
                             <td class="uid-text">{{ $user->uid }}</td>
                             <td>
-                                @if ($showPendingActions)
+                                @if ($curatorsOnly && $panelRoutePrefix === 'sitemanager')
+                                    <div class="user-actions">
+                                        <a href="{{ route('sitemanager.curators', array_filter(['search' => request('search'), 'edit' => $user->uid])) }}" class="btn-edit">Edit</a>
+                                        @if ($accountStatus === 'inactive')
+                                            <form method="POST" action="{{ route('sitemanager.curators.activate', ['uid' => $user->uid]) }}" class="curator-status-form">
+                                                @csrf
+                                                <button
+                                                    type="button"
+                                                    class="btn-approve js-curator-status-action"
+                                                    data-modal-title="Activate Curator"
+                                                    data-modal-message="Are you sure you want to activate this curator?"
+                                                    data-modal-detail="The curator will regain access to the system and be able to manage their assigned content."
+                                                    data-modal-action="Activate"
+                                                    data-modal-variant="success">
+                                                    Activate
+                                                </button>
+                                            </form>
+                                        @else
+                                            <form method="POST" action="{{ route('sitemanager.curators.deactivate', ['uid' => $user->uid]) }}" class="curator-status-form">
+                                                @csrf
+                                                <button
+                                                    type="button"
+                                                    class="btn-reject js-curator-status-action"
+                                                    data-modal-title="Deactivate Curator"
+                                                    data-modal-message="Are you sure you want to deactivate this curator?"
+                                                    data-modal-detail="The curator will no longer be able to access the system, manage landmarks, or update content until their account is reactivated."
+                                                    data-modal-action="Deactivate"
+                                                    data-modal-variant="danger">
+                                                    Deactivate
+                                                </button>
+                                            </form>
+                                        @endif
+                                    </div>
+                                @elseif ($showPendingActions)
                                     <div class="user-actions">
                                         <form method="POST" action="{{ route($userActionsRoutePrefix.'.approve', ['uid' => $user->uid]) }}">
                                             @csrf
@@ -306,10 +432,93 @@
     </div>
 
     @if ($curatorsOnly && $panelRoutePrefix === 'sitemanager')
+        <div
+            id="curatorStatusModal"
+            class="curator-status-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-hidden="true"
+            aria-labelledby="curatorStatusModalTitle">
+            <div class="curator-status-modal__panel" tabindex="-1">
+                <h2 id="curatorStatusModalTitle" class="curator-status-modal__title">Deactivate Curator</h2>
+                <p id="curatorStatusModalMessage" class="curator-status-modal__message"></p>
+                <p id="curatorStatusModalDetail" class="curator-status-modal__detail"></p>
+                <div class="curator-status-modal__actions">
+                    <button type="button" id="curatorStatusCancel" class="curator-status-modal__btn curator-status-modal__btn--secondary">Cancel</button>
+                    <button type="button" id="curatorStatusConfirm" class="curator-status-modal__btn curator-status-modal__btn--danger">Deactivate</button>
+                </div>
+            </div>
+        </div>
+
         @include('sitemanager.partials.curator-create-drawer', [
             'landmarks' => $assignableLandmarks ?? [],
-            'allActiveLandmarksAssigned' => $allActiveLandmarksAssigned ?? false,
+            'editCurator' => $editCurator ?? null,
         ])
+
+        <script>
+            (function () {
+                var modal = document.getElementById('curatorStatusModal');
+                var title = document.getElementById('curatorStatusModalTitle');
+                var message = document.getElementById('curatorStatusModalMessage');
+                var detail = document.getElementById('curatorStatusModalDetail');
+                var cancelButton = document.getElementById('curatorStatusCancel');
+                var confirmButton = document.getElementById('curatorStatusConfirm');
+                var panel = modal ? modal.querySelector('.curator-status-modal__panel') : null;
+                var selectedForm = null;
+
+                if (! modal || ! title || ! message || ! detail || ! cancelButton || ! confirmButton) {
+                    return;
+                }
+
+                function openModal(trigger) {
+                    selectedForm = trigger.closest('form');
+                    title.textContent = trigger.dataset.modalTitle || '';
+                    message.textContent = trigger.dataset.modalMessage || '';
+                    detail.textContent = trigger.dataset.modalDetail || '';
+                    confirmButton.textContent = trigger.dataset.modalAction || 'Confirm';
+                    confirmButton.classList.toggle('curator-status-modal__btn--danger', trigger.dataset.modalVariant === 'danger');
+                    confirmButton.classList.toggle('curator-status-modal__btn--success', trigger.dataset.modalVariant === 'success');
+
+                    modal.classList.add('is-open');
+                    modal.setAttribute('aria-hidden', 'false');
+                    document.body.style.overflow = 'hidden';
+                    if (panel) {
+                        panel.focus();
+                    }
+                }
+
+                function closeModal() {
+                    modal.classList.remove('is-open');
+                    modal.setAttribute('aria-hidden', 'true');
+                    selectedForm = null;
+                    document.body.style.overflow = '';
+                }
+
+                document.querySelectorAll('.js-curator-status-action').forEach(function (button) {
+                    button.addEventListener('click', function () {
+                        openModal(button);
+                    });
+                });
+
+                cancelButton.addEventListener('click', closeModal);
+                confirmButton.addEventListener('click', function () {
+                    if (selectedForm) {
+                        selectedForm.submit();
+                    }
+                });
+
+                modal.addEventListener('click', function (event) {
+                    if (event.target === modal) {
+                        closeModal();
+                    }
+                });
+
+                document.addEventListener('keydown', function (event) {
+                    if (event.key === 'Escape' && modal.classList.contains('is-open')) {
+                        closeModal();
+                    }
+                });
+            })();
+        </script>
     @endif
 @endsection
-
