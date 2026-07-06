@@ -11,7 +11,7 @@ class EnsureAdminPanelSession
     public function handle(Request $request, Closure $next): Response
     {
         if (! $request->session()->has('uid')) {
-            return redirect()->route('admin.login', ['redirect' => $request->fullUrl()]);
+            return redirect()->route('login');
         }
 
         if ($request->session()->get('role') === 'landmark_manager') {
@@ -23,7 +23,7 @@ class EnsureAdminPanelSession
         }
 
         if ($request->session()->get('role') !== 'admin') {
-            return redirect()->route('admin.login');
+            return redirect()->route('login');
         }
 
         $response = $next($request);

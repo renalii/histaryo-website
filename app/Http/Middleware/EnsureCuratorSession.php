@@ -18,11 +18,9 @@ class EnsureCuratorSession
     public function handle(Request $request, Closure $next): Response
     {
         if (! Session::has('uid') || Session::get('role') !== 'curator') {
-            if ($request->isMethod('GET')) {
-                Session::put('login_redirect', $request->fullUrl());
-            }
+            Session::forget('login_redirect');
 
-            return redirect()->route('curators.login');
+            return redirect()->route('login');
         }
 
         $uid = (string) Session::get('uid', '');
@@ -32,7 +30,7 @@ class EnsureCuratorSession
             $request->session()->invalidate();
             $request->session()->regenerateToken();
 
-            return redirect()->route('curators.login')
+            return redirect()->route('login')
                 ->withErrors(['error' => 'Your curator account is inactive. Please contact your Site Manager.']);
         }
         Session::put('account_status', $accountStatus);
