@@ -19,6 +19,7 @@ class CuratorWelcomeMailer
         string $plainPassword,
         string $landmarkLabel,
         string $uid,
+        bool $savePreview = false,
     ): array {
         $changePasswordUrl = PublicAppUrl::temporarySignedRoute(
             'curators.setup-password',
@@ -35,10 +36,13 @@ class CuratorWelcomeMailer
             changePasswordUrl: $changePasswordUrl,
         );
 
-        $previewDir = storage_path('app/mail-previews');
-        File::ensureDirectoryExists($previewDir);
-        $previewPath = 'mail-previews/latest-curator-welcome.html';
-        File::put(storage_path('app/'.$previewPath), $mailable->render());
+        $previewPath = null;
+        if ($savePreview) {
+            $previewDir = storage_path('app/mail-previews');
+            File::ensureDirectoryExists($previewDir);
+            $previewPath = 'mail-previews/latest-curator-welcome.html';
+            File::put(storage_path('app/'.$previewPath), $mailable->render());
+        }
 
         try {
             Mail::send($mailable);

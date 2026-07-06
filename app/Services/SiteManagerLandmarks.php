@@ -3,11 +3,13 @@
 namespace App\Services;
 
 use App\Support\LandmarkActivation;
-use App\Support\LandmarkVisibility;
 
 final class SiteManagerLandmarks
 {
-    public function __construct(protected FirebaseService $firebase) {}
+    public function __construct(
+        protected FirebaseService $firebase,
+        protected SiteManagerReadModel $siteManagerReadModel
+    ) {}
 
     /** @return list<array{id: string, name: string, landmarkcode: string}> */
     public function assignableLandmarks(string $managerUid): array
@@ -40,27 +42,13 @@ final class SiteManagerLandmarks
         }
 
         $options = [];
-        foreach ($this->firebase->firestore()->collection('landmarks')->documents() as $doc) {
-            if (! $doc->exists()) {
-                continue;
-            }
-
-            $data = $doc->data();
-            $docManager = trim((string) ($data['manager_uid'] ?? $data['managerUid'] ?? ''));
-            if ($docManager === '' || $docManager !== $managerUid) {
-                continue;
-            }
-
+        foreach ($this->siteManagerReadModel->landmarks($managerUid) as $data) {
             $activation = strtolower((string) ($data['activation_status'] ?? 'active'));
             if (! LandmarkActivation::isBrowsable($activation)) {
                 continue;
             }
-            if (! LandmarkVisibility::isAuthorizedListingVisible($data['visibility'] ?? '', $activation)) {
-                continue;
-            }
-
             $options[] = [
-                'id' => $doc->id(),
+                'id' => (string) $data['id'],
                 'name' => trim((string) ($data['name'] ?? 'Unnamed landmark')),
                 'landmarkcode' => strtoupper(trim((string) ($data['landmarkcode'] ?? ''))),
             ];

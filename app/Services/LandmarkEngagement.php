@@ -69,7 +69,7 @@ final class LandmarkEngagement
      *     qr_scans:int,landmark_views:int,quiz_attempts:int,unique_visitors:int,
      *     last_activity:?string,daily_labels:list<string>,daily_values:list<int>
      *   },
-     *   records:list<array{id:string,landmark_id:string,activity_type:string,occurred_at:?string}>
+     *   records:list<array<string,mixed>>
      * }
      */
     public function analyticsForLandmarks(array $landmarkIds): array
@@ -79,6 +79,7 @@ final class LandmarkEngagement
             'landmark_views' => 0,
             'quiz_attempts' => 0,
             'unique_visitors' => 0,
+            'visitor_users' => 0,
             'last_activity' => null,
             'daily_labels' => [],
             'daily_values' => [],
@@ -106,59 +107,59 @@ final class LandmarkEngagement
         }
 
         $visitors = [];
+        $visitorUsers = [];
         $last = null;
         $records = [];
-        $documents = $this->firebase->firestore()->collection(self::COLLECTION)->documents();
 
-        foreach ($documents as $doc) {
-            if (! $doc->exists()) {
+        foreach ($this->firebase->userCollection(FirebaseService::VISITOR_ROLE)->documents() as $visitorDocument) {
+            if (! $visitorDocument->exists()) {
                 continue;
             }
 
-            $data = $doc->data();
-            $landmarkId = trim((string) ($data['landmark_id'] ?? ''));
-            if ($landmarkId === '') {
-                $landmarkId = trim((string) ($data['landmarkId'] ?? ''));
-            }
-            if (! isset($landmarkSet[$landmarkId])) {
-                continue;
+            $visitorData = $visitorDocument->data();
+            $visitorKey = trim((string) ($visitorData['uid'] ?? $visitorDocument->id()));
+            $visitorName = trim((string) ($visitorData['fullName'] ?? $visitorData['name'] ?? ''));
+            if ($visitorName === '') {
+                $visitorName = trim((string) ($visitorData['email'] ?? $visitorKey));
             }
 
-            $eventType = strtolower(trim((string) ($data['activity_type'] ?? '')));
-            if ($eventType === '') {
-                $eventType = strtolower(trim((string) ($data['event_type'] ?? '')));
-            }
-            $occurredAt = $this->toCarbon($data['occurred_at'] ?? $data['created_at'] ?? $data['timestamp'] ?? null);
-            $records[] = [
-                'id' => $doc->id(),
-                'landmark_id' => $landmarkId,
-                'activity_type' => $eventType,
-                'occurred_at' => $occurredAt?->toIso8601String(),
-            ];
-
-            $metric = match ($eventType) {
-                'qr_scan' => 'qr_scans',
-                'landmark_view' => 'landmark_views',
-                'quiz_attempt' => 'quiz_attempts',
-                default => null,
-            };
-            if ($metric === null) {
-                continue;
-            }
-            $summary[$metric]++;
-
-            $visitorKey = trim((string) ($data['visitor_key'] ?? $data['visitor_id'] ?? $data['uid'] ?? ''));
             if ($visitorKey !== '') {
-                $visitors[$visitorKey] = true;
+                $visitorUsers[$visitorKey] = true;
             }
 
-            if ($occurredAt !== null) {
-                if ($last === null || $occurredAt->greaterThan($last)) {
-                    $last = $occurredAt;
+            foreach ($visitorDocument->reference()->collection('visits')->documents() as $visitDocument) {
+                if (! $visitDocument->exists()) {
+                    continue;
                 }
-                $dayKey = $occurredAt->format('Y-m-d');
-                if (array_key_exists($dayKey, $days)) {
-                    $days[$dayKey]++;
+
+                $record = $this->recordFromVisitDocument(
+                    $visitDocument,
+                    $visitorKey,
+                    $visitorName,
+                    $visitorData['visitCount'] ?? null,
+                    $landmarkSet
+                );
+                if ($record === null) {
+                    continue;
+                }
+
+                $records[] = $record;
+
+                $summary['landmark_views'] += 1;
+
+                if ($visitorKey !== '') {
+                    $visitors[$visitorKey] = true;
+                }
+
+                $occurredAt = $this->toCarbon($record['occurred_at'] ?? null);
+                if ($occurredAt !== null) {
+                    if ($last === null || $occurredAt->greaterThan($last)) {
+                        $last = $occurredAt;
+                    }
+                    $dayKey = $occurredAt->format('Y-m-d');
+                    if (array_key_exists($dayKey, $days)) {
+                        $days[$dayKey] += 1;
+                    }
                 }
             }
         }
@@ -171,10 +172,43 @@ final class LandmarkEngagement
         });
 
         $summary['unique_visitors'] = count($visitors);
+        $summary['visitor_users'] = count($visitorUsers);
         $summary['last_activity'] = $last?->toIso8601String();
         $summary['daily_values'] = array_values($days);
 
         return ['totals' => $summary, 'records' => $records];
+    }
+
+    /**
+     * @param  array<string, true>  $landmarkSet
+     * @return array<string, mixed>|null
+     */
+    private function recordFromVisitDocument(
+        mixed $document,
+        string $visitorKey,
+        string $visitorName,
+        mixed $visitorVisitCount,
+        array $landmarkSet
+    ): ?array {
+        $data = $document->data();
+        $landmarkId = trim((string) ($data['landmarkId'] ?? $data['landmark_id'] ?? ''));
+        if (! isset($landmarkSet[$landmarkId])) {
+            return null;
+        }
+
+        $occurredAt = $this->toCarbon($data['createdAt'] ?? $data['timestamp'] ?? $data['date'] ?? null);
+
+        return [
+            'id' => $document->id(),
+            'landmark_id' => $landmarkId,
+            'landmark_name' => trim((string) ($data['landmarkName'] ?? $data['landmark_name'] ?? '')),
+            'activity_type' => 'landmark_view',
+            'occurred_at' => $occurredAt?->toIso8601String(),
+            'visitor_key' => $visitorKey,
+            'visitor_name' => $visitorName !== '' ? $visitorName : 'Visitor',
+            'visit_count' => 1,
+            'visitor_profile_visit_count' => is_numeric($visitorVisitCount) ? (int) $visitorVisitCount : null,
+        ];
     }
 
     private function toCarbon(mixed $value): ?Carbon

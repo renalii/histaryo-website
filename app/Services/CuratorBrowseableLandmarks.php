@@ -3,7 +3,6 @@
 namespace App\Services;
 
 use App\Support\LandmarkActivation;
-use App\Support\LandmarkVisibility;
 
 /**
  * Landmark document IDs a curator may view in listings, maps, and dashboard stats.
@@ -27,8 +26,7 @@ final class CuratorBrowseableLandmarks
         }
 
         $activation = strtolower((string) ($snap->data()['activation_status'] ?? 'active'));
-        $visibility = (string) ($snap->data()['visibility'] ?? '');
-        if (! LandmarkVisibility::isAuthorizedListingVisible($visibility, $activation)) {
+        if (! LandmarkActivation::isBrowsable($activation)) {
             return [];
         }
 

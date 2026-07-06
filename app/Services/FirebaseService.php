@@ -2,8 +2,11 @@
 
 namespace App\Services;
 
+use Google\Auth\HttpHandler\Guzzle7HttpHandler;
+use GuzzleHttp\Client;
 use Kreait\Firebase\Auth;
 use Kreait\Firebase\Factory;
+use Kreait\Firebase\Http\HttpClientOptions;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
@@ -19,47 +22,59 @@ class FirebaseService
     public const USER_PROFILE_SUBCOLLECTION = 'users';
     public const VISITOR_ROLE = 'visitor';
 
-    protected $auth;
+    protected ?Factory $factory = null;
 
-    protected $firestore;
+    protected $auth = null;
 
-    /**
-     * Google Firestore defaults to gRPC; on Windows (e.g. XAMPP), streams often fail with
-     * `"Stream removed"` / UNKNOWN. Setting FIRESTORE_TRANSPORT=rest uses HTTP REST instead.
-     *
-     * @see https://cloud.google.com/php/docs/reference/main#grpc-or-rest
-     */
-    public function __construct()
+    protected $firestore = null;
+
+    protected function factory(): Factory
     {
+        if ($this->factory !== null) {
+            return $this->factory;
+        }
+
         $transport = strtolower(trim((string) config('services.firebase.firestore_transport', 'grpc')));
         if (in_array($transport, ['rest', 'http'], true)) {
-            // Read by google/cloud-php clients before opening gRPC connections.
             putenv('GOOGLE_CLOUD_DISABLE_GRPC=true');
             $_ENV['GOOGLE_CLOUD_DISABLE_GRPC'] = 'true';
         }
 
-        $factory = (new Factory)->withServiceAccount(
-            storage_path('app/firebase_credentials.json')
-        );
+        $connectTimeout = (float) config('services.firebase.connect_timeout', 5);
+        $requestTimeout = (float) config('services.firebase.request_timeout', 10);
+        $authHttpHandler = new Guzzle7HttpHandler(new Client([
+            'connect_timeout' => $connectTimeout,
+            'timeout' => $requestTimeout,
+        ]));
+        $httpClientOptions = HttpClientOptions::default()
+            ->withConnectTimeout($connectTimeout)
+            ->withTimeout($requestTimeout);
 
-        $this->auth = $factory->createAuth();
-        $this->firestore = $factory->createFirestore()->database();
+        return $this->factory = (new Factory)->withServiceAccount(
+            storage_path('app/firebase_credentials.json')
+        )->withHttpClientOptions(
+            $httpClientOptions
+        )->withFirestoreClientConfig([
+            'authHttpHandler' => $authHttpHandler,
+            'requestTimeout' => $requestTimeout,
+            'retries' => 0,
+        ]);
     }
 
     
     public function getAuth()
     {
-        return $this->auth;
+        return $this->auth();
     }
 
     public function auth()
     {
-        return $this->auth;
+        return $this->auth ??= $this->factory()->createAuth();
     }
 
     public function firestore()
     {
-        return $this->firestore;
+        return $this->firestore ??= $this->factory()->createFirestore()->database();
     }
 
     public function normalizeUserRole(?string $role): string
@@ -86,7 +101,7 @@ class FirebaseService
 
     public function userCollection(?string $role)
     {
-        return $this->firestore
+        return $this->firestore()
             ->collection('users')
             ->document($this->userCollectionName($role))
             ->collection(self::USER_PROFILE_SUBCOLLECTION);
@@ -180,7 +195,7 @@ class FirebaseService
     
     public function createUser($email, $password, $displayName)
     {
-        return $this->auth->createUser([
+        return $this->auth()->createUser([
             'email'        => $email,
             'password'     => $password,
             'displayName'  => $displayName,
@@ -210,21 +225,21 @@ class FirebaseService
     
     public function getAllLandmarks()
     {
-        return $this->firestore->collection('landmarks')->documents();
+        return $this->firestore()->collection('landmarks')->documents();
     }
 
     public function getLandmarkById($landmarkId)
     {
-        return $this->firestore
+        return $this->firestore()
             ->collection('landmarks')
             ->document($landmarkId)
             ->snapshot();
     }
 
     
-    public function getAllQuiz()
+public function getAllQuiz()
 {
-    return $this->firestore->collection('question_bank')->documents();
+    return $this->firestore()->collection('question_bank')->documents();
 }
 
 public function addQuiz(array $data)
@@ -237,7 +252,7 @@ public function addQuiz(array $data)
         'created_at' => now(),
     ];
 
-    return $this->firestore->collection('question_bank')->add($docData);
+    return $this->firestore()->collection('question_bank')->add($docData);
 }
 
 public function updateQuiz($quizId, array $data)
@@ -259,7 +274,7 @@ public function updateQuiz($quizId, array $data)
 
     $docData['updated_at'] = now();
 
-    return $this->firestore
+    return $this->firestore()
         ->collection('question_bank')
         ->document($quizId)
         ->set($docData, ['merge' => true]);
@@ -267,7 +282,7 @@ public function updateQuiz($quizId, array $data)
 
 public function deleteQuiz($quizId)
 {
-    return $this->firestore
+    return $this->firestore()
         ->collection('question_bank')
         ->document($quizId)
         ->delete();
@@ -275,7 +290,7 @@ public function deleteQuiz($quizId)
 
 public function getQuizByLandmarkId($landmarkId)
 {
-    return $this->firestore
+    return $this->firestore()
         ->collection('question_bank')
         ->where('landmark_id', '=', $landmarkId)
         ->documents();
