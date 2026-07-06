@@ -7,6 +7,7 @@ use App\Support\FirestoreTipCollections;
 use App\Services\FirebaseService;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Session;
 
 class TipReviewController extends Controller
@@ -28,7 +29,7 @@ class TipReviewController extends Controller
             $statusFilter = 'pending';
         }
 
-        $tips = $this->fetchTips($statusFilter);
+        $tips = $this->tipsForLandmark($this->assignedLandmarkId(), $statusFilter);
         $perPage = 5;
         $currentPage = LengthAwarePaginator::resolveCurrentPage();
         $offset = max(0, ($currentPage - 1) * $perPage);
@@ -48,88 +49,101 @@ class TipReviewController extends Controller
         return view('curators.tips.index', compact('tips', 'statusFilter'));
     }
 
-    public function fetchData(Request $request)
+    public function tipsForLandmark(string $landmarkId, string $statusFilter = 'all'): array
     {
-        $statusFilter = strtolower((string) $request->query('status', 'all'));
-        if (!in_array($statusFilter, ['all', 'pending', 'accepted', 'rejected'], true)) {
-            $statusFilter = 'all';
-        }
-
-        return response()->json([
-            'tips' => $this->fetchTips($statusFilter),
-        ]);
-    }
-
-    private function fetchTips(string $statusFilter = 'all'): array
-    {
-        $assignedLandmarkId = $this->assignedLandmarkId();
-        if ($assignedLandmarkId === '') {
+        if ($landmarkId === '') {
             return [];
         }
 
         $tips = [];
+        $seenTips = [];
         foreach (FirestoreTipCollections::names() as $collectionName) {
-            $tipsSnapshot = $this->firestore->collection($collectionName)->documents();
+            foreach (['landmark_id', 'landmarkId'] as $landmarkField) {
+                try {
+                    $tipsSnapshot = $this->firestore
+                        ->collection($collectionName)
+                        ->where($landmarkField, '==', $landmarkId)
+                        ->documents([
+                            'maxRetries' => 0,
+                            'requestTimeout' => (float) config('services.firebase.tip_query_timeout', 3),
+                            'retries' => 0,
+                        ]);
+                } catch (\Throwable $exception) {
+                    Log::warning('Unable to load curator landmark tips from Firestore.', [
+                        'collection' => $collectionName,
+                        'landmark_field' => $landmarkField,
+                        'landmark_id' => $landmarkId,
+                        'exception' => $exception->getMessage(),
+                    ]);
 
-            foreach ($tipsSnapshot as $doc) {
-                if (!$doc->exists()) {
                     continue;
                 }
 
-                $data = $doc->data();
-                $tipLandmarkId = FirestoreTipCollections::landmarkIdFromData($data);
-                if ($tipLandmarkId !== $assignedLandmarkId) {
-                    continue;
+                foreach ($tipsSnapshot as $doc) {
+                    if (!$doc->exists()) {
+                        continue;
+                    }
+
+                    $tipKey = $collectionName.'/'.$doc->id();
+                    if (isset($seenTips[$tipKey])) {
+                        continue;
+                    }
+
+                    $data = $doc->data();
+                    $tipLandmarkId = FirestoreTipCollections::landmarkIdFromData($data);
+                    if ($tipLandmarkId !== $landmarkId) {
+                        continue;
+                    }
+
+                    $status = strtolower((string) ($data['status'] ?? 'pending'));
+
+                    if ($status === '') {
+                        $status = 'pending';
+                    }
+
+                    $status = in_array($status, ['accepted', 'rejected', 'pending'], true) ? $status : 'pending';
+                    if ($statusFilter !== 'all' && $status !== $statusFilter) {
+                        continue;
+                    }
+
+                    $createdAtRaw = $data['created_at'] ?? $data['createdAt'] ?? null;
+                    $reviewedAtRaw = $data['reviewed_at'] ?? $data['reviewedAt'] ?? null;
+
+                    $submittedEmail = (string) ($data['submitted_email'] ?? $data['submittedBy'] ?? $data['user_email'] ?? '');
+                    $submittedBy = (string) ($data['submitted_by'] ?? $data['submittedBy'] ?? $data['user_name'] ?? $data['userId'] ?? '');
+
+                    if ($submittedBy === '' && $submittedEmail !== '') {
+                        $submittedBy = $submittedEmail;
+                    }
+
+                    if ($submittedBy === '') {
+                        $submittedBy = 'Unknown User';
+                    }
+
+                    $title = (string) ($data['title'] ?? '');
+                    if ($title === '' && is_array($data['tags'] ?? null)) {
+                        $title = (string) (($data['tags']['title'] ?? '') ?: '');
+                    }
+
+                    $seenTips[$tipKey] = true;
+                    $tips[] = [
+                        'id' => $doc->id(),
+                        'source_collection' => $collectionName,
+                        'landmark_id' => $tipLandmarkId,
+                        'landmark_name' => (string) ($data['landmark_name'] ?? $data['landmarkName'] ?? ''),
+                        'content' => (string) ($data['content'] ?? $data['message'] ?? ''),
+                        'title' => $title,
+                        'type' => (string) ($data['type'] ?? ''),
+                        'submitted_by' => $submittedBy,
+                        'submitted_email' => $submittedEmail,
+                        'status' => $status,
+                        'review_note' => (string) ($data['review_note'] ?? $data['reviewNote'] ?? ''),
+                        'reviewed_by' => (string) ($data['reviewed_by'] ?? $data['reviewedBy'] ?? ''),
+                        'created_at' => $this->formatDate($createdAtRaw),
+                        'reviewed_at' => $this->formatDate($reviewedAtRaw),
+                        'created_sort' => $this->normalizeTimestamp($createdAtRaw),
+                    ];
                 }
-
-                $status = strtolower((string) ($data['status'] ?? 'pending'));
-
-                if ($status === '') {
-                    $status = 'pending';
-                }
-
-                $status = in_array($status, ['accepted', 'rejected', 'pending'], true) ? $status : 'pending';
-                if ($statusFilter !== 'all' && $status !== $statusFilter) {
-                    continue;
-                }
-
-                $createdAtRaw = $data['created_at'] ?? $data['createdAt'] ?? null;
-                $reviewedAtRaw = $data['reviewed_at'] ?? $data['reviewedAt'] ?? null;
-
-                $submittedEmail = (string) ($data['submitted_email'] ?? $data['submittedBy'] ?? $data['user_email'] ?? '');
-                $submittedBy = (string) ($data['submitted_by'] ?? $data['submittedBy'] ?? $data['user_name'] ?? $data['userId'] ?? '');
-
-                if ($submittedBy === '' && $submittedEmail !== '') {
-                    $submittedBy = $submittedEmail;
-                }
-
-                if ($submittedBy === '') {
-                    $submittedBy = 'Unknown User';
-                }
-
-                $title = (string) ($data['title'] ?? '');
-                if ($title === '' && is_array($data['tags'] ?? null)) {
-                    $title = (string) (($data['tags']['title'] ?? '') ?: '');
-                }
-
-                $tips[] = [
-                    'id' => $doc->id(),
-                    'source_collection' => $collectionName,
-                    'landmark_id' => $tipLandmarkId,
-                    'landmark_name' => (string) ($data['landmark_name'] ?? $data['landmarkName'] ?? ''),
-                    'content' => (string) ($data['content'] ?? $data['message'] ?? ''),
-                    'title' => $title,
-                    'can_moderate' => true,
-                    'type' => (string) ($data['type'] ?? ''),
-                    'submitted_by' => $submittedBy,
-                    'submitted_email' => $submittedEmail,
-                    'status' => $status,
-                    'review_note' => (string) ($data['review_note'] ?? $data['reviewNote'] ?? ''),
-                    'reviewed_by' => (string) ($data['reviewed_by'] ?? $data['reviewedBy'] ?? ''),
-                    'created_at' => $this->formatDate($createdAtRaw),
-                    'reviewed_at' => $this->formatDate($reviewedAtRaw),
-                    'created_sort' => $this->normalizeTimestamp($createdAtRaw),
-                ];
             }
         }
 
@@ -153,6 +167,7 @@ class TipReviewController extends Controller
             'source_collection' => 'nullable|in:' . FirestoreTipCollections::validationInRule(),
             'page' => 'nullable|integer|min:1',
             'status_filter' => 'nullable|in:all,pending,accepted,rejected',
+            'return_to_landmark' => 'nullable|boolean',
         ]);
 
         $collection = $payload['source_collection'] ?? 'crowdsourced_tips';
@@ -183,15 +198,21 @@ class TipReviewController extends Controller
 
         $this->firestore->collection('logs')->add([
             'email' => Session::get('email'),
-            'action' => ucfirst($decision) . ' a user tip',
+            'role' => 'curator',
+            'action' => 'Curator ' . ($decision === 'accepted' ? 'accepted' : 'rejected') . ' visitor tip: ' . $tipId,
+            'tip_id' => $tipId,
+            'landmark_id' => $tipLm,
             'timestamp' => now()->toISOString(),
         ]);
 
-        return redirect()->route('curators.tips.index', [
+        $redirect = ! empty($payload['return_to_landmark'])
+            ? redirect()->route('landmarks.show', $tipLm)
+            : redirect()->route('curators.tips.index', [
                 'page' => $payload['page'] ?? 1,
                 'status' => $payload['status_filter'] ?? 'pending',
-            ])
-            ->with('success', 'Tip has been ' . $decision . '.');
+            ]);
+
+        return $redirect->with('success', 'Tip has been '.$decision.'.');
     }
 
     private function assignedLandmarkId(): string

@@ -5,8 +5,6 @@ namespace App\Http\Controllers;
 use App\Services\FirebaseService;
 use App\Services\LandmarkEngagement;
 use App\Support\CuratorAssignedLandmark;
-use App\Support\LandmarkVideo;
-use App\Support\LandmarkVisibility;
 use App\Support\QrResolveUrl;
 use BaconQrCode\Common\ErrorCorrectionLevel;
 use BaconQrCode\Encoder\Encoder as BaconQrEncoder;
@@ -27,7 +25,7 @@ class QrController extends Controller
         return $this->firebase->firestore();
     }
 
-    public function index(Request $request)
+    public function index()
     {
         $accessibleLandmarkIds = Session::get('role') === 'curator'
             ? CuratorAssignedLandmark::browseableIds()
@@ -115,7 +113,7 @@ class QrController extends Controller
             CuratorAssignedLandmark::assertMatches($landmarkId);
         }
 
-        $qrRef = $this->fs()->collection('qr_codes')->add([
+        $this->fs()->collection('qr_codes')->add([
             'code' => $code,
             'landmark_id' => $landmarkId,
             'is_auto' => true,
@@ -123,6 +121,15 @@ class QrController extends Controller
         ]);
 
         $saved = $this->generateQrImage($code, $format);
+        $this->fs()->collection('logs')->add([
+            'email' => (string) Session::get('email', ''),
+            'role' => (string) Session::get('role', ''),
+            'action' => 'Generated QR code: '.$code,
+            'qr_code' => $code,
+            'landmark_id' => $landmarkId,
+            'landmark_name' => (string) ($lm->data()['name'] ?? ''),
+            'timestamp' => now()->toISOString(),
+        ]);
 
         return redirect()->route('curators.qr')
             ->with('success', 'QR mapping created'.($saved ? ' and image generated.' : '.'));
@@ -177,8 +184,17 @@ class QrController extends Controller
         if ($code === '') {
             abort(404);
         }
+        $landmarkId = (string) ($doc->data()['landmark_id'] ?? '');
 
         $this->generateQrImage($code, 'png');
+        $this->fs()->collection('logs')->add([
+            'email' => (string) Session::get('email', ''),
+            'role' => (string) Session::get('role', ''),
+            'action' => 'Downloaded QR code: '.$code,
+            'qr_code' => $code,
+            'landmark_id' => $landmarkId,
+            'timestamp' => now()->toISOString(),
+        ]);
 
         $pngPath = "qrcodes/{$code}.png";
         if (Storage::disk('public')->exists($pngPath)) {
@@ -271,12 +287,10 @@ class QrController extends Controller
 
         $lat = isset($landmark['latitude']) && is_numeric($landmark['latitude']) ? (float) $landmark['latitude'] : null;
         $lng = isset($landmark['longitude']) && is_numeric($landmark['longitude']) ? (float) $landmark['longitude'] : null;
-        $videoUrl = $this->publicVideoUrl(LandmarkVideo::url($landmark));
 
         return response()->view('qr.landmark', [
             'payload' => $result['json'],
             'landmark' => $landmark,
-            'videoUrl' => $videoUrl,
             'mapUrl' => ($lat !== null && $lng !== null)
                 ? 'https://www.openstreetmap.org/?mlat='.$lat.'&mlon='.$lng.'#map=16/'.$lat.'/'.$lng
                 : null,
@@ -291,16 +305,23 @@ class QrController extends Controller
     {
         $normalizedCode = $this->normalizeScannedCode($code);
 
-        $qrDocs = $this->fs()->collection('qr_codes')
+        $qrDoc = null;
+        $qrDocs = $this->fs()->collection('qrcodes')
             ->where('code', '==', $normalizedCode)
             ->limit(1)
             ->documents();
 
-        $qrDoc = null;
         foreach ($qrDocs as $doc) {
             if ($doc->exists()) {
                 $qrDoc = $doc;
                 break;
+            }
+        }
+
+        if (! $qrDoc) {
+            $doc = $this->fs()->collection('qrcodes')->document($normalizedCode)->snapshot();
+            if ($doc->exists()) {
+                $qrDoc = $doc;
             }
         }
 
@@ -316,7 +337,7 @@ class QrController extends Controller
         }
 
         $qrData = $qrDoc->data();
-        $landmarkId = (string) ($qrData['landmark_id'] ?? '');
+        $landmarkId = (string) ($qrData['landmarkId'] ?? '');
         if ($landmarkId === '') {
             return [
                 'ok' => false,
@@ -343,7 +364,7 @@ class QrController extends Controller
 
         $landmark = $landmarkDoc->data();
         $activation = strtolower((string) ($landmark['activation_status'] ?? 'active'));
-        if (! LandmarkVisibility::isPublic($landmark['visibility'] ?? '', $activation)) {
+        if (! \App\Support\LandmarkActivation::isBrowsable($activation)) {
             return [
                 'ok' => false,
                 'status' => 403,
@@ -360,8 +381,9 @@ class QrController extends Controller
             'json' => [
                 'qr_code' => [
                     'id' => $qrDoc->id(),
-                    'code' => (string) ($qrData['code'] ?? $normalizedCode),
+                    'code' => (string) ($qrData['landmarkCode'] ?? $normalizedCode),
                     'landmark_id' => $landmarkId,
+                    'url' => (string) ($qrData['qrUrl'] ?? QrResolveUrl::forCode($normalizedCode)),
                 ],
                 'landmark' => [
                     'id' => $landmarkId,
@@ -370,48 +392,9 @@ class QrController extends Controller
                     'category' => (string) ($landmark['category'] ?? ''),
                     'latitude' => isset($landmark['latitude']) && is_numeric($landmark['latitude']) ? (float) $landmark['latitude'] : null,
                     'longitude' => isset($landmark['longitude']) && is_numeric($landmark['longitude']) ? (float) $landmark['longitude'] : null,
-                    'video_url' => LandmarkVideo::url($landmark),
                 ],
             ],
         ];
-    }
-
-    private function publicVideoUrl(string $videoUrl): string
-    {
-        if (! str_starts_with($videoUrl, 'http://127.0.0.1:8000')) {
-            return $videoUrl;
-        }
-
-        $publicBase = $this->publicBaseUrl();
-        if ($publicBase === '') {
-            return $videoUrl;
-        }
-
-        return rtrim($publicBase, '/').substr($videoUrl, strlen('http://127.0.0.1:8000'));
-    }
-
-    private function publicBaseUrl(): string
-    {
-        foreach ([config('app.public_url'), config('qr.public_base_url')] as $base) {
-            $base = trim((string) $base);
-            if ($base === '') {
-                continue;
-            }
-
-            $host = parse_url($base, PHP_URL_HOST);
-            if (! is_string($host) || $host === '') {
-                continue;
-            }
-
-            $host = strtolower($host);
-            if ($host === 'localhost' || $host === '127.0.0.1' || str_starts_with($host, '127.')) {
-                continue;
-            }
-
-            return $base;
-        }
-
-        return '';
     }
 
     /**
@@ -477,44 +460,126 @@ class QrController extends Controller
 
     public function downloadByLandmark(string $landmarkId)
     {
+        $qr = $this->qrPngForLandmark($landmarkId);
+        if ($qr === null) {
+            abort(404, 'No QR code has been generated for this landmark.');
+        }
+        $this->fs()->collection('logs')->add([
+            'email' => (string) Session::get('email', ''),
+            'role' => (string) Session::get('role', ''),
+            'action' => 'Downloaded QR code: '.pathinfo($qr['filename'], PATHINFO_FILENAME),
+            'qr_code' => pathinfo($qr['filename'], PATHINFO_FILENAME),
+            'landmark_id' => $landmarkId,
+            'timestamp' => now()->toISOString(),
+        ]);
+
+        return response($qr['png'], 200, [
+            'Content-Type' => 'image/png',
+            'Content-Disposition' => 'attachment; filename="'.$qr['filename'].'"',
+            'Content-Length' => (string) strlen($qr['png']),
+            'Cache-Control' => 'no-store, max-age=0',
+        ]);
+    }
+
+    /**
+     * @return array{png: string, filename: string}|null
+     */
+    private function qrPngForLandmark(string $landmarkId): ?array
+    {
+        $qr = $this->qrcodeDocumentForLandmark($landmarkId);
+        if ($qr === null) {
+            return null;
+        }
+
+        $png = $this->generateQrPngForValue($qr['qrUrl']);
+        if (! is_string($png) || ! str_starts_with($png, "\x89PNG\r\n\x1a\n")) {
+            return null;
+        }
+
+        $filenameCode = trim((string) preg_replace('/[^a-zA-Z0-9_-]+/', '-', $qr['landmarkCode']), '-');
+        if ($filenameCode === '') {
+            $filenameCode = 'landmark-code';
+        }
+
+        return [
+            'png' => $png,
+            'filename' => $filenameCode.'-qr.png',
+        ];
+    }
+
+    /**
+     * @return array{landmarkCode: string, qrUrl: string}|null
+     */
+    private function qrcodeDocumentForLandmark(string $landmarkId): ?array
+    {
         if (Session::get('role') === 'curator') {
             CuratorAssignedLandmark::assertMatches($landmarkId);
         }
 
-        $firestore = app(\App\Services\FirebaseService::class)->firestore();
+        $doc = $this->fs()->collection('landmarks')->document($landmarkId)->snapshot();
+        if (! $doc->exists()) {
+            return null;
+        }
 
-        // find QR linked to this landmark
-        $snap = $firestore->collection('qr_codes')
-            ->where('landmark_id', '==', $landmarkId)
-            ->limit(1)
-            ->documents();
+        $code = $this->landmarkCode($doc->data());
+        if ($code === null) {
+            return null;
+        }
 
-        $qrDoc = null;
-        foreach ($snap as $doc) {
-            if (! $doc->exists() || ($doc->data()['is_landmark_join_code'] ?? false)) {
-                continue;
+        $qrUrl = QrResolveUrl::forCode($code);
+        $docRef = $this->fs()->collection('qrcodes')->document($code);
+        $qrDoc = $docRef->snapshot();
+        $payload = [
+            'code' => $code,
+            'landmarkId' => $landmarkId,
+            'landmarkCode' => $code,
+            'landmarkName' => (string) ($doc->data()['name'] ?? 'Untitled'),
+            'qrUrl' => $qrUrl,
+            'status' => 'active',
+        ];
+
+        if (! $qrDoc->exists() || ! array_key_exists('createdAt', $qrDoc->data())) {
+            $payload['createdAt'] = FieldValue::serverTimestamp();
+        }
+
+        $docRef->set($payload, ['merge' => true]);
+
+        return [
+            'landmarkCode' => $code,
+            'qrUrl' => $qrUrl,
+        ];
+    }
+
+    private function landmarkCode(array $landmarkData): ?string
+    {
+        foreach (['code', 'landmarkcode', 'landmark_code', 'landmarkCode', 'qr_code', 'qrCode'] as $field) {
+            $code = trim((string) ($landmarkData[$field] ?? ''));
+            if ($code !== '') {
+                return $code;
             }
-            $qrDoc = $doc;
-            break;
         }
 
-        if (! $qrDoc) {
-            return back()->with('error', 'No QR record found for this landmark.');
+        return null;
+    }
+
+    private function generateQrPngForValue(string $value): string|false
+    {
+        if (class_exists(\SimpleSoftwareIO\QrCode\Facades\QrCode::class)) {
+            try {
+                $png = \SimpleSoftwareIO\QrCode\Facades\QrCode::format('png')
+                    ->size(600)
+                    ->margin(1)
+                    ->generate($value);
+
+                if (is_string($png) && str_starts_with($png, "\x89PNG\r\n\x1a\n")) {
+                    return $png;
+                }
+            } catch (\Throwable $e) {
+                // PNG generation can fail without Imagick; GD fallback below still returns PNG.
+            }
         }
 
-        $code = $qrDoc->data()['code'] ?? null;
-        if (! $code) {
-            return back()->with('error', 'QR record has no code.');
-        }
-
-        $this->generateQrImage($code, 'png');
-
-        $path = "qrcodes/{$code}.png";
-        if (! Storage::disk('public')->exists($path)) {
-            return back()->with('error', 'QR image not found.');
-        }
-
-        return response()->download(storage_path("app/public/{$path}"));
+        return $this->generateQrPngWithGd($value);
     }
 
     /**

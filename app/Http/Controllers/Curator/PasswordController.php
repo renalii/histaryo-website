@@ -13,8 +13,6 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Session;
 use Illuminate\View\View;
-use Kreait\Firebase\Exception\Auth\InvalidPassword;
-use Kreait\Firebase\Exception\Auth\UserNotFound;
 
 class PasswordController extends Controller
 {
@@ -179,22 +177,11 @@ class PasswordController extends Controller
         }
 
         $validated = $request->validate([
-            'current_password' => 'required|string',
-            'password' => 'required|string|min:8|confirmed|different:current_password',
-        ], [
-            'password.different' => 'Your new password must be different from the temporary password.',
+            'password' => 'required|string|min:8|confirmed',
         ]);
 
         $uid = (string) Session::get('uid');
         $email = (string) Session::get('email');
-
-        try {
-            $this->firebase->getAuth()->signInWithEmailAndPassword($email, $validated['current_password']);
-        } catch (UserNotFound|InvalidPassword) {
-            return back()->withErrors([
-                'current_password' => 'The temporary password you entered is incorrect.',
-            ])->withInput();
-        }
 
         try {
             $this->firebase->getAuth()->changeUserPassword($uid, $validated['password']);

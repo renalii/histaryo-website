@@ -6,17 +6,22 @@ use App\Http\Controllers\Controller;
 use App\Services\CuratorAccessibleLandmarks;
 use App\Services\CuratorBrowseableLandmarks;
 use App\Services\FirebaseService;
+use App\Services\LandmarkEngagement;
+use App\Services\QuizResultService;
 use App\Support\CuratorAssignedLandmark;
-use App\Support\FirestoreTipCollections;
-use Carbon\Carbon;
+use App\Support\LandmarkActivation;
+use App\Support\SiteManagerDashboardStatistics;
 use Illuminate\Http\Request;
 
 class DashboardController extends Controller
 {
     protected $firestore;
 
-    public function __construct(protected FirebaseService $firebase)
-    {
+    public function __construct(
+        protected FirebaseService $firebase,
+        protected LandmarkEngagement $engagement,
+        protected QuizResultService $quizResults
+    ) {
         $this->firestore = $firebase->firestore();
     }
 
@@ -47,194 +52,34 @@ class DashboardController extends Controller
 
     public function index()
     {
-        $db = $this->firestore;
+        $landmarkId = CuratorAssignedLandmark::id();
+        $landmark = [
+            'id' => $landmarkId,
+            'name' => 'Assigned landmark',
+            'status' => 'Unavailable',
+        ];
 
-        $browseableIds = CuratorAssignedLandmark::browseableIds();
-
-        $landmarksCount = count($browseableIds);
-
-        $quizCount = 0;
-        foreach ($browseableIds as $lid) {
-            $quizCount += iterator_count($db->collection('question_bank')
-                ->where('landmark_id', '==', $lid)
-                ->documents());
-        }
-
-        $weeks = collect(range(7, 0))->map(function ($i) {
-            return Carbon::now()->startOfWeek()->subWeeks($i);
-        });
-
-        $weekLabels = [];
-        $landmarksPerWeek = [];
-        $quizPerWeek = [];
-
-        $scopedLandmarkDocs = [];
-        foreach ($browseableIds as $lid) {
-            $snap = $db->collection('landmarks')->document($lid)->snapshot();
-            if ($snap->exists()) {
-                $scopedLandmarkDocs[] = $snap;
+        if ($landmarkId !== null) {
+            $snapshot = $this->firestore->collection('landmarks')->document($landmarkId)->snapshot();
+            if ($snapshot->exists()) {
+                $data = $snapshot->data();
+                $activationStatus = strtolower(trim((string) ($data['activation_status'] ?? 'active')));
+                $landmark['name'] = trim((string) ($data['name'] ?? '')) ?: 'Untitled landmark';
+                $landmark['status'] = LandmarkActivation::label($activationStatus);
             }
         }
 
-        $quizForWeeksDocs = [];
-        foreach ($browseableIds as $lid) {
-            $quizForWeeksDocs = array_merge(
-                $quizForWeeksDocs,
-                iterator_to_array($db->collection('question_bank')->where('landmark_id', '==', $lid)->documents())
-            );
-        }
-
-        foreach ($weeks as $startOfWeek) {
-            $endOfWeek = $startOfWeek->copy()->endOfWeek();
-
-            $weekLabels[] = $startOfWeek->format('M d').'–'.$endOfWeek->format('M d');
-
-            $lCount = 0;
-            foreach ($scopedLandmarkDocs as $scopedLandmarkDoc) {
-                if (! $scopedLandmarkDoc->exists()) {
-                    continue;
-                }
-                $d = $scopedLandmarkDoc->data();
-                if (empty($d['created_at'])) {
-                    continue;
-                }
-                try {
-                    $createdAt = Carbon::parse((string) $d['created_at']);
-                    if ($createdAt->between($startOfWeek, $endOfWeek)) {
-                        $lCount++;
-                    }
-                } catch (\Exception $e) {
-                }
-            }
-            $landmarksPerWeek[] = $lCount;
-
-            $tCount = 0;
-            foreach ($quizForWeeksDocs as $doc) {
-                if (! $doc->exists()) {
-                    continue;
-                }
-                $td = $doc->data();
-                if (empty($td['created_at'])) {
-                    continue;
-                }
-                try {
-                    $createdAt = Carbon::parse((string) $td['created_at']);
-                    if ($createdAt->between($startOfWeek, $endOfWeek)) {
-                        $tCount++;
-                    }
-                } catch (\Exception $e) {
-                }
-            }
-            $quizPerWeek[] = $tCount;
-        }
-
-        $recentLogs = [];
-        foreach ($db->collection('logs')->orderBy('timestamp', 'DESC')->limit(10)->documents() as $doc) {
-            if (! $doc->exists()) {
-                continue;
-            }
-            $d = $doc->data();
-            $recentLogs[] = [
-                'action' => $d['action'] ?? 'Action',
-                'email' => $d['email'] ?? 'user@example.com',
-                'timestamp' => $this->formatRelativeTime($d['timestamp'] ?? null),
-            ];
-        }
-
-        $recentLandmarks = [];
-        foreach ($scopedLandmarkDocs as $scopedLandmarkDoc) {
-            if (! $scopedLandmarkDoc->exists()) {
-                continue;
-            }
-            $ld = $scopedLandmarkDoc->data();
-            $recentLandmarks[] = [
-                'id' => $scopedLandmarkDoc->id(),
-                'name' => $ld['name'] ?? 'Untitled',
-                'location' => $ld['location'] ?? null,
-                'latitude' => $ld['latitude'] ?? null,
-                'longitude' => $ld['longitude'] ?? null,
-                'created_at' => $this->formatRelativeTime($ld['created_at'] ?? null),
-            ];
-        }
-
-        $writableSet = $this->tipLandmarkKeySet(CuratorAssignedLandmark::writableIds());
-        $browseableSet = $this->tipLandmarkKeySet($browseableIds);
-        $pending = 0;
-        foreach (FirestoreTipCollections::names() as $tipsCollection) {
-            $scopeSet = FirestoreTipCollections::usesBrowseableScope($tipsCollection) ? $browseableSet : $writableSet;
-            foreach ($db->collection($tipsCollection)->documents() as $tipDoc) {
-                if (! $tipDoc->exists()) {
-                    continue;
-                }
-                $tipData = $tipDoc->data();
-                $lid = FirestoreTipCollections::landmarkIdFromData($tipData);
-                if ($scopeSet !== []) {
-                    if ($lid === '' || ! isset($scopeSet[$lid])) {
-                        continue;
-                    }
-                }
-                $status = strtolower((string) ($tipData['status'] ?? 'pending'));
-                if ($status === '' || $status === 'pending') {
-                    $pending++;
-                }
-            }
-        }
+        $activity = $this->engagement->analyticsForLandmarks($landmarkId !== null ? [$landmarkId] : []);
+        $quizResults = $landmarkId !== null ? $this->quizResults->forLandmark($landmarkId) : [];
+        $statistics = SiteManagerDashboardStatistics::fromRecords(
+            array_merge($activity['records'], $quizResults),
+            $landmarkId !== null ? [$landmarkId => $landmark['name']] : []
+        );
+        $landmark['total_visitors'] = $statistics['total_visitors'];
 
         return view('curators.dashboard', [
-            'stats' => [
-                'landmarks' => $landmarksCount,
-                'quiz' => $quizCount,
-                'pending' => $pending,
-                'logs' => count($recentLogs),
-            ],
-            'recentLandmarks' => $recentLandmarks,
-            'recentLogs' => $recentLogs,
-            'weekLabels' => $weekLabels,
-            'landmarksPerWeek' => $landmarksPerWeek,
-            'quizPerWeek' => $quizPerWeek,
+            'assignedLandmark' => $landmark,
+            'visitorStatistics' => $statistics,
         ]);
-    }
-
-    /**
-     * @param  list<string>  $ids
-     * @return array<string, true>
-     */
-    private function tipLandmarkKeySet(array $ids): array
-    {
-        $set = [];
-        foreach ($ids as $id) {
-            $k = trim((string) $id);
-            if ($k !== '') {
-                $set[$k] = true;
-            }
-        }
-
-        return $set;
-    }
-
-    private function formatRelativeTime($value): string
-    {
-        if (!$value) return '—';
-
-        if ($value instanceof \DateTimeInterface) {
-            return Carbon::instance($value)->diffForHumans();
-        }
-
-        if (is_object($value) && method_exists($value, 'get')) {
-            try {
-                $dt = $value->get();
-                if ($dt instanceof \DateTimeInterface) {
-                    return Carbon::instance($dt)->diffForHumans();
-                }
-            } catch (\Throwable $e) {
-                // fall through
-            }
-        }
-
-        try {
-            return Carbon::parse((string) $value)->diffForHumans();
-        } catch (\Throwable $e) {
-            return '—';
-        }
     }
 }

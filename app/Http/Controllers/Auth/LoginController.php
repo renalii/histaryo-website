@@ -89,12 +89,8 @@ class LoginController extends Controller
                 ? (string) $profile['role']
                 : $this->firebase->normalizeUserRole(is_string($role) ? $role : null);
 
-            if ($profile && $fsRole === 'visitor') {
-                $visitorPatch = UserApprovalPolicy::visitorAutoApprovalPatch($userData);
-                if ($visitorPatch !== null) {
-                    $profile['ref']->set($visitorPatch, ['merge' => true]);
-                    $userData = array_merge($userData, $visitorPatch);
-                }
+            if (! in_array($fsRole, ['admin', 'curator', 'site_manager'], true)) {
+                return back()->withErrors(['error' => 'Unauthorized role.']);
             }
 
             $approvalStatus = $profile
@@ -103,17 +99,6 @@ class LoginController extends Controller
             $requiresApproval = $profile
                 ? UserApprovalPolicy::effectiveRequiresApproval($fsRole, $userData['requires_approval'] ?? null)
                 : false;
-
-            if ($fsRole === 'visitor') {
-                $approvalStatus = 'approved';
-                $requiresApproval = false;
-
-                Log::info('Visitor login loaded Firestore profile.', [
-                    'uid' => $uid,
-                    'collection' => $profile['collection'] ?? $this->firebase->userCollectionPath('visitor'),
-                    'profile_found' => $profile !== null,
-                ]);
-            }
 
             if ($fsRole === 'curator' && strtolower((string) ($userData['account_status'] ?? 'active')) === 'inactive') {
                 return back()->withErrors([
@@ -172,12 +157,7 @@ class LoginController extends Controller
                 Session::forget('writable_landmark_ids');
             }
 
-            
-            $this->firebase->firestore()->collection('logs')->add([
-                'email' => $email,
-                'action' => 'Logged in',
-                'timestamp' => now()->toISOString(),
-            ]);
+            $this->queueLoginAuditLog($email, $fsRole);
 
             
             if ($fsRole === 'admin') {
@@ -202,15 +182,12 @@ class LoginController extends Controller
 
         } catch (UserNotFound | InvalidPassword | FailedToSignIn $e) {
             return back()->withErrors([
-                'error' => 'Login failed. Please check your username/email and password, then try again.',
+                'error' => $this->loginFailureMessage($e, $email),
             ]);
         } catch (\Exception $e) {
-            $message = $e->getMessage();
-            if (str_contains($message, 'INVALID_LOGIN_CREDENTIALS')
-                || str_contains($message, 'INVALID_PASSWORD')
-                || str_contains($message, 'EMAIL_NOT_FOUND')) {
+            if ($this->isCredentialFailure($e)) {
                 return back()->withErrors([
-                    'error' => 'Login failed. Please check your username/email and password, then try again.',
+                    'error' => $this->loginFailureMessage($e, $email),
                 ]);
             }
 
@@ -221,19 +198,29 @@ class LoginController extends Controller
     public function logout(Request $request): RedirectResponse
     {
         $email = $request->session()->get('email');
+        $role = (string) $request->session()->get('role', '');
 
         if ($email) {
-            $this->firebase->firestore()->collection('logs')->add([
-                'email' => $email,
-                'action' => 'Logged out',
-                'timestamp' => now()->toISOString(),
-            ]);
+            try {
+                $roleLabel = \App\Support\SystemLogDisplay::roleLabel($role);
+                $this->firebase->firestore()->collection('logs')->add([
+                    'email' => $email,
+                    'role' => $role,
+                    'action' => ($roleLabel !== 'N/A' ? $roleLabel : 'User').' logged out',
+                    'timestamp' => now()->toISOString(),
+                ]);
+            } catch (\Throwable $exception) {
+                Log::warning('Unable to write Firebase logout audit log.', [
+                    'email' => $email,
+                    'exception' => $exception->getMessage(),
+                ]);
+            }
         }
 
         $request->session()->invalidate();
         $request->session()->regenerateToken();
 
-        return redirect('/login')->with('success', 'Logged out successfully.');
+        return redirect()->route('login')->with('success', 'Logged out successfully.');
     }
 
     private function storeCuratorRedirectIfValid(string $url): void
@@ -264,5 +251,76 @@ class LoginController extends Controller
             'Pragma' => 'no-cache',
             'Expires' => '0',
         ];
+    }
+
+    private function loginFailureMessage(\Throwable $exception, string $email): string
+    {
+        if ($exception instanceof UserNotFound || $this->exceptionContains($exception, 'EMAIL_NOT_FOUND')) {
+            return 'Email not found. Please check your email and try again.';
+        }
+
+        if ($exception instanceof InvalidPassword || $this->exceptionContains($exception, 'INVALID_PASSWORD')) {
+            return 'Incorrect password. Please try again.';
+        }
+
+        if ($this->exceptionContains($exception, 'INVALID_LOGIN_CREDENTIALS')) {
+            $emailExists = $this->emailExists($email);
+
+            return match ($emailExists) {
+                true => 'Incorrect password. Please try again.',
+                false => 'Email not found. Please check your email and try again.',
+                default => 'Invalid email or password. Please try again.',
+            };
+        }
+
+        return 'Invalid email or password. Please try again.';
+    }
+
+    private function isCredentialFailure(\Throwable $exception): bool
+    {
+        return $exception instanceof UserNotFound
+            || $exception instanceof InvalidPassword
+            || $exception instanceof FailedToSignIn
+            || $this->exceptionContains($exception, 'INVALID_LOGIN_CREDENTIALS')
+            || $this->exceptionContains($exception, 'INVALID_PASSWORD')
+            || $this->exceptionContains($exception, 'EMAIL_NOT_FOUND');
+    }
+
+    private function exceptionContains(\Throwable $exception, string $needle): bool
+    {
+        return str_contains(strtoupper($exception->getMessage()), $needle);
+    }
+
+    private function emailExists(string $email): ?bool
+    {
+        try {
+            $this->firebase->getAuth()->getUserByEmail($email);
+
+            return true;
+        } catch (UserNotFound) {
+            return false;
+        } catch (\Throwable) {
+            return null;
+        }
+    }
+
+    private function queueLoginAuditLog(string $email, string $role): void
+    {
+        app()->terminating(function () use ($email, $role): void {
+            try {
+                $roleLabel = \App\Support\SystemLogDisplay::roleLabel($role);
+                $this->firebase->firestore()->collection('logs')->add([
+                    'email' => $email,
+                    'role' => $role,
+                    'action' => ($roleLabel !== 'N/A' ? $roleLabel : 'User').' logged in',
+                    'timestamp' => now()->toISOString(),
+                ]);
+            } catch (\Throwable $exception) {
+                Log::warning('Unable to write Firebase login audit log.', [
+                    'email' => $email,
+                    'exception' => $exception->getMessage(),
+                ]);
+            }
+        });
     }
 }

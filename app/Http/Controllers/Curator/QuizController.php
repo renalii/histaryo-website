@@ -72,8 +72,6 @@ class QuizController extends Controller
                 'question'       => $d['question'] ?? '',
                 'choices'        => array_values($d['choices'] ?? []),
                 'correct_answer' => $d['correct_answer'] ?? '',
-                'created_at'     => self::firestoreTimeToString($d['created_at'] ?? null),
-                'updated_at'     => self::firestoreTimeToString($d['updated_at'] ?? null),
             ];
         }
 
@@ -109,7 +107,6 @@ class QuizController extends Controller
         }
 
         $autoOpenQuiz = null;
-        $quizDocumentTitle = null;
         if ($openQuizId !== null && $openQuizId !== '') {
             $snap = $this->firebase->firestore()->collection('question_bank')->document($openQuizId)->snapshot();
             if (! $snap->exists()) {
@@ -130,10 +127,7 @@ class QuizController extends Controller
                 'question'       => $d['question'] ?? '',
                 'choices'        => array_values($d['choices'] ?? []),
                 'correct_answer' => $d['correct_answer'] ?? '',
-                'created_at'     => self::firestoreTimeToString($d['created_at'] ?? null),
-                'updated_at'     => self::firestoreTimeToString($d['updated_at'] ?? null),
             ];
-            $quizDocumentTitle = $landmarkName;
         }
 
         $assignedLandmarkId = trim((string) (Session::get('assigned_landmark_id') ?? ''));
@@ -143,8 +137,7 @@ class QuizController extends Controller
             'landmarkList',
             'writableLandmarkIdSet',
             'assignedLandmarkId',
-            'autoOpenQuiz',
-            'quizDocumentTitle'
+            'autoOpenQuiz'
         ));
     }
 
@@ -176,6 +169,14 @@ class QuizController extends Controller
             'choices'        => array_values(array_filter($request->choices, fn($c) => $c !== null && $c !== '')),
             'correct_answer' => (string) $request->correct_answer,
         ]);
+        $this->firebase->firestore()->collection('logs')->add([
+            'email' => Session::get('email'),
+            'role' => 'curator',
+            'action' => 'Curator added quiz question: '.str($request->question)->limit(80),
+            'landmark_id' => $assigned,
+            'quiz_question' => (string) $request->question,
+            'timestamp' => now()->toISOString(),
+        ]);
 
         return back()->with('success', 'Quiz added successfully');
     }
@@ -206,6 +207,15 @@ class QuizController extends Controller
             'choices'        => array_values(array_filter($request->choices, fn($c) => $c !== null && $c !== '')),
             'correct_answer' => (string) $request->correct_answer,
         ]);
+        $this->firebase->firestore()->collection('logs')->add([
+            'email' => Session::get('email'),
+            'role' => 'curator',
+            'action' => 'Curator updated quiz question: '.str($request->question)->limit(80),
+            'landmark_id' => (string) ($snap['landmark_id'] ?? ''),
+            'quiz_id' => $id,
+            'quiz_question' => (string) $request->question,
+            'timestamp' => now()->toISOString(),
+        ]);
 
         return redirect()
             ->route('curators.quiz.all')
@@ -219,31 +229,21 @@ class QuizController extends Controller
             abort(404);
         }
         CuratorAssignedLandmark::assertMatches((string) ($snap['landmark_id'] ?? ''));
+        $question = (string) ($snap['question'] ?? '');
 
         $this->firebase->deleteQuiz($id);
+        $this->firebase->firestore()->collection('logs')->add([
+            'email' => Session::get('email'),
+            'role' => 'curator',
+            'action' => 'Curator deleted quiz question: '.($question !== '' ? str($question)->limit(80) : $id),
+            'landmark_id' => (string) ($snap['landmark_id'] ?? ''),
+            'quiz_id' => $id,
+            'quiz_question' => $question,
+            'timestamp' => now()->toISOString(),
+        ]);
 
         return redirect()
             ->route('curators.quiz.all')
             ->with('success', 'Quiz deleted successfully');
-    }
-
-    private static function firestoreTimeToString(mixed $value): ?string
-    {
-        if ($value === null) {
-            return null;
-        }
-
-        if ($value instanceof \DateTimeInterface) {
-            return $value->format(\DateTimeInterface::ATOM);
-        }
-
-        if (is_object($value) && method_exists($value, 'get')) {
-            $dt = $value->get();
-            if ($dt instanceof \DateTimeInterface) {
-                return $dt->format(\DateTimeInterface::ATOM);
-            }
-        }
-
-        return is_scalar($value) ? (string) $value : null;
     }
 }

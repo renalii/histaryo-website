@@ -5,11 +5,12 @@ namespace App\Http\Controllers\SiteManager;
 use App\Http\Controllers\Controller;
 use App\Services\CloudinaryImageService;
 use App\Services\FirebaseService;
+use App\Services\SiteManagerReadModel;
 use App\Support\LandmarkEvidence;
-use App\Support\LandmarkVisibility;
+use App\Support\QrResolveUrl;
+use Google\Cloud\Firestore\FieldValue;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Session;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 
@@ -18,11 +19,60 @@ class SiteManagerController extends Controller
     public function __construct(
         protected FirebaseService $firebase,
         protected CloudinaryImageService $cloudinary,
+        protected SiteManagerReadModel $siteManagerReadModel,
     ) {}
 
     public function create()
     {
         return redirect()->route('sitemanager.landmarks')->withFragment('create-landmark');
+    }
+
+    public function map(Request $request)
+    {
+        $managerUid = trim((string) $request->session()->get('uid', ''));
+        $landmarks = [];
+
+        foreach ($this->siteManagerReadModel->landmarks($managerUid) as $landmark) {
+            $lat = $landmark['latitude'] ?? $landmark['lati'] ?? null;
+            $lng = $landmark['longitude'] ?? $landmark['longti'] ?? null;
+
+            if (! is_numeric($lat) || ! is_numeric($lng)) {
+                continue;
+            }
+
+            $location = trim((string) ($landmark['location'] ?? ''));
+            if ($location === '') {
+                $location = number_format((float) $lat, 6).', '.number_format((float) $lng, 6);
+            }
+
+            $landmarkId = (string) ($landmark['id'] ?? '');
+            $imageSrc = '';
+            if (! empty($landmark['image_url'] ?? null)) {
+                $imageSrc = (string) $landmark['image_url'];
+            } elseif (! empty($landmark['image_base64'] ?? null)) {
+                $imageBase64 = (string) $landmark['image_base64'];
+                $imageSrc = str_starts_with($imageBase64, 'data:')
+                    ? $imageBase64
+                    : 'data:'.($landmark['image_mime'] ?? 'image/jpeg').';base64,'.$imageBase64;
+            }
+
+            $landmarks[] = [
+                'id' => $landmarkId,
+                'name' => (string) ($landmark['name'] ?? 'Untitled'),
+                'status' => (string) ($landmark['activation_status'] ?? 'active'),
+                'location' => $location,
+                'description' => (string) ($landmark['description'] ?? ''),
+                'imageSrc' => $imageSrc,
+                'detailsUrl' => $landmarkId !== '' ? route('sitemanager.landmarks.show', $landmarkId) : '',
+                'latitude' => (float) $lat,
+                'longitude' => (float) $lng,
+            ];
+        }
+
+        return view('sitemanager.map', [
+            'landmarks' => $landmarks,
+            'mapboxToken' => config('services.mapbox.token'),
+        ]);
     }
 
     public function store(Request $request)
@@ -34,15 +84,14 @@ class SiteManagerController extends Controller
                 'landmarkcode' => ['nullable', 'string', 'max:48', 'regex:/^[A-Za-z0-9_-]*$/'],
                 'category' => 'required|string',
                 'description' => 'nullable|string',
+                'location' => 'nullable|string|max:255',
+                'tags' => 'nullable|string|max:500',
                 'latitude' => 'nullable|numeric',
                 'longitude' => 'nullable|numeric',
-                'video' => 'nullable|file|mimes:mp4,mov,avi,webm,mkv|max:51200',
                 'image' => 'nullable|image|max:512',
             ], LandmarkEvidence::validationRules()),
             array_merge([
                 'image.max' => 'The landmark photo must be 512 KB or smaller. Compress or resize the image, then choose it again—the file box clears after Save when validation fails.',
-                'video.mimes' => 'The video must be an MP4, MOV, AVI, WebM, or MKV file.',
-                'video.max' => 'The video must be 50 MB or smaller.',
             ], LandmarkEvidence::validationMessages())
         );
 
@@ -84,20 +133,26 @@ class SiteManagerController extends Controller
 
         $managerUid = (string) Session::get('uid');
         $submittedAt = now()->toDateTimeString();
+        $tags = collect(preg_split('/[,;\r\n]+/', (string) $request->input('tags', ''), -1, PREG_SPLIT_NO_EMPTY))
+            ->map(fn ($tag) => trim((string) $tag))
+            ->filter()
+            ->unique(fn ($tag) => strtolower($tag))
+            ->values()
+            ->all();
 
         $payload = [
             'name' => (string) $request->name,
             'landmarkcode' => $landmarkCode,
             'category' => (string) $request->category,
             'description' => $request->filled('description') ? (string) $request->description : '',
-            'video_url' => '',
+            'location' => $request->filled('location') ? (string) $request->location : '',
+            'tags' => $tags,
             'image_url' => '',
             'image_public_id' => '',
             'image_base64' => '',
             'image_mime' => '',
             'manager_uid' => $managerUid,
             'activation_status' => 'pending',
-            'visibility' => LandmarkVisibility::HIDDEN,
             'submitted_at' => $submittedAt,
             'created_at' => $submittedAt,
         ];
@@ -111,18 +166,15 @@ class SiteManagerController extends Controller
         try {
             $ref = $this->firebase->firestore()->collection('landmarks')->add($payload);
             $landmarkId = $ref->id();
-
-            if ($request->hasFile('video')) {
-                $videoFile = $request->file('video');
-                $videoPath = $videoFile->store('landmark-videos/'.$landmarkId, 'public');
-                $ref->set([
-                    'video_url' => asset(Storage::url($videoPath)),
-                    'video_path' => $videoPath,
-                    'video_mime' => $videoFile->getMimeType(),
-                    'video_filename' => $videoFile->getClientOriginalName(),
-                    'video_is_upload' => true,
-                ], ['merge' => true]);
-            }
+            $this->firebase->firestore()->collection('qrcodes')->document($landmarkCode)->set([
+                'code' => $landmarkCode,
+                'landmarkId' => $landmarkId,
+                'landmarkCode' => $landmarkCode,
+                'landmarkName' => (string) $request->name,
+                'qrUrl' => QrResolveUrl::forCode($landmarkCode),
+                'status' => 'active',
+                'createdAt' => FieldValue::serverTimestamp(),
+            ], ['merge' => true]);
 
             $evidenceDocuments = LandmarkEvidence::storeUploadedFiles($landmarkId, $evidenceFiles);
             if ($evidenceDocuments === []) {
@@ -151,51 +203,16 @@ class SiteManagerController extends Controller
 
         $this->firebase->firestore()->collection('logs')->add([
             'email' => (string) Session::get('email', ''),
-            'action' => 'Site Manager submitted landmark for approval',
+            'role' => 'site_manager',
+            'action' => 'Site Manager submitted landmark for approval: '.(string) $request->name,
             'landmark_id' => $landmarkId,
+            'landmark_name' => (string) $request->name,
             'timestamp' => now()->toIso8601String(),
         ]);
+        $this->siteManagerReadModel->forget($managerUid);
 
         return redirect()->route('sitemanager.landmarks')
             ->with('status', 'Landmark submitted for administrator approval.');
-    }
-
-    public function updateVisibility(Request $request, string $id)
-    {
-        $validated = $request->validate([
-            'visibility' => ['required', 'string', 'in:published,archived,hidden'],
-        ]);
-
-        $managerUid = trim((string) Session::get('uid', ''));
-        $ref = $this->firebase->firestore()->collection('landmarks')->document($id);
-        $snapshot = $ref->snapshot();
-        if (! $snapshot->exists()) {
-            abort(404);
-        }
-
-        $data = $snapshot->data();
-        $ownerUid = trim((string) ($data['manager_uid'] ?? $data['managerUid'] ?? ''));
-        if ($managerUid === '' || $ownerUid === '' || $managerUid !== $ownerUid) {
-            abort(403);
-        }
-
-        $visibility = LandmarkVisibility::normalize($validated['visibility']);
-        $ref->set([
-            'visibility' => $visibility,
-            'visibility_updated_at' => now()->toISOString(),
-            'visibility_updated_by_uid' => $managerUid,
-            'updated_at' => now()->toDateTimeString(),
-        ], ['merge' => true]);
-
-        $this->firebase->firestore()->collection('logs')->add([
-            'email' => (string) Session::get('email', ''),
-            'action' => 'Site Manager changed landmark visibility to '.LandmarkVisibility::label($visibility),
-            'landmark_id' => $id,
-            'timestamp' => now()->toISOString(),
-        ]);
-
-        return redirect()->route('sitemanager.landmarks.show', $id)
-            ->with('status', 'Landmark visibility updated to '.LandmarkVisibility::label($visibility).'.');
     }
 
     protected function generateUniqueLandmarkCode(): string
@@ -219,5 +236,49 @@ class SiteManagerController extends Controller
         }
 
         return 'LM'.strtoupper(Str::random(10));
+    }
+
+    public function destroy(Request $request, string $id)
+    {
+        $managerUid = (string) Session::get('uid', '');
+        if ($managerUid === '') {
+            abort(403);
+        }
+
+        $landmarkRef = $this->firebase->firestore()->collection('landmarks')->document($id);
+        $snapshot = $landmarkRef->snapshot();
+        if (! $snapshot->exists()) {
+            return redirect()->route('sitemanager.landmarks', ['view' => 'list'])
+                ->with('status_err', 'Landmark not found.');
+        }
+
+        $data = $snapshot->data();
+        $ownerUid = trim((string) ($data['manager_uid'] ?? $data['managerUid'] ?? ''));
+        if ($ownerUid === '' || $ownerUid !== $managerUid) {
+            abort(403);
+        }
+
+        $landmarkName = trim((string) ($data['name'] ?? ''));
+
+        try {
+            $landmarkRef->delete();
+            $this->firebase->firestore()->collection('logs')->add([
+                'email' => (string) Session::get('email', ''),
+                'role' => 'site_manager',
+                'action' => 'Site Manager deleted landmark: '.($landmarkName !== '' ? $landmarkName : $id),
+                'landmark_id' => $id,
+                'landmark_name' => $landmarkName,
+                'timestamp' => now()->toISOString(),
+            ]);
+            $this->siteManagerReadModel->forget($managerUid);
+        } catch (\Throwable $e) {
+            report($e);
+
+            return redirect()->route('sitemanager.landmarks', ['view' => 'list'])
+                ->with('status_err', 'Could not delete landmark: '.$e->getMessage());
+        }
+
+        return redirect()->route('sitemanager.landmarks', ['view' => 'list'])
+            ->with('status', 'Landmark deleted successfully.');
     }
 }
