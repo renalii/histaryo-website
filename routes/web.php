@@ -63,12 +63,12 @@ Route::prefix('curators')->middleware('curator.auth')->group(function () {
     Route::delete('/quiz/{id}', [QuizController::class, 'destroy'])->name('curators.quiz.destroy');
 
     Route::get('/tips', [TipReviewController::class, 'index'])->name('curators.tips.index');
-    Route::get('/tips/data', [TipReviewController::class, 'fetchData'])->name('curators.tips.data');
     Route::post('/tips/{tipId}/review', [TipReviewController::class, 'review'])->name('curators.tips.review');
 }); 
 
 
-Route::get('/qr/resolve/{code}', [QrController::class, 'resolve'])->name('qr.resolve');
+Route::get('/resolve/{code}', [QrController::class, 'resolve'])->name('qr.resolve');
+Route::get('/qr/resolve/{code}', [QrController::class, 'resolve'])->name('qr.resolve.legacy');
 
     
 Route::prefix('admin')->middleware(['web', 'panel.admin'])->group(function () {
@@ -84,6 +84,7 @@ Route::prefix('admin')->middleware(['web', 'panel.admin'])->group(function () {
     Route::post('/landmarks/{id}/approve', [AdminController::class, 'approveLandmark'])->name('admin.landmarks.approve');
     Route::post('/landmarks/{id}/reject', [AdminController::class, 'rejectLandmark'])->name('admin.landmarks.reject');
     Route::get('/logs', [AdminController::class, 'logs'])->name('admin.logs');
+    Route::get('/logs/clear', fn () => redirect()->route('admin.logs'))->name('admin.logs.clear.redirect');
     Route::delete('/logs/clear', [AdminController::class, 'clearLogs'])->name('admin.logs.clear');
     Route::get('/reports', [ReportController::class, 'index'])->name('admin.reports');
     Route::get('/reports/export/{any?}', [ReportController::class, 'export'])->name('admin.reports.export');
@@ -92,17 +93,18 @@ Route::prefix('admin')->middleware(['web', 'panel.admin'])->group(function () {
 Route::prefix('sitemanager')->middleware(['web', 'panel.sitemanager'])->group(function () {
     Route::get('/', [AdminController::class, 'dashboard'])->name('sitemanager.dashboard');
     Route::get('/curators', [AdminController::class, 'users'])->name('sitemanager.curators');
+    Route::get('/map', [SiteManagerController::class, 'map'])->name('sitemanager.map');
     Route::get('/curators/create', [SiteManagerCuratorController::class, 'create'])->name('sitemanager.curators.create');
     Route::post('/curators', [SiteManagerCuratorController::class, 'store'])->name('sitemanager.curators.store');
     Route::put('/curators/{uid}', [SiteManagerCuratorController::class, 'update'])->name('sitemanager.curators.update');
+    Route::delete('/curators/{uid}', [SiteManagerCuratorController::class, 'destroy'])->name('sitemanager.curators.destroy');
     Route::post('/curators/{uid}/deactivate', [SiteManagerCuratorController::class, 'deactivate'])->name('sitemanager.curators.deactivate');
-    Route::post('/curators/{uid}/activate', [SiteManagerCuratorController::class, 'activate'])->name('sitemanager.curators.activate');
     Route::post('/curators/{uid}/approve', [AdminController::class, 'approveUser'])->name('sitemanager.curators.approve');
     Route::post('/curators/{uid}/reject', [AdminController::class, 'rejectUser'])->name('sitemanager.curators.reject');
     Route::get('/landmarks', [AdminController::class, 'landmarks'])->name('sitemanager.landmarks');
     Route::get('/landmarks/create', [SiteManagerController::class, 'create'])->name('sitemanager.landmarks.create');
     Route::post('/landmarks', [SiteManagerController::class, 'store'])->name('sitemanager.landmarks.store');
-    Route::patch('/landmarks/{id}/visibility', [SiteManagerController::class, 'updateVisibility'])->name('sitemanager.landmarks.visibility');
     Route::get('/landmarks/{id}/image', [AdminController::class, 'landmarkImage'])->name('sitemanager.landmarks.image');
+    Route::delete('/landmarks/{id}', [SiteManagerController::class, 'destroy'])->name('sitemanager.landmarks.destroy');
     Route::get('/landmarks/{id}', [AdminController::class, 'showLandmark'])->name('sitemanager.landmarks.show');
 });
