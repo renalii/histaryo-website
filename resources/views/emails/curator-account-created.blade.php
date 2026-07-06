@@ -1,3 +1,6 @@
+@php
+    $landmarkAssignmentLabel = preg_replace('/\s+\([A-Za-z0-9_-]+\)\s*$/', '', (string) $landmarkLabel);
+@endphp
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -13,11 +16,11 @@
                 <tr>
                     <td style="padding:32px 36px 28px;">
                         <h1 style="margin:0 0 18px;font-size:22px;font-weight:400;color:#333333;">
-                            Welcome to Histaryo {{ $firstName }}
+                            Welcome to Histaryo
                         </h1>
 
                         <p style="margin:0 0 24px;font-size:14px;line-height:1.6;color:#555555;">
-                            Below are the details of your account. Please use the link below to set your password.
+                            Below are the details of your account. Use the link below to create your password.
                         </p>
 
                         <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="font-size:14px;line-height:1.8;color:#333333;">
@@ -34,7 +37,7 @@
                                 <td style="padding:2px 0;">{{ $email }}</td>
                             </tr>
                             <tr>
-                                <td style="padding:2px 0;vertical-align:top;"><strong>Temporary Password</strong></td>
+                                <td style="padding:2px 0;vertical-align:top;"><strong>Password</strong></td>
                                 <td style="padding:2px 0;">{{ $plainPassword }}</td>
                             </tr>
                             <tr>
@@ -42,8 +45,8 @@
                                 <td style="padding:2px 0;">Curator</td>
                             </tr>
                             <tr>
-                                <td style="padding:2px 0;vertical-align:top;"><strong>Landmark</strong></td>
-                                <td style="padding:2px 0;">{{ $landmarkLabel }}</td>
+                                <td style="padding:2px 0;vertical-align:top;"><strong>Landmark Assignment</strong></td>
+                                <td style="padding:2px 0;">{{ $landmarkAssignmentLabel }}</td>
                             </tr>
                         </table>
 

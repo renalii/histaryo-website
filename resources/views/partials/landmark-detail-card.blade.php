@@ -1,15 +1,9 @@
 @php
     use App\Support\LandmarkActivation;
-    use App\Support\LandmarkVideo;
-    use App\Support\LandmarkVisibility;
 
     $data = $data ?? [];
     $landmarkId = (string) ($landmarkId ?? '');
     $activationStatus = strtolower((string) ($data['activation_status'] ?? 'active'));
-    $showVisibilityBadge = $showVisibilityBadge ?? true;
-    $visibility = $showVisibilityBadge
-        ? LandmarkVisibility::normalize($data['visibility'] ?? '', $activationStatus)
-        : null;
 
     $latOut = $data['latitude'] ?? $data['lati'] ?? null;
     $lngOut = $data['longitude'] ?? $data['longti'] ?? null;
@@ -20,7 +14,7 @@
         ? 'lm-detail-map-' . preg_replace('/[^a-zA-Z0-9_-]/', '_', $landmarkId)
         : 'lm-detail-map';
 
-    $videoFileUrl = LandmarkVideo::url($data);
+    $tipsReview = $tipsReview ?? null;
     $imageSrc = null;
 
     if (! empty($data['image_url'] ?? null)) {
@@ -32,10 +26,6 @@
             : 'data:' . $imageMime . ';base64,' . $data['image_base64'];
     }
 
-    $idChipValue = trim((string) ($data['landmarkcode'] ?? ''));
-    if ($idChipValue === '' && $landmarkId !== '') {
-        $idChipValue = $landmarkId;
-    }
 @endphp
 
 @once
@@ -145,9 +135,6 @@
         .lm-detail-status--pending { background: #fffbeb; color: #b45309; border-color: #fde68a; }
         .lm-detail-status--active { background: #ecfdf5; color: #166534; border-color: #bbf7d0; }
         .lm-detail-status--rejected { background: #fef2f2; color: #991b1b; border-color: #fecaca; }
-        .lm-detail-visibility--published { background:#ecfdf5; color:#166534; border-color:#bbf7d0; }
-        .lm-detail-visibility--archived { background:#f3f4f6; color:#4b5563; border-color:#d1d5db; }
-        .lm-detail-visibility--hidden { background:#eef2ff; color:#4338ca; border-color:#c7d2fe; }
         .lm-detail-card__section {
             margin: 1.35rem 0 .45rem;
             font-size: .72rem;
@@ -210,28 +197,6 @@
             height: 100%;
             border: 0;
         }
-        .lm-detail-video-card {
-            border-radius: 10px;
-            border: 1px dashed #d6d3d1;
-            background: #fafaf9;
-            padding: 1rem;
-            text-align: center;
-        }
-        .lm-detail-video-card p {
-            margin: 0 0 .65rem;
-            font-size: .88rem;
-            color: #57534e;
-        }
-        .lm-detail-video-card__btn {
-            display: inline-flex;
-            padding: .5rem 1rem;
-            border-radius: 8px;
-            font-weight: 700;
-            font-size: .875rem;
-            text-decoration: none;
-            background: #7A2E1F;
-            color: #fffdf7;
-        }
         .lm-detail-card__pending-note {
             margin: 1.15rem 0 0;
             font-size: .9rem;
@@ -273,12 +238,6 @@
             <div class="lm-detail-card__meta-row">
                 <p class="lm-detail-card__eyebrow">Landmark detail</p>
                 <div class="lm-detail-card__chips" aria-label="Landmark metadata">
-                    @if ($idChipValue !== '')
-                        <span class="lm-detail-chip">
-                            <span class="lm-detail-chip__k">ID</span>
-                            <span class="lm-detail-chip__v">{{ $idChipValue }}</span>
-                        </span>
-                    @endif
                     <span class="lm-detail-chip lm-detail-chip--coord">
                         <span class="lm-detail-chip__k">Location</span>
                         <span class="lm-detail-chip__v">{{ $latDisplay }}, {{ $lngDisplay }}</span>
@@ -286,11 +245,6 @@
                     <span class="lm-detail-status lm-detail-status--{{ $activationStatus === 'pending' || $activationStatus === 'rejected' ? $activationStatus : 'active' }}">
                         {{ LandmarkActivation::label($activationStatus) }}
                     </span>
-                    @if ($showVisibilityBadge)
-                        <span class="lm-detail-status lm-detail-visibility--{{ $visibility }}">
-                            {{ LandmarkVisibility::label($visibility) }}
-                        </span>
-                    @endif
                 </div>
             </div>
             <h1 class="lm-detail-card__title">{{ $data['name'] ?? 'Unnamed landmark' }}</h1>
@@ -321,26 +275,19 @@
         ])
     @endif
 
-    @if ($imageSrc || $videoFileUrl !== '')
-        <h2 class="lm-detail-card__section">Photos &amp; media</h2>
-        <div class="lm-detail-media-grid @if ($imageSrc && $videoFileUrl !== '') lm-detail-media-grid--two @endif">
-            @if ($imageSrc)
-                <figure class="lm-detail-media-frame">
-                    <img src="{{ $imageSrc }}" alt="Photo of {{ $data['name'] ?? 'landmark' }}">
-                    <figcaption class="lm-detail-media-frame__cap">Featured image</figcaption>
-                </figure>
-            @endif
+    <h2 class="lm-detail-card__section">Photo</h2>
+    <div class="lm-detail-media-grid @if ($imageSrc && is_array($tipsReview)) lm-detail-media-grid--two @endif">
+        @if ($imageSrc)
+            <figure class="lm-detail-media-frame">
+                <img src="{{ $imageSrc }}" alt="Photo of {{ $data['name'] ?? 'landmark' }}">
+                <figcaption class="lm-detail-media-frame__cap">Featured image</figcaption>
+            </figure>
+        @endif
 
-            @if ($videoFileUrl !== '')
-                <div class="lm-detail-media-frame">
-                    <video controls preload="metadata" style="width:100%;display:block;background:#1c1917;">
-                        <source src="{{ $videoFileUrl }}" type="{{ $data['video_mime'] ?? 'video/mp4' }}">
-                    </video>
-                    <div class="lm-detail-media-frame__cap">Video</div>
-                </div>
-            @endif
-        </div>
-    @endif
+        @if (is_array($tipsReview))
+            @include('curators.landmarks.partials.tips-review', ['tips' => $tipsReview])
+        @endif
+    </div>
 
     @if (($canApproveLandmark ?? false) && ($showApprovalActions ?? true))
         <div class="lm-detail-approval-actions" aria-label="Landmark approval">

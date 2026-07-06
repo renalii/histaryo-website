@@ -83,7 +83,6 @@
                 <option value="users">Users</option>
                 <option value="landmarks">Landmarks</option>
                 <option value="visits">Visits / Logs</option>
-                <option value="quiz">Quiz Engagement</option>
             </select>
             </div>
 

@@ -93,13 +93,6 @@
                 <h4 class="lm-editor-card__title">Media</h4>
             </header>
             <div class="lm-editor-card__body">
-                <div class="lm-editor-field">
-                    <label for="cl-video-{{ $fieldHash }}">Video (optional)</label>
-                    <div class="lm-editor-file-zone">
-                        <input id="cl-video-{{ $fieldHash }}" type="file" name="video" accept="video/*">
-                    </div>
-                </div>
-
                 <div class="lm-editor-field lm-editor-field--last">
                     <label for="cl-img-{{ $fieldHash }}">Hero image</label>
                     <div class="lm-editor-file-zone">

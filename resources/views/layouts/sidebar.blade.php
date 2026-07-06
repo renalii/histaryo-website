@@ -13,6 +13,8 @@
     $pageTitle = 'Site Managers';
   } elseif (request()->routeIs('sitemanager.curators')) {
     $pageTitle = 'Curators';
+  } elseif (request()->routeIs('sitemanager.map')) {
+    $pageTitle = 'Map';
   } elseif (request()->routeIs('sitemanager.landmarks.create')) {
     $pageTitle = 'Create landmark';
   } elseif (request()->routeIs('admin.landmarks') || request()->routeIs('admin.landmarks.show')) {
@@ -176,11 +178,9 @@
           @endphp
           @if($curatorHasLandmark)
             <a href="{{ route('curators.dashboard') }}"><span class="nav-label">Dashboard</span></a>
-            <a href="{{ route('landmarks.show', session('assigned_landmark_id')) }}"><span class="nav-label">Landmarks</span></a>
+            <a href="{{ route('landmarks.show', session('assigned_landmark_id')) }}"><span class="nav-label">Landmark</span></a>
             <a href="{{ route('curators.quiz.all') }}"><span class="nav-label">Quiz Bank</span></a>
             <a href="{{ route('curators.tips.index') }}"><span class="nav-label">Tips Review</span></a>
-            <a href="{{ route('curators.map') }}"><span class="nav-label">Map</span></a>
-            <a href="{{ route('curators.qr') }}"><span class="nav-label">QR Codes</span></a>
           @else
             <a href="{{ route('curators.pending-assignment') }}"><span class="nav-label">Assignment pending</span></a>
           @endif
@@ -195,6 +195,7 @@
           <a href="{{ route('sitemanager.dashboard') }}"><span class="nav-label">Dashboard</span></a>
           <a href="{{ route('sitemanager.landmarks') }}"><span class="nav-label">Landmarks</span></a>
           <a href="{{ route('sitemanager.curators') }}"><span class="nav-label">Curators</span></a>
+          <a href="{{ route('sitemanager.map') }}"><span class="nav-label">Map</span></a>
         @endif
       </nav>
     </div>

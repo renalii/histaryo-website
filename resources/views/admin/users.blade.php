@@ -38,8 +38,8 @@
         .users-input { width: 280px; max-width: 100%; }
         .users-input:focus, .users-select:focus {
             outline: none;
-            border-color: #E8B34B;
-            box-shadow: 0 0 0 3px rgba(232, 179, 75, 0.25);
+            border-color: #d1d5db;
+            box-shadow: none;
         }
         .users-btn {
             border: 1px solid transparent;
@@ -66,6 +66,7 @@
             overflow-x: auto;
         }
         .users-table { width: 100%; border-collapse: separate; border-spacing: 0; min-width: 980px; }
+        .users-table.curators-table { min-width: 780px; }
         .users-table th {
             text-align: left;
             padding: .78rem;
@@ -147,7 +148,7 @@
             color: #991b1b;
         }
         .btn-reject:hover { background: #fef2f2; }
-        .curator-status-modal {
+        .curator-delete-modal {
             position: fixed;
             inset: 0;
             z-index: 1100;
@@ -157,38 +158,50 @@
             padding: 1rem;
             background: rgba(17, 24, 39, 0.55);
         }
-        .curator-status-modal.is-open { display: flex; }
-        .curator-status-modal__panel {
+        .curator-delete-modal.is-open { display: flex; }
+        .curator-delete-modal__panel {
             width: min(100%, 430px);
             background: #fff;
             border-radius: 12px;
             box-shadow: 0 24px 70px rgba(15, 23, 42, 0.28);
-            padding: 1.4rem;
+            padding: 1.2rem;
             border: 1px solid #f1f5f9;
         }
-        .curator-status-modal__title {
+        .curator-delete-modal__title {
             margin: 0 0 .65rem;
             color: #7A2E1F;
             font-size: 1.25rem;
             font-weight: 800;
         }
-        .curator-status-modal__message,
-        .curator-status-modal__detail {
+        .curator-delete-modal__message,
+        .curator-delete-modal__detail {
             margin: 0;
             color: #374151;
             line-height: 1.55;
         }
-        .curator-status-modal__detail {
+        .curator-delete-modal__detail {
             margin-top: .75rem;
             color: #6b7280;
         }
-        .curator-status-modal__actions {
+        .curator-delete-modal__email {
+            color: #111827;
+            font-weight: 800;
+            overflow-wrap: anywhere;
+        }
+        .curator-delete-modal__landmark {
+            margin: .85rem 0 0;
+            padding: .7rem;
+            border-radius: 8px;
+            background: #fff7ed;
+            color: #7A2E1F;
+        }
+        .curator-delete-modal__actions {
             display: flex;
             justify-content: flex-end;
             gap: .6rem;
             margin-top: 1.25rem;
         }
-        .curator-status-modal__btn {
+        .curator-delete-modal__btn {
             border-radius: 8px;
             border: 1px solid transparent;
             padding: .6rem .9rem;
@@ -196,24 +209,18 @@
             cursor: pointer;
             transition: all .15s ease;
         }
-        .curator-status-modal__btn--secondary {
+        .curator-delete-modal__btn--secondary {
             background: #f3f4f6;
             color: #374151;
             border-color: #e5e7eb;
         }
-        .curator-status-modal__btn--secondary:hover { background: #e5e7eb; }
-        .curator-status-modal__btn--danger {
+        .curator-delete-modal__btn--secondary:hover { background: #e5e7eb; }
+        .curator-delete-modal__btn--danger {
             background: #991b1b;
             color: #fff;
             border-color: #991b1b;
         }
-        .curator-status-modal__btn--danger:hover { background: #7f1d1d; }
-        .curator-status-modal__btn--success {
-            background: #166534;
-            color: #fff;
-            border-color: #166534;
-        }
-        .curator-status-modal__btn--success:hover { background: #14532d; }
+        .curator-delete-modal__btn--danger:hover { background: #7f1d1d; }
         .flash-ok {
             padding: .75rem 1rem;
             border-radius: 10px;
@@ -284,8 +291,8 @@
             .users-input { width: 100%; }
             .users-filter { padding: .7rem; }
             .users-btn { flex: 1 1 auto; }
-            .curator-status-modal__actions { flex-direction: column-reverse; }
-            .curator-status-modal__btn { width: 100%; }
+            .curator-delete-modal__actions { flex-direction: column-reverse; }
+            .curator-delete-modal__btn { width: 100%; }
             .users-pagination {
                 align-items: flex-start;
                 flex-direction: column;
@@ -380,11 +387,13 @@
         </p>
     @else
         <div class="users-table-card">
-            <table class="users-table">
+            <table class="users-table{{ $curatorsOnly ? ' curators-table' : '' }}">
                 <thead>
                     <tr>
                         <th>Email</th>
-                        <th>Role</th>
+                        @if (! $curatorsOnly)
+                            <th>Role</th>
+                        @endif
                         <th>Approval</th>
                         @if ($curatorsOnly)
                             <th>Status</th>
@@ -406,11 +415,13 @@
                         @endphp
                         <tr>
                             <td>{{ $user->email }}</td>
-                            <td>
-                                <span class="role-pill role-{{ strtolower($user->role) }}">
-                                    {{ $roleLabel }}
-                                </span>
-                            </td>
+                            @if (! $curatorsOnly)
+                                <td>
+                                    <span class="role-pill role-{{ strtolower($user->role) }}">
+                                        {{ $roleLabel }}
+                                    </span>
+                                </td>
+                            @endif
                             <td>
                                 @if ($user->role === 'visitor')
                                     <span style="color: #9ca3af; font-size: .82rem;">—</span>
@@ -427,36 +438,24 @@
                             <td>
                                 @if ($curatorsOnly && $panelRoutePrefix === 'sitemanager')
                                     <div class="user-actions">
-                                        <a href="{{ route('sitemanager.curators', array_filter(['search' => request('search'), 'edit' => $user->uid])) }}" class="btn-edit">Edit</a>
-                                        @if ($accountStatus === 'inactive')
-                                            <form method="POST" action="{{ route('sitemanager.curators.activate', ['uid' => $user->uid]) }}" class="curator-status-form">
-                                                @csrf
-                                                <button
-                                                    type="button"
-                                                    class="btn-approve js-curator-status-action"
-                                                    data-modal-title="Activate Curator"
-                                                    data-modal-message="Are you sure you want to activate this curator?"
-                                                    data-modal-detail="The curator will regain access to the system and be able to manage their assigned content."
-                                                    data-modal-action="Activate"
-                                                    data-modal-variant="success">
-                                                    Activate
-                                                </button>
-                                            </form>
-                                        @else
-                                            <form method="POST" action="{{ route('sitemanager.curators.deactivate', ['uid' => $user->uid]) }}" class="curator-status-form">
-                                                @csrf
-                                                <button
-                                                    type="button"
-                                                    class="btn-reject js-curator-status-action"
-                                                    data-modal-title="Deactivate Curator"
-                                                    data-modal-message="Are you sure you want to deactivate this curator?"
-                                                    data-modal-detail="The curator will no longer be able to access the system, manage landmarks, or update content until their account is reactivated."
-                                                    data-modal-action="Deactivate"
-                                                    data-modal-variant="danger">
-                                                    Deactivate
-                                                </button>
-                                            </form>
-                                        @endif
+                                        <a href="{{ route('sitemanager.curators', array_filter(['search' => request('search'), 'page' => request('page'), 'edit' => $user->uid])) }}" class="btn-edit">Edit</a>
+                                        <form method="POST" action="{{ route('sitemanager.curators.deactivate', ['uid' => $user->uid]) }}" class="curator-deactivate-form">
+                                            @csrf
+                                            <button type="button" class="btn-reject js-curator-deactivate-action" @disabled($accountStatus === 'inactive')>
+                                                Deactivate
+                                            </button>
+                                        </form>
+                                        <form method="POST" action="{{ route('sitemanager.curators.destroy', ['uid' => $user->uid]) }}" class="curator-delete-form">
+                                            @csrf
+                                            @method('DELETE')
+                                            <button
+                                                type="button"
+                                                class="btn-reject js-curator-delete-action"
+                                                data-curator-email="{{ $user->email }}"
+                                                data-landmark-name="{{ $user->assigned_landmark_name ?? 'Unassigned' }}">
+                                                Delete
+                                            </button>
+                                        </form>
                                     </div>
                                 @elseif ($showPendingActions)
                                     <div class="user-actions">
@@ -487,16 +486,26 @@
                     @endforeach
                 </tbody>
             </table>
-            @if ($usersIsPaginated && $users->hasPages())
+            @if ($usersIsPaginated && ($curatorsOnly || request()->routeIs('admin.users') || $users->hasPages()))
                 <nav class="users-pagination" aria-label="Users pagination">
-                    <span class="users-pagination__summary">
-                        Showing {{ $users->firstItem() }}–{{ $users->lastItem() }} of {{ $users->total() }} users
-                    </span>
+                    @if (! $curatorsOnly && ! request()->routeIs('admin.users'))
+                        <span class="users-pagination__summary">
+                            Showing {{ $users->firstItem() }}–{{ $users->lastItem() }} of {{ $users->total() }} users
+                        </span>
+                    @endif
                     <div class="users-pagination__controls">
                         @if ($users->onFirstPage())
-                            <span class="users-page-disabled">&larr; Prev</span>
+                            @if ($curatorsOnly || request()->routeIs('admin.users'))
+                                <span class="users-page-disabled">Prev</span>
+                            @else
+                                <span class="users-page-disabled">&larr; Prev</span>
+                            @endif
                         @else
-                            <a class="users-page-link users-page-link--previous" href="{{ $users->previousPageUrl() }}">&larr; Prev</a>
+                            @if ($curatorsOnly || request()->routeIs('admin.users'))
+                                <a class="users-page-link users-page-link--previous" href="{{ $users->previousPageUrl() }}">Prev</a>
+                            @else
+                                <a class="users-page-link users-page-link--previous" href="{{ $users->previousPageUrl() }}">&larr; Prev</a>
+                            @endif
                         @endif
 
                         <span class="users-pagination__page-count">
@@ -504,9 +513,17 @@
                         </span>
 
                         @if ($users->hasMorePages())
-                            <a class="users-page-link users-page-link--next" href="{{ $users->nextPageUrl() }}">Next &rarr;</a>
+                            @if ($curatorsOnly || request()->routeIs('admin.users'))
+                                <a class="users-page-link users-page-link--next" href="{{ $users->nextPageUrl() }}">Next</a>
+                            @else
+                                <a class="users-page-link users-page-link--next" href="{{ $users->nextPageUrl() }}">Next &rarr;</a>
+                            @endif
                         @else
-                            <span class="users-page-disabled">Next &rarr;</span>
+                            @if ($curatorsOnly || request()->routeIs('admin.users'))
+                                <span class="users-page-disabled">Next</span>
+                            @else
+                                <span class="users-page-disabled">Next &rarr;</span>
+                            @endif
                         @endif
                     </div>
                 </nav>
@@ -517,19 +534,42 @@
 
     @if ($curatorsOnly && $panelRoutePrefix === 'sitemanager')
         <div
-            id="curatorStatusModal"
-            class="curator-status-modal"
+            id="curatorDeactivateModal"
+            class="curator-delete-modal"
             role="dialog"
             aria-modal="true"
             aria-hidden="true"
-            aria-labelledby="curatorStatusModalTitle">
-            <div class="curator-status-modal__panel" tabindex="-1">
-                <h2 id="curatorStatusModalTitle" class="curator-status-modal__title">Deactivate Curator</h2>
-                <p id="curatorStatusModalMessage" class="curator-status-modal__message"></p>
-                <p id="curatorStatusModalDetail" class="curator-status-modal__detail"></p>
-                <div class="curator-status-modal__actions">
-                    <button type="button" id="curatorStatusCancel" class="curator-status-modal__btn curator-status-modal__btn--secondary">Cancel</button>
-                    <button type="button" id="curatorStatusConfirm" class="curator-status-modal__btn curator-status-modal__btn--danger">Deactivate</button>
+            aria-labelledby="curatorDeactivateModalTitle">
+            <div class="curator-delete-modal__panel" tabindex="-1">
+                <h2 id="curatorDeactivateModalTitle" class="curator-delete-modal__title">Deactivate this curator account?</h2>
+                <p class="curator-delete-modal__detail">The curator will no longer be able to sign in.</p>
+                <div class="curator-delete-modal__actions">
+                    <button type="button" id="curatorDeactivateCancel" class="curator-delete-modal__btn curator-delete-modal__btn--secondary">Cancel</button>
+                    <button type="button" id="curatorDeactivateConfirm" class="curator-delete-modal__btn curator-delete-modal__btn--danger">Deactivate</button>
+                </div>
+            </div>
+        </div>
+
+        <div
+            id="curatorDeleteModal"
+            class="curator-delete-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-hidden="true"
+            aria-labelledby="curatorDeleteModalTitle">
+            <div class="curator-delete-modal__panel" tabindex="-1">
+                <h2 id="curatorDeleteModalTitle" class="curator-delete-modal__title">Delete Curator</h2>
+                <p class="curator-delete-modal__message">
+                    Are you sure you want to delete curator account<br>
+                    <span id="curatorDeleteEmail" class="curator-delete-modal__email"></span>?
+                </p>
+                <p class="curator-delete-modal__landmark">
+                    <strong>Assigned Landmark:</strong><br>
+                    <span id="curatorDeleteLandmark"></span>
+                </p>
+                <div class="curator-delete-modal__actions">
+                    <button type="button" id="curatorDeleteCancel" class="curator-delete-modal__btn curator-delete-modal__btn--secondary">Cancel</button>
+                    <button type="button" id="curatorDeleteConfirm" class="curator-delete-modal__btn curator-delete-modal__btn--danger">Delete</button>
                 </div>
             </div>
         </div>
@@ -541,28 +581,48 @@
 
         <script>
             (function () {
-                var modal = document.getElementById('curatorStatusModal');
-                var title = document.getElementById('curatorStatusModalTitle');
-                var message = document.getElementById('curatorStatusModalMessage');
-                var detail = document.getElementById('curatorStatusModalDetail');
-                var cancelButton = document.getElementById('curatorStatusCancel');
-                var confirmButton = document.getElementById('curatorStatusConfirm');
-                var panel = modal ? modal.querySelector('.curator-status-modal__panel') : null;
+                var deactivateModal = document.getElementById('curatorDeactivateModal');
+                var deactivateCancel = document.getElementById('curatorDeactivateCancel');
+                var deactivateConfirm = document.getElementById('curatorDeactivateConfirm');
+                var deactivateForm = null;
+                var modal = document.getElementById('curatorDeleteModal');
+                var cancelButton = document.getElementById('curatorDeleteCancel');
+                var confirmButton = document.getElementById('curatorDeleteConfirm');
+                var deleteEmail = document.getElementById('curatorDeleteEmail');
+                var deleteLandmark = document.getElementById('curatorDeleteLandmark');
+                var panel = modal ? modal.querySelector('.curator-delete-modal__panel') : null;
                 var selectedForm = null;
 
-                if (! modal || ! title || ! message || ! detail || ! cancelButton || ! confirmButton) {
+                if (! modal || ! cancelButton || ! confirmButton) {
                     return;
                 }
 
+                document.querySelectorAll('.js-curator-deactivate-action').forEach(function (button) {
+                    button.addEventListener('click', function () {
+                        deactivateForm = button.closest('form');
+                        deactivateModal.classList.add('is-open');
+                        deactivateModal.setAttribute('aria-hidden', 'false');
+                        document.body.style.overflow = 'hidden';
+                    });
+                });
+
+                deactivateCancel.addEventListener('click', function () {
+                    deactivateModal.classList.remove('is-open');
+                    deactivateModal.setAttribute('aria-hidden', 'true');
+                    deactivateForm = null;
+                    document.body.style.overflow = '';
+                });
+
+                deactivateConfirm.addEventListener('click', function () {
+                    if (deactivateForm) {
+                        deactivateForm.submit();
+                    }
+                });
+
                 function openModal(trigger) {
                     selectedForm = trigger.closest('form');
-                    title.textContent = trigger.dataset.modalTitle || '';
-                    message.textContent = trigger.dataset.modalMessage || '';
-                    detail.textContent = trigger.dataset.modalDetail || '';
-                    confirmButton.textContent = trigger.dataset.modalAction || 'Confirm';
-                    confirmButton.classList.toggle('curator-status-modal__btn--danger', trigger.dataset.modalVariant === 'danger');
-                    confirmButton.classList.toggle('curator-status-modal__btn--success', trigger.dataset.modalVariant === 'success');
-
+                    deleteEmail.textContent = trigger.dataset.curatorEmail || '';
+                    deleteLandmark.textContent = trigger.dataset.landmarkName || 'Unassigned';
                     modal.classList.add('is-open');
                     modal.setAttribute('aria-hidden', 'false');
                     document.body.style.overflow = 'hidden';
@@ -578,7 +638,7 @@
                     document.body.style.overflow = '';
                 }
 
-                document.querySelectorAll('.js-curator-status-action').forEach(function (button) {
+                document.querySelectorAll('.js-curator-delete-action').forEach(function (button) {
                     button.addEventListener('click', function () {
                         openModal(button);
                     });

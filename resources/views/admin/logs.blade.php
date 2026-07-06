@@ -2,6 +2,11 @@
 
 @section('content')
     <style>
+        html:has(body .logs-wrap),
+        body:has(.logs-wrap) {
+            overflow-y: hidden;
+        }
+
         .logs-wrap { max-width: 2000px; margin: 0 auto; }
         .logs-top { display: flex; justify-content: space-between; align-items: center; gap: .8rem; flex-wrap: wrap; margin-bottom: .7rem; }
         .logs-title { font-size: 1.9rem; font-weight: 800; margin: 0; color: #7A2E1F; }
@@ -83,6 +88,11 @@
             border-radius: 10px;
             padding: .7rem .9rem;
         }
+        .logs-status.error {
+            color: #991b1b;
+            background: #fef2f2;
+            border-color: #fecaca;
+        }
         .logs-empty {
             color: #6b7280;
             background: #fff;
@@ -117,6 +127,32 @@
             vertical-align: middle;
         }
         .logs-table tbody tr:hover { background: #fcfcfd; }
+        .logs-pager {
+            margin-top: .85rem;
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            gap: .75rem;
+            color: #4b5563;
+            font-size: .9rem;
+            font-weight: 600;
+        }
+        .logs-pager a,
+        .logs-pager span.is-disabled {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 2rem;
+            padding: .45rem .75rem;
+            border-radius: 8px;
+            border: 1px solid #e5e7eb;
+            background: #fff;
+            color: #374151;
+            text-decoration: none;
+            font-weight: 700;
+        }
+        .logs-pager a:hover { background: #fff7ed; color: #7A2E1F; }
+        .logs-pager span.is-disabled { color: #9ca3af; background: #f9fafb; }
         .role-pill {
             display: inline-flex;
             align-items: center;
@@ -145,15 +181,24 @@
             </button>
         </form>
     </div>
-    <p class="logs-sub">{{ count($logs) }} log entr{{ count($logs) === 1 ? 'y' : 'ies' }}</p>
+    @php
+        $logEntryCount = method_exists($logs, 'total') ? $logs->total() : count($logs);
+    @endphp
+    <p class="logs-sub">{{ $logEntryCount }} log entr{{ $logEntryCount === 1 ? 'y' : 'ies' }}</p>
 
     @if(session('status'))
         <p class="logs-status">{{ session('status') }}</p>
+    @endif
+    @if(session('status_err'))
+        <p class="logs-status error">{{ session('status_err') }}</p>
     @endif
 
     @if(count($logs) === 0)
         <p class="logs-empty">No logs found.</p>
     @else
+        @php
+            $logRows = method_exists($logs, 'items') ? $logs->items() : $logs;
+        @endphp
         <div class="logs-card">
         <table class="logs-table">
             <thead>
@@ -165,15 +210,16 @@
                 </tr>
             </thead>
             <tbody>
-                @foreach ($logs as $log)
+                @foreach($logRows as $log)
                     @php
                         $data = $log->data();
                         $email = $data['email'] ?? '—';
                         $timestamp = $data['timestamp'] ?? '—';
-                        $action = \App\Support\SystemLogDisplay::formatAction((string) ($data['action'] ?? '—'));
-                        $rawRole = $userRoles[$email] ?? '';
-                        $roleLabel = \App\Support\SystemLogDisplay::roleLabel($rawRole !== '' ? $rawRole : null);
-                        $roleClass = \App\Support\SystemLogDisplay::roleCssClass($rawRole !== '' ? $rawRole : null);
+                        $rawRole = $data['role'] ?? ($userRoles[$email] ?? '');
+                        $displayRole = \App\Support\SystemLogDisplay::roleForLog($rawRole !== '' ? (string) $rawRole : null, (string) ($data['action'] ?? ''));
+                        $action = \App\Support\SystemLogDisplay::formatAction((string) ($data['action'] ?? '—'), $data, $displayRole !== '' ? $displayRole : null);
+                        $roleLabel = \App\Support\SystemLogDisplay::roleLabel($displayRole !== '' ? $displayRole : null);
+                        $roleClass = \App\Support\SystemLogDisplay::roleCssClass($displayRole !== '' ? $displayRole : null);
                     @endphp
 
                     <tr>
@@ -189,6 +235,19 @@
                 @endforeach
             </tbody>
         </table>
+        </div>
+        <div class="logs-pager" aria-label="System logs pagination">
+            <?php if ($logs->onFirstPage()) { ?>
+                <span class="is-disabled">Prev</span>
+            <?php } else { ?>
+                <a href="{{ $logs->previousPageUrl() }}">Prev</a>
+            <?php } ?>
+            <span>Page {{ $logs->currentPage() }} of {{ $logs->lastPage() }}</span>
+            <?php if ($logs->hasMorePages()) { ?>
+                <a href="{{ $logs->nextPageUrl() }}">Next</a>
+            <?php } else { ?>
+                <span class="is-disabled">Next</span>
+            <?php } ?>
         </div>
     @endif
     </div>

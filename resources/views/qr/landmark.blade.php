@@ -1,14 +1,12 @@
 @php
     /** @var array $payload */
     /** @var array $landmark */
-    /** @var string $videoUrl */
     /** @var string|null $mapUrl */
     /** @var string|null $mapboxToken */
     $lm = $payload['landmark'] ?? [];
     $name = $lm['name'] ?? 'Landmark';
     $description = trim((string) ($lm['description'] ?? ''));
     $category = trim((string) ($lm['category'] ?? ''));
-    $videoUrl = trim((string) ($videoUrl ?? ($lm['video_url'] ?? '')));
     $locationLabel = trim((string) ($landmark['location'] ?? ''));
     $latRaw = $landmark['latitude'] ?? $landmark['lati'] ?? null;
     $lngRaw = $landmark['longitude'] ?? $landmark['longti'] ?? null;
@@ -117,43 +115,13 @@
             max-height: 320px;
             object-fit: cover;
         }
-        .video-block {
+        .qr-section-block {
             margin-top: 26px;
         }
-        .video-block h2 {
+        .qr-section-block h2 {
             margin: 0 0 12px;
             font-size: 17px;
             color: #2a1810;
-        }
-        .video-wrap {
-            position: relative;
-            padding-bottom: 56.25%;
-            height: 0;
-            border-radius: 12px;
-            overflow: hidden;
-            background: #111;
-        }
-        .video-wrap iframe {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            border: 0;
-        }
-        .video-player {
-            width: 100%;
-            display: block;
-            border-radius: 12px;
-            background: #111;
-            border: 1px solid rgba(110, 75, 58, 0.15);
-        }
-        .video-fallback {
-            margin-top: 8px;
-        }
-        .video-fallback a {
-            color: #6e4b3a;
-            font-weight: 600;
         }
         .qr-map-card {
             margin-top: 22px;
@@ -210,7 +178,7 @@
         @endif
 
         @if ($showMapEmbed && $mapboxEmbedToken !== '')
-            <div class="video-block">
+            <div class="qr-section-block">
                 <h2>Map</h2>
                 <div class="qr-map-card"><div id="qr-landmark-map" aria-label="{{ $name }} on map"></div></div>
                 @if (!$mapUrl)
@@ -218,7 +186,7 @@
                 @endif
             </div>
         @elseif ($useLeafletFallback)
-            <div class="video-block">
+            <div class="qr-section-block">
                 <h2>Map</h2>
                 <div class="qr-map-card"><div id="qr-landmark-map-osm" aria-label="{{ $name }} on map"></div></div>
                 @if ($mapUrl)
@@ -232,16 +200,6 @@
         @if (!empty($imageSrc))
             <div class="photo">
                 <img src="{{ $imageSrc }}" alt="{{ $name }}">
-            </div>
-        @endif
-
-        @if ($videoUrl !== '')
-            <div class="video-block video-fallback">
-                <h2>Video</h2>
-                <video class="video-player" controls preload="metadata">
-                    <source src="{{ $videoUrl }}" type="{{ $landmark['video_mime'] ?? 'video/mp4' }}">
-                    Your browser does not support the video tag.
-                </video>
             </div>
         @endif
     </article>

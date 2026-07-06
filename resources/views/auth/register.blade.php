@@ -92,74 +92,6 @@
             background: linear-gradient(180deg, #fff 0%, #fef9f4 100%);
         }
 
-        .role-summary {
-            border: 1px solid var(--input-border);
-            border-radius: 8px;
-            padding: 0.5rem 0.62rem;
-            background: #fff;
-        }
-
-        .role-summary h3 {
-            margin: 0 0 0.25rem;
-            font-size: 0.72rem;
-            font-weight: 700;
-            color: var(--brand-dark);
-            letter-spacing: 0.02em;
-            text-transform: uppercase;
-        }
-
-        .role-summary p.role-summary-intro {
-            margin: 0 0 0.45rem;
-            font-size: 0.68rem;
-            color: var(--muted);
-            line-height: 1.35;
-        }
-
-        .role-summary .perms-label {
-            margin: 0 0 0.2rem;
-            font-size: 0.62rem;
-            font-weight: 700;
-            color: #654a39;
-            text-transform: uppercase;
-            letter-spacing: 0.04em;
-        }
-
-        .role-summary ul {
-            margin: 0;
-            padding-left: 1rem;
-            font-size: 0.67rem;
-            color: #5c5048;
-            line-height: 1.45;
-        }
-
-        .role-summary li {
-            margin-bottom: 0.12rem;
-        }
-
-        .role-summary li:last-child {
-            margin-bottom: 0;
-        }
-
-        .role-summary-wrap {
-            margin-top: 0.05rem;
-        }
-
-        .role-summary-wrap.hidden {
-            display: none;
-        }
-
-        .role-summary-panel.hidden {
-            display: none;
-        }
-
-        .role-summary-intro code {
-            font-size: 0.68em;
-            padding: 0.08rem 0.28rem;
-            border-radius: 4px;
-            background: rgba(140, 92, 58, 0.08);
-            color: var(--brand-dark);
-        }
-
         .eyebrow {
             margin: 0 0 0.3rem;
             font-size: 0.72rem;
@@ -167,6 +99,13 @@
             text-transform: uppercase;
             color: #9a7a63;
             font-weight: 600;
+        }
+
+        .form-side h1 {
+            margin: 0 0 0.3rem;
+            font-size: 1.55rem;
+            color: var(--brand-dark);
+            line-height: 1.15;
         }
 
         .form-side h2 {
@@ -579,6 +518,7 @@
 <div class="container">
     <div class="register-box">
         <div class="form-side">
+            <h1>Site Manager</h1>
             <p class="eyebrow">Join Histaryo</p>
             <h2>Create Account</h2>
             
@@ -593,7 +533,7 @@
                 </div>
             @endif
 
-            <form method="POST" action="{{ route('register') }}" enctype="multipart/form-data">
+            <form method="POST" action="{{ route('register') }}">
                 @csrf
                 <div class="name-row">
                     <div class="field">
@@ -630,11 +570,6 @@
                     </div>
                     <p id="password-confirm-hint" class="field-hint" role="alert" hidden>Passwords do not match.</p>
                 </div>
-                <input type="hidden" name="role" value="site_manager">
-                <div class="role-summary" role="status" aria-label="Account type">
-                    <h3>Site Manager</h3>
-                </div>
-
                 <button type="submit">Register</button>
             </form>
 

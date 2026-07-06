@@ -196,19 +196,6 @@
       background:#dc2626
     }
 
-    .pill {
-      display:inline-flex;
-      align-items:center;
-      gap:.35rem;
-      background:#fff7ed;
-      border:1px solid #F3C96A;
-      color:#7A2E1F;
-      border-radius:999px;
-      padding:.2rem .6rem;
-      font-size:.8rem;
-      font-weight:700
-    }
-    
     .qtext {
       font-weight:700;
       color:#111827;
@@ -283,10 +270,11 @@
 
     .pager {
       display:flex;
-      justify-content:center;
+      justify-content:flex-end;
       align-items:center;
       gap:.35rem;
-      margin-top:1rem;
+      margin-top:3.25rem;
+      padding-right:.25rem;
       flex-wrap:wrap;
     }
 
@@ -343,6 +331,10 @@
       .cards {
         grid-template-columns:1fr;
       }
+      .pager {
+        justify-content:flex-end;
+        margin-top:2rem;
+      }
     }
 </style>
 
@@ -385,7 +377,6 @@
         @endphp
         <div class="card{{ $isEditingThis ? ' card--editing' : '' }}">
             <div class="card-body">
-                <span class="pill">{{ $t['landmark_name'] }}</span>
                 <div class="qtext">{{ $t['question'] }}</div>
             </div>
             @if ($canEditQuiz)

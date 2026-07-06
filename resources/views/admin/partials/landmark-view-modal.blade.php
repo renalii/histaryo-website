@@ -10,7 +10,6 @@
     $lngDisplay = ($lngRaw !== null && $lngRaw !== '') ? $lngRaw : 'N/A';
     $hasCoords = is_numeric($latRaw) && is_numeric($lngRaw);
     $mapContainerId = 'lm-view-map-' . ($modalSafe ?? 'landmark');
-    $videoFileUrl = trim((string) ($videoFileUrl ?? ''));
     $isAdminApprovalView = ($panelRoutePrefix ?? '') !== 'sitemanager';
     $activationLabel = $isAdminApprovalView
         ? match ($activationStatus) {
@@ -38,12 +37,6 @@
         <h2 id="viewTitle_{{ $modalSafe }}" class="lm-view-modal__title">{{ $data['name'] ?? 'Unnamed landmark' }}</h2>
 
         <div class="lm-view-modal__chips" aria-label="Landmark metadata">
-            @if (! empty($data['landmarkcode'] ?? ''))
-                <span class="lm-view-chip">
-                    <span class="lm-view-chip__k">ID</span>
-                    <span class="lm-view-chip__v">{{ $data['landmarkcode'] }}</span>
-                </span>
-            @endif
             <span class="lm-view-chip lm-view-chip--coord">
                 <span class="lm-view-chip__k">Location</span>
                 <span class="lm-view-chip__v">{{ $latDisplay }}, {{ $lngDisplay }}</span>
@@ -69,24 +62,13 @@
             ])
         @endif
 
-        @if ($imageSrc || $videoFileUrl !== '')
-            <h3 class="lm-view-modal__section">Photos &amp; media</h3>
-            <div class="lm-view-media-grid @if ($imageSrc && $videoFileUrl !== '') lm-view-media-grid--two @endif">
-                @if ($imageSrc)
-                    <figure class="lm-view-media-frame">
-                        <img src="{{ $imageSrc }}" alt="Photo of {{ $data['name'] ?? 'landmark' }}" loading="lazy" decoding="async">
-                        <figcaption class="lm-view-media-frame__cap">Featured image</figcaption>
-                    </figure>
-                @endif
-
-                @if ($videoFileUrl !== '')
-                    <div class="lm-view-media-frame">
-                        <video controls preload="metadata" style="width:100%;display:block;background:#1c1917;">
-                            <source src="{{ $videoFileUrl }}" type="{{ $data['video_mime'] ?? 'video/mp4' }}">
-                        </video>
-                        <div class="lm-view-media-frame__cap">Video</div>
-                    </div>
-                @endif
+        @if ($imageSrc)
+            <h3 class="lm-view-modal__section">Landmark photo</h3>
+            <div class="lm-view-media-grid">
+                <figure class="lm-view-media-frame">
+                    <img src="{{ $imageSrc }}" alt="Photo of {{ $data['name'] ?? 'landmark' }}" loading="lazy" decoding="async">
+                    <figcaption class="lm-view-media-frame__cap">Featured image</figcaption>
+                </figure>
             </div>
         @endif
 

@@ -186,18 +186,10 @@
         <form method="POST" action="{{ route('curators.change-password.update') }}">
             @csrf
             <div>
-                <label for="current_password">Temporary password</label>
-                <div class="password-wrap">
-                    <input id="current_password" type="password" name="current_password"
-                           value="{{ old('current_password') }}" autocomplete="current-password" required autofocus>
-                    <button type="button" class="password-toggle" aria-label="Show password" data-target="current_password">Show</button>
-                </div>
-            </div>
-            <div>
                 <label for="password">New password</label>
                 <div class="password-wrap">
                     <input id="password" type="password" name="password"
-                           autocomplete="new-password" minlength="8" required>
+                           autocomplete="new-password" minlength="8" required autofocus>
                     <button type="button" class="password-toggle" aria-label="Show password" data-target="password">Show</button>
                 </div>
             </div>

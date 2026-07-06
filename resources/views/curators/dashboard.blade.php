@@ -1,135 +1,224 @@
 @extends('layouts.sidebar')
 
 @section('content')
-    @php
-        use Carbon\Carbon;
-        $today = Carbon::now()->format('F j, Y');
+@php
+    use Carbon\Carbon;
 
-        $email = session('email');
-        $name = session('name') ?? ($email ? ucfirst(explode('@', $email)[0]) : 'Curator');
+    $landmark = $assignedLandmark ?? [];
+    $statistics = $visitorStatistics ?? [];
+    $today = Carbon::now()->format('F j, Y');
+    $email = session('email');
+    $curatorName = session('name') ?? ($email ? ucfirst(explode('@', $email)[0]) : 'Curator');
+    $assignedLandmarkName = trim((string) ($landmark['name'] ?? ''));
+@endphp
 
-        $stats = $stats ?? [
-            'landmarks' => $landmarksCount ?? 0,
-            'quiz' => $quizCount ?? 0,
-            'pending' => $pendingReviews ?? 0,
-            'logs' => $logsCount ?? 0,
-        ];
-
-        $recentLandmarks = $recentLandmarks ?? [];
-        $recentQuiz = $recentQuiz ?? [];
-        $recentLogs = $recentLogs ?? [];
-    @endphp
-
-    <div style="
+<style>
+    .curator-dashboard { max-width: 1800px; margin: 0 auto; color: #374151; }
+    .curator-hero {
         background: linear-gradient(135deg, #7A2E1F, #E8B34B);
-        color: #fff;
-        padding: 2rem 2.25rem;
+        color: #fffdf7;
+        padding: 1.8rem 2rem;
         border-radius: 1.25rem;
-        margin-bottom: 2rem;
-        box-shadow: 0 12px 24px rgba(122, 46, 31, 0.2);
-        display: flex; flex-direction: column; gap: 0.5rem;">
-        <p style="margin: 0; font-size: 0.9rem; opacity: 0.85;">{{ $today }}</p>
-        <h2 style="font-size: 2rem; font-weight: 700; margin: 0;">Welcome back, {{ $name }}</h2>
-        <p style="margin: 0; font-size: 1rem; opacity: 0.95;">
-            You manage content for your <strong>assigned landmark</strong> only display QR codes and exhibit scoped to it.
-        </p>
-    </div>
+        margin-bottom: 1.25rem;
+        box-shadow: 0 12px 28px rgba(122, 46, 31, .22);
+    }
+    .curator-hero-date {
+        margin: 0 0 .35rem;
+        font-size: .86rem;
+        font-weight: 700;
+        letter-spacing: .04em;
+        text-transform: uppercase;
+        opacity: .9;
+    }
+    .curator-hero h1 { margin: 0; font-size: 2rem; line-height: 1.2; font-weight: 800; }
+    .curator-hero-copy { margin: .5rem 0 0; font-size: 1rem; font-weight: 500; opacity: .95; }
+    .curator-hero-landmark { margin: .35rem 0 0; font-size: .9rem; opacity: .9; }
+    .curator-section-title { margin: 1.3rem 0 .7rem; color: #3f261f; font-size: 1.1rem; font-weight: 800; }
+    .curator-card {
+        background: #fff;
+        border: 1px solid #eceff3;
+        border-radius: 14px;
+        box-shadow: 0 6px 18px rgba(0,0,0,.05);
+    }
+    .assigned-card {
+        display: grid;
+        grid-template-columns: minmax(0, 2fr) repeat(2, minmax(150px, 1fr));
+        gap: 1rem;
+        align-items: center;
+        padding: 1.25rem 1.4rem;
+        border-top: 4px solid #E8B34B;
+    }
+    .assigned-label { color: #6b7280; font-size: .82rem; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
+    .assigned-name { margin: .35rem 0 0; color: #7A2E1F; font-size: 1.55rem; font-weight: 800; }
+    .assigned-value { margin: .35rem 0 0; color: #111827; font-size: 1.15rem; font-weight: 800; }
+    .status-badge { display: inline-flex; padding: .35rem .7rem; border-radius: 999px; background: #fff5dd; color: #7A2E1F; font-size: .85rem; font-weight: 800; }
+    .analytics-card, .leaderboard-card { padding: 1.15rem; }
+    .analytics-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; margin-bottom: 1rem; }
+    .analytics-header h2, .leaderboard-card h2 { margin: 0; color: #3f261f; font-size: 1.1rem; }
+    .analytics-header p, .leaderboard-card > p { margin: .3rem 0 0; color: #6b7280; font-size: .86rem; }
+    .analytics-filter { display: flex; align-items: center; gap: .55rem; flex-shrink: 0; }
+    .analytics-filter label { color: #6b7280; font-size: .85rem; font-weight: 700; }
+    .analytics-filter select { border: 1px solid #d9dee7; border-radius: 9px; background: #fffdf7; color: #3f261f; padding: .55rem 2rem .55rem .7rem; font: inherit; font-size: .88rem; font-weight: 700; cursor: pointer; }
+    .analytics-filter select:focus { outline: none; border-color: #d1d5db; box-shadow: none; }
+    .chart-wrap { position: relative; height: 330px; }
+    .leaderboard-card { margin-bottom: 2rem; overflow: hidden; }
+    .table-wrap { margin-top: .9rem; overflow-x: auto; }
+    .leaderboard-table { width: 100%; min-width: 620px; border-collapse: collapse; }
+    .leaderboard-table th, .leaderboard-table td { padding: .85rem .7rem; text-align: left; border-bottom: 1px solid #eceff3; }
+    .leaderboard-table th { color: #6b7280; font-size: .75rem; letter-spacing: .04em; text-transform: uppercase; }
+    .leaderboard-table td { color: #374151; font-size: .9rem; }
+    .leaderboard-table tbody tr:last-child td { border-bottom: 0; }
+    .rank { width: 2rem; height: 2rem; border-radius: 999px; display: inline-flex; align-items: center; justify-content: center; background: #fff5dd; color: #7A2E1F; font-weight: 800; }
+    .score { color: #7A2E1F; font-weight: 800; }
+    .empty-state { padding: 2.5rem 1rem !important; text-align: center !important; color: #6b7280 !important; }
+    @media (max-width: 1024px) {
+        .assigned-card { grid-template-columns: 1fr 1fr; }
+        .assigned-card > :first-child { grid-column: span 2; }
+    }
+    @media (max-width: 640px) {
+        .curator-hero { padding: 1.3rem 1.15rem; }
+        .curator-hero h1 { font-size: 1.55rem; }
+        .assigned-card { grid-template-columns: 1fr; }
+        .assigned-card > :first-child { grid-column: span 1; }
+        .analytics-header { align-items: stretch; flex-direction: column; }
+        .analytics-filter { justify-content: space-between; }
+        .analytics-filter select { flex: 1; }
+        .chart-wrap { height: 250px; }
+    }
+</style>
 
-    <div class="grid" style="display:grid; grid-template-columns: repeat(12, minmax(0,1fr)); gap: 1rem; margin-bottom:1rem;">
-        <div class="card stat" style="grid-column: span 4; background:#fff; border-radius:14px; padding:1rem; box-shadow: 0 4px 16px rgba(0,0,0,0.06); border:1px solid #f3f4f6;">
-            <p style="margin:0; color:#6b7280; font-size:.9rem;">Landmarks</p>
-            <h3 style="margin:.25rem 0 0; font-size:1.75rem; color:#4c1d95;">{{ number_format($stats['landmarks']) }}</h3>
-        </div>
-        <div class="card stat" style="grid-column: span 4; background:#fff; border-radius:14px; padding:1rem; box-shadow: 0 4px 16px rgba(0,0,0,0.06); border:1px solid #f3f4f6;">
-            <p style="margin:0; color:#6b7280; font-size:.9rem;">Quiz Bank</p>
-            <h3 style="margin:.25rem 0 0; font-size:1.75rem; color:#4c1d95;">{{ number_format($stats['quiz']) }}</h3>
-        </div>
-        <div class="card stat" style="grid-column: span 4; background:#fff; border-radius:14px; padding:1rem; box-shadow: 0 4px 16px rgba(0,0,0,0.06); border:1px solid #f3f4f6;">
-            <p style="margin:0; color:#6b7280; font-size:.9rem;">Pending Tips</p>
-            <h3 style="margin:.25rem 0 0; font-size:1.75rem; color:#4c1d95;">{{ number_format($stats['pending']) }}</h3>
-        </div>
-    </div>
+<div class="curator-dashboard">
+    <section class="curator-hero">
+        <p class="curator-hero-date">{{ $today }}</p>
+        <h1>Welcome back, {{ $curatorName }}!</h1>
+        <p class="curator-hero-copy">You manage content for your assigned landmark.</p>
 
-    <div class="grid" style="display:grid; grid-template-columns: repeat(12, minmax(0,1fr)); gap: 1rem; margin-bottom:1rem;">
-        <div class="card" style="grid-column: span 4; background:#fff; border-radius:14px; padding:1rem; box-shadow: 0 4px 16px rgba(0,0,0,0.06);">
-            <h4 style="margin:0 0 .75rem; color:#111827;">Quick Actions</h4>
-            <div style="display:flex; flex-direction:column; gap:.5rem;">
-                <a href="{{ route('landmarks.show', session('assigned_landmark_id')) }}" style="text-decoration:none; background:#E8B34B; color:#7A2E1F; padding:.75rem 1rem; border-radius:10px; font-weight:700; text-align:center;">Landmark</a>
-                <a href="{{ route('curators.quiz.all') }}" style="text-decoration:none; background:#f3f4f6; color:#111827; padding:.75rem 1rem; border-radius:10px; font-weight:600; text-align:center;">Quiz Bank</a>
-                <a href="{{ route('curators.map') }}" style="text-decoration:none; background:#F3C96A; color:#7A2E1F; padding:.75rem 1rem; border-radius:10px; font-weight:700; text-align:center;">Map</a>
+    </section>
+
+    <h2 class="curator-section-title">Assigned Landmark</h2>
+    <section class="curator-card assigned-card">
+        <div>
+            <div class="assigned-label">Landmark Name</div>
+            <p class="assigned-name">{{ $landmark['name'] ?? 'Assigned landmark' }}</p>
+        </div>
+        <div>
+            <div class="assigned-label">Status</div>
+            <p class="assigned-value"><span class="status-badge">{{ $landmark['status'] ?? 'Unavailable' }}</span></p>
+        </div>
+        <div>
+            <div class="assigned-label">Total Visitors</div>
+            <p class="assigned-value">{{ number_format($landmark['total_visitors'] ?? 0) }}</p>
+        </div>
+    </section>
+
+    <h2 class="curator-section-title">Visitor Analytics</h2>
+    <section class="curator-card analytics-card">
+        <div class="analytics-header">
+            <div>
+                <h2>Visitor Activity Trend</h2>
+                <p id="visitorAnalyticsDescription">Visits during the last 7 days</p>
+            </div>
+            <div class="analytics-filter">
+                <label for="visitorAnalyticsPeriod">Period</label>
+                <select id="visitorAnalyticsPeriod">
+                    <option value="daily">Daily</option>
+                    <option value="weekly">Weekly</option>
+                    <option value="monthly">Monthly</option>
+                    <option value="yearly">Yearly</option>
+                </select>
             </div>
         </div>
-
-        <div class="card" style="grid-column: span 8; background:#fff; border-radius:14px; padding:1rem; box-shadow: 0 4px 16px rgba(0,0,0,0.06);">
-            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:.75rem;">
-                <h4 style="margin:0; color:#111827;">Last 8 Weeks - Items Added</h4>
-                <div style="font-size:.85rem; color:#6b7280;">Landmarks & Quiz Bank</div>
-            </div>
-            <canvas id="lineChart" height="110"></canvas>
+        <div class="chart-wrap">
+            <canvas id="visitorAnalyticsChart"></canvas>
         </div>
-    </div>
+    </section>
 
-    <div class="grid" style="display:grid; grid-template-columns: repeat(12, minmax(0,1fr)); gap: 1rem; margin-bottom:2rem;">
-        <div class="card" style="grid-column: span 6; background:#fff; border-radius:14px; padding:1rem; box-shadow: 0 4px 16px rgba(0,0,0,0.06);">
-            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:.75rem;">
-                <h4 style="margin:0; color:#111827;">Content Mix</h4>
-                <div style="font-size:.85rem; color:#6b7280;">Share by type</div>
-            </div>
-            <canvas id="donutChart" height="180"></canvas>
-            <div style="display:flex; justify-content:center; gap:1rem; margin-top:.5rem; color:#374151; font-size:.9rem;">
-                <span>Landmarks</span>
-                <span>Quiz Bank</span>
-            </div>
+    <h2 class="curator-section-title">Quiz Leaderboard</h2>
+    <section class="curator-card leaderboard-card">
+        <h2>Top Visitor Scores</h2>
+        <p>Highest quiz scores achieved at {{ $landmark['name'] ?? 'your assigned landmark' }}.</p>
+        <div class="table-wrap">
+            <table class="leaderboard-table">
+                <thead>
+                    <tr>
+                        <th>Rank</th>
+                        <th>Visitor Name</th>
+                        <th>Score</th>
+                        <th>Date Achieved</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @forelse (($statistics['leaderboard'] ?? []) as $entry)
+                        <tr>
+                            <td><span class="rank">{{ $loop->iteration }}</span></td>
+                            <td>{{ $entry['visitor_name'] }}</td>
+                            <td><span class="score">{{ $entry['score'] }}</span></td>
+                            <td>{{ $entry['completed_at_label'] }}</td>
+                        </tr>
+                    @empty
+                        <tr>
+                            <td colspan="4" class="empty-state">No completed quizzes have been recorded for this landmark yet.</td>
+                        </tr>
+                    @endforelse
+                </tbody>
+            </table>
         </div>
+    </section>
+</div>
 
-        <div class="card" style="grid-column: span 6; background:#fff; border-radius:14px; padding:1rem; box-shadow: 0 4px 16px rgba(0,0,0,0.06);">
-            <h4 style="margin:0 0 .75rem; color:#111827;">Tips & Shortcuts</h4>
-            <div style="display:flex; flex-direction:column; gap:.6rem; color:#374151;">
-                <div style="background:#f8fafc; border:1px dashed #e5e7eb; padding:.75rem; border-radius:10px;">Use the <strong>Map</strong> view to verify coordinates visually before publishing.</div>
-                <div style="background:#f8fafc; border:1px dashed #e5e7eb; padding:.75rem; border-radius:10px;">Upload optimized <strong>photos and videos</strong> for faster loading.</div>
-                <div style="background:#f8fafc; border:1px dashed #e5e7eb; padding:.75rem; border-radius:10px;">Keep descriptions concise. Aim for <strong>80-120 words</strong>.</div>
-            </div>
-        </div>
-    </div>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" defer></script>
+<script>
+    console.debug('Curator dashboard quiz-result query', {
+        landmark_id: @json($landmark['id'] ?? null),
+        result_count: @json(count($statistics['leaderboard'] ?? [])),
+    });
 
-    <style>
-        @media (max-width: 1024px) {
-            .grid > .card { grid-column: span 12 !important; }
-            .grid > .stat { grid-column: span 6 !important; }
-        }
-        @media (max-width: 640px) {
-            .grid > .stat { grid-column: span 12 !important; }
-        }
-        .card:hover { transform: translateY(-2px); transition: transform .15s ease, box-shadow .15s ease; box-shadow: 0 10px 24px rgba(0,0,0,0.08) !important; }
-    </style>
-
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" defer></script>
-    <script>
-        document.addEventListener('DOMContentLoaded', function () {
-            new Chart(document.getElementById('lineChart').getContext('2d'), {
-                type: 'line',
-                data: {
-                    labels: @json($weekLabels),
-                    datasets: [
-                        { label: 'Landmarks', data: @json($landmarksPerWeek), tension: .35, borderWidth: 2, borderColor: '#7A2E1F', pointRadius: 0 },
-                        { label: 'Quiz Bank', data: @json($quizPerWeek), tension: .35, borderWidth: 2, borderColor: '#E8B34B', pointRadius: 0 },
-                    ]
-                },
-                options: { responsive:true, plugins:{legend:{display:false}}, scales:{y:{beginAtZero:true, ticks:{stepSize:1}}} }
-            });
-
-            new Chart(document.getElementById('donutChart').getContext('2d'), {
-                type: 'doughnut',
-                data: {
-                    labels: ['Landmarks', 'Quiz Bank'],
-                    datasets: [{
-                        data: [{{ (int) ($stats['landmarks'] ?: 0) }}, {{ (int) ($stats['quiz'] ?: 0) }}],
-                        borderWidth: 0,
-                        backgroundColor: ['#7A2E1F', '#E8B34B']
-                    }]
-                },
-                options: { cutout:'60%', plugins:{legend:{display:false}} }
-            });
+    document.addEventListener('DOMContentLoaded', function () {
+        const charts = @json($statistics['charts'] ?? []);
+        const periods = {
+            daily: { description: 'Visits during the last 7 days', color: '#7A2E1F' },
+            weekly: { description: 'Visits during the last 8 weeks', color: '#B66B30' },
+            monthly: { description: 'Visits during the last 12 months', color: '#D49A35' },
+            yearly: { description: 'Visits during the last 5 years', color: '#5F3B32' }
+        };
+        const initial = charts.daily || { labels: [], values: [] };
+        const chart = new Chart(document.getElementById('visitorAnalyticsChart'), {
+            type: 'line',
+            data: {
+                labels: initial.labels,
+                datasets: [{
+                    label: 'Visits',
+                    data: initial.values,
+                    borderColor: periods.daily.color,
+                    backgroundColor: `${periods.daily.color}1f`,
+                    fill: true,
+                    tension: .35,
+                    pointRadius: 3,
+                    pointHoverRadius: 5,
+                    pointBackgroundColor: '#E8B34B'
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                    y: { beginAtZero: true, ticks: { precision: 0 } },
+                    x: { grid: { display: false } }
+                }
+            }
         });
-    </script>
+
+        document.getElementById('visitorAnalyticsPeriod').addEventListener('change', function () {
+            const period = periods[this.value] || periods.daily;
+            const data = charts[this.value] || { labels: [], values: [] };
+            document.getElementById('visitorAnalyticsDescription').textContent = period.description;
+            chart.data.labels = data.labels;
+            chart.data.datasets[0].data = data.values;
+            chart.data.datasets[0].borderColor = period.color;
+            chart.data.datasets[0].backgroundColor = `${period.color}1f`;
+            chart.update();
+        });
+    });
+</script>
 @endsection

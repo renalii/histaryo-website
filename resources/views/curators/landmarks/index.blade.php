@@ -1,6 +1,9 @@
 @extends('layouts.sidebar')
 
 @section('content')
+    @php
+        $qrPreview = $qrPreview ?? null;
+    @endphp
     @if (session('success'))
         <div class="cu-lm-flash cu-lm-flash--ok" role="status">{{ session('success') }}</div>
     @endif
@@ -266,6 +269,59 @@
             max-height: none;
             overflow: visible;
         }
+        .cu-qr-modal {
+            display: none;
+            position: fixed;
+            inset: 0;
+            z-index: 10000;
+            align-items: center;
+            justify-content: center;
+            padding: 1rem;
+            background: rgba(15, 23, 42, .6);
+        }
+        .cu-qr-modal.is-open { display: flex; }
+        .cu-qr-modal__panel {
+            width: min(620px, 96vw);
+            overflow: hidden;
+            border: 1px solid #e5e7eb;
+            border-radius: 14px;
+            background: #fff;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, .3);
+        }
+        .cu-qr-modal__header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1rem;
+            padding: .85rem 1rem;
+            border-bottom: 1px solid #e5e7eb;
+        }
+        .cu-qr-modal__header h2 { margin: 0; color: #7A2E1F; font-size: 1rem; }
+        .cu-qr-modal__close {
+            border: 0;
+            background: none;
+            color: #111827;
+            font-size: 1.4rem;
+            line-height: 1;
+            cursor: pointer;
+        }
+        .cu-qr-modal__body { padding: 1rem; text-align: center; }
+        .cu-qr-modal__image {
+            display: block;
+            width: min(500px, 82vw);
+            max-width: 100%;
+            max-height: 65vh;
+            margin: 0 auto;
+            object-fit: contain;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+        }
+        .cu-qr-modal__unavailable {
+            margin: 1rem 0;
+            color: #6b7280;
+            font-weight: 700;
+        }
+        .cu-qr-modal__download { margin-top: 1rem; }
     </style>
 
 
@@ -289,39 +345,78 @@
                     'landmarkId' => $lid,
                     'data' => $data,
                     'headerActionsView' => 'curators.landmarks.partials.detail-actions',
+                    'headerActionsData' => [
+                        'qrBase64' => $qrPreview['base64'] ?? '',
+                        'qrFilename' => $qrPreview['filename'] ?? 'landmark-code-qr.png',
+                    ],
                     'mapboxToken' => $mapboxToken ?? config('services.mapbox.token'),
-                    'showVisibilityBadge' => false,
-                ])
-                @include('curators.landmarks.partials.edit-modal', [
-                    'landmarkId' => $lid,
-                    'data' => $data,
-                    'mapboxToken' => $mapboxToken ?? config('services.mapbox.token'),
+                    'tipsReview' => $landmarkTips ?? [],
                 ])
             </div>
         @endif
     </div>
 
+    <div id="cu-qr-preview-modal" class="cu-qr-modal" role="dialog" aria-modal="true" aria-labelledby="cu-qr-preview-title">
+        <div class="cu-qr-modal__panel">
+            <div class="cu-qr-modal__header">
+                <h2 id="cu-qr-preview-title">QR image preview</h2>
+                <button id="cu-qr-preview-close" type="button" class="cu-qr-modal__close" aria-label="Close QR image preview">&times;</button>
+            </div>
+            <div class="cu-qr-modal__body">
+                @if (! empty($qrPreview['base64'] ?? ''))
+                    <img id="cu-qr-preview-image" class="cu-qr-modal__image" src="data:image/png;base64,{{ $qrPreview['base64'] }}" alt="QR code image" hidden>
+                    <a id="cu-qr-preview-download"
+                       class="cu-lm-add-btn cu-qr-modal__download"
+                       href="data:image/png;base64,{{ $qrPreview['base64'] }}"
+                       download="{{ $qrPreview['filename'] ?? 'landmark-code-qr.png' }}"
+                       hidden>
+                        Download QR Image
+                    </a>
+                @endif
+                <p id="cu-qr-preview-unavailable" class="cu-qr-modal__unavailable" hidden>No QR code has been generated for this landmark.</p>
+            </div>
+        </div>
+    </div>
+
     <script>
-        function cuDownloadQrAndGo(event, el) {
+        function cuOpenQrPreview(event, el) {
             if (event) {
                 event.preventDefault();
             }
-            var downloadUrl = el && el.getAttribute('data-qr-download-url');
-            var qrPageUrl = (el && el.getAttribute('href')) || '';
-            if (!downloadUrl || !qrPageUrl) {
+            var modal = document.getElementById('cu-qr-preview-modal');
+            var image = document.getElementById('cu-qr-preview-image');
+            var download = document.getElementById('cu-qr-preview-download');
+            var unavailable = document.getElementById('cu-qr-preview-unavailable');
+            if (!modal || !unavailable) {
                 return;
             }
-            var iframe = document.createElement('iframe');
-            iframe.style.cssText = 'position:absolute;width:0;height:0;border:0;visibility:hidden';
-            iframe.setAttribute('aria-hidden', 'true');
-            iframe.src = downloadUrl;
-            document.body.appendChild(iframe);
-            window.setTimeout(function () {
-                if (iframe.parentNode) {
-                    iframe.parentNode.removeChild(iframe);
-                }
-            }, 120000);
-            window.location.assign(qrPageUrl);
+            modal.classList.add('is-open');
+            document.body.style.overflow = 'hidden';
+
+            if (image && download && image.getAttribute('src').startsWith('data:image/png;base64,')) {
+                image.hidden = false;
+                unavailable.hidden = true;
+                download.hidden = false;
+            } else {
+                if (image) image.hidden = true;
+                if (download) download.hidden = true;
+                unavailable.hidden = false;
+            }
+        }
+        function cuCloseQrPreview() {
+            var modal = document.getElementById('cu-qr-preview-modal');
+            var image = document.getElementById('cu-qr-preview-image');
+            var download = document.getElementById('cu-qr-preview-download');
+            var unavailable = document.getElementById('cu-qr-preview-unavailable');
+            if (modal) modal.classList.remove('is-open');
+            if (image) {
+                image.hidden = true;
+            }
+            if (download) {
+                download.hidden = true;
+            }
+            if (unavailable) unavailable.hidden = true;
+            document.body.style.overflow = '';
         }
         function closeLandmarkMenus() {
             document.querySelectorAll('.lm-card-menu').forEach(function (menu) {
@@ -345,6 +440,10 @@
             }
         }
         document.addEventListener('click', function (event) {
+            var qrModal = document.getElementById('cu-qr-preview-modal');
+            if (event.target.id === 'cu-qr-preview-close' || event.target === qrModal) {
+                cuCloseQrPreview();
+            }
             if (!event.target.closest('.lm-card-menu-wrap')) {
                 closeLandmarkMenus();
             }
@@ -353,6 +452,7 @@
             if (e.key !== 'Escape') {
                 return;
             }
+            cuCloseQrPreview();
             closeLandmarkMenus();
         });
     </script>
