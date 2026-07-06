@@ -6,6 +6,7 @@ use App\Services\CuratorWelcomeMailer;
 use App\Services\FirebaseService;
 use App\Services\SiteManagerLandmarks;
 use App\Support\FirestoreBool;
+use App\Support\TemporaryPassword;
 use Illuminate\Console\Command;
 
 class ResendCuratorSetupEmail extends Command
@@ -60,7 +61,7 @@ class ResendCuratorSetupEmail extends Command
         $landmarkLabel = $landmarkId !== ''
             ? ($landmarks->landmarkLabel($landmarkId) ?? $landmarkId)
             : 'Assigned landmark';
-        $temporaryPassword = $this->temporaryPassword();
+        $temporaryPassword = TemporaryPassword::generate();
 
         $firebase->getAuth()->changeUserPassword($uid, $temporaryPassword);
         $firebase->userDocument($uid, 'curator')->set([
@@ -91,30 +92,5 @@ class ResendCuratorSetupEmail extends Command
         }
 
         return self::FAILURE;
-    }
-
-    private function temporaryPassword(): string
-    {
-        $letters = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
-        $digits = '23456789';
-        $symbols = '!@#$%';
-        $pool = $letters.$digits.$symbols;
-
-        $password = [
-            $letters[random_int(0, strlen($letters) - 1)],
-            $digits[random_int(0, strlen($digits) - 1)],
-            $symbols[random_int(0, strlen($symbols) - 1)],
-        ];
-
-        while (count($password) < 12) {
-            $password[] = $pool[random_int(0, strlen($pool) - 1)];
-        }
-
-        for ($i = count($password) - 1; $i > 0; $i--) {
-            $j = random_int(0, $i);
-            [$password[$i], $password[$j]] = [$password[$j], $password[$i]];
-        }
-
-        return implode('', $password);
     }
 }

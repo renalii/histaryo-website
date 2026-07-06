@@ -28,6 +28,7 @@ class PreviewCuratorWelcomeEmail extends Command
             plainPassword: 'TempPass123',
             landmarkLabel: 'Sample Landmark',
             uid: 'preview-uid-not-real',
+            savePreview: true,
         );
 
         $previewFull = storage_path('app/'.$result['preview_path']);
