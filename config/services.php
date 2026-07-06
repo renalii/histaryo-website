@@ -42,8 +42,11 @@ return [
     
     'firebase' => [
         'api_key' => env('FIREBASE_API_KEY'),
-        // grpc (default) or rest — rest avoids flaky gRPC "Stream removed" on some Windows/dev setups.
-        'firestore_transport' => strtolower((string) env('FIRESTORE_TRANSPORT', 'grpc')),
+        // Bound Google API waits so connectivity failures do not exhaust PHP's execution limit.
+        'connect_timeout' => (float) env('FIREBASE_CONNECT_TIMEOUT', 5),
+        'request_timeout' => (float) env('FIREBASE_REQUEST_TIMEOUT', 10),
+        'firestore_transport' => env('FIRESTORE_TRANSPORT', 'grpc'),
+        'tip_query_timeout' => (float) env('FIREBASE_TIP_QUERY_TIMEOUT', 3),
         // Optional comma-separated extra Firestore collection ids for crowd tips (merged with app defaults).
         'firestore_tip_collection_names' => array_values(array_filter(array_map(
             'trim',

@@ -9,12 +9,12 @@ final class QrResolveUrl
         $encoded = rawurlencode($code);
         $base = config('qr.public_base_url');
         if (is_string($base) && $base !== '') {
-            return rtrim($base, '/').'/qr/resolve/'.$encoded;
+            return rtrim($base, '/').'/resolve/'.$encoded;
         }
 
         $app = rtrim((string) config('app.url'), '/');
         if ($app !== '' && ! self::isLoopbackHost(parse_url($app, PHP_URL_HOST))) {
-            return $app.'/qr/resolve/'.$encoded;
+            return $app.'/resolve/'.$encoded;
         }
 
         return route('qr.resolve', ['code' => $code], absolute: true);
