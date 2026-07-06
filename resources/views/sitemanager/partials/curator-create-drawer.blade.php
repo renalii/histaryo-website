@@ -5,7 +5,7 @@
     $openDrawer = request()->boolean('create')
         || $isEditMode
         || session('open_curator_drawer')
-        || ($errors->any() && ($errors->has('first_name') || $errors->has('email') || $errors->has('assigned_landmark_id') || $errors->has('password')));
+        || ($errors->any() && ($errors->has('first_name') || $errors->has('email') || $errors->has('password') || $errors->has('assigned_landmark_id')));
     $selectedLandmarkId = old('assigned_landmark_id', $isEditMode ? ($editCurator->assigned_landmark_id ?? '') : '');
     $firstNameValue = old('first_name', $isEditMode ? ($editCurator->first_name ?? '') : '');
     $lastNameValue = old('last_name', $isEditMode ? ($editCurator->last_name ?? '') : '');
@@ -13,17 +13,14 @@
     $selectedLandmarkLabel = '';
     foreach ($landmarks as $landmark) {
         if ($landmark['id'] === $selectedLandmarkId) {
-            $code = $landmark['landmarkcode'] !== '' ? ' ('.$landmark['landmarkcode'].')' : '';
-            $selectedLandmarkLabel = $landmark['name'].$code;
+            $selectedLandmarkLabel = $landmark['name'];
             break;
         }
     }
     $landmarkOptions = array_map(function ($landmark) {
-        $code = $landmark['landmarkcode'] !== '' ? ' ('.$landmark['landmarkcode'].')' : '';
-
         return [
             'id' => $landmark['id'],
-            'label' => $landmark['name'].$code,
+            'label' => $landmark['name'],
         ];
     }, $landmarks);
 @endphp
@@ -135,6 +132,43 @@
         background: #fafafa;
         box-sizing: border-box;
     }
+    .cd-input:focus, .cd-select:focus {
+        outline: none;
+        border-color: #d1d5db;
+        box-shadow: none;
+    }
+    .cd-password {
+        position: relative;
+    }
+    .cd-password .cd-input {
+        padding-right: 2.75rem;
+    }
+    .cd-password__toggle {
+        position: absolute;
+        top: 50%;
+        right: .45rem;
+        width: 2rem;
+        height: 2rem;
+        padding: 0;
+        transform: translateY(-50%);
+        border: 0;
+        border-radius: 8px;
+        background: transparent;
+        color: #6b7280;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    .cd-password__toggle:hover,
+    .cd-password__toggle:focus-visible {
+        background: #f3f4f6;
+        color: #111827;
+    }
+    .cd-password__toggle svg {
+        width: 1.15rem;
+        height: 1.15rem;
+    }
     .cd-select {
         cursor: pointer;
         appearance: none;
@@ -191,6 +225,7 @@
         padding-top: 1.15rem;
         border-top: 1px solid #f1f5f9;
     }
+    .cd-section + .cd-actions { margin-top: 0; }
     .cd-btn-primary {
         width: 100%;
         padding: .75rem 1.2rem;
@@ -301,6 +336,36 @@
                             <input class="cd-input" id="drawer_email" name="email" type="email"
                                    autocomplete="email" value="{{ $emailValue }}" required>
                         </div>
+                        @if ($isEditMode)
+                            <div class="cd-field">
+                                <label for="drawer_password">Password</label>
+                                <div class="cd-password">
+                                    <input class="cd-input" id="drawer_password" name="password" type="password"
+                                           autocomplete="new-password" minlength="8" placeholder="••••••••">
+                                    <button type="button"
+                                            class="cd-password__toggle"
+                                            id="toggleCuratorPassword"
+                                            aria-label="Show password"
+                                            aria-pressed="false"
+                                            title="Show password">
+                                        <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                             stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                            <g data-password-visible-icon>
+                                                <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"></path>
+                                                <circle cx="12" cy="12" r="3"></circle>
+                                            </g>
+                                            <g data-password-hidden-icon hidden>
+                                                <path d="M3 3l18 18"></path>
+                                                <path d="M10.6 10.6a2 2 0 0 0 2.8 2.8"></path>
+                                                <path d="M9.9 4.2A10.6 10.6 0 0 1 12 4c6.5 0 10 8 10 8a18 18 0 0 1-2.1 3.2"></path>
+                                                <path d="M6.2 6.2C3.5 8.1 2 12 2 12s3.5 8 10 8a9.8 9.8 0 0 0 4.1-.9"></path>
+                                            </g>
+                                        </svg>
+                                    </button>
+                                </div>
+                                <p class="cd-hint">Leave blank to keep the current password unchanged.</p>
+                            </div>
+                        @endif
                     </div>
 
                     <div class="cd-section">
@@ -330,24 +395,6 @@
                             </div>
                         </div>
                     </div>
-
-                    @if (! $isEditMode)
-                        <div class="cd-section">
-                            <h3 class="cd-section-title">Sign-in credentials</h3>
-                            <div class="cd-grid-2">
-                                <div class="cd-field">
-                                    <label for="drawer_password">Temporary password</label>
-                                    <input class="cd-input" id="drawer_password" name="password" type="password"
-                                           autocomplete="new-password" minlength="8" required>
-                                </div>
-                                <div class="cd-field">
-                                    <label for="drawer_password_confirmation">Confirm password</label>
-                                    <input class="cd-input" id="drawer_password_confirmation" name="password_confirmation"
-                                           type="password" autocomplete="new-password" minlength="8" required>
-                                </div>
-                            </div>
-                        </div>
-                    @endif
 
                     <div class="cd-actions">
                         <button type="submit" class="cd-btn-primary">{{ $isEditMode ? 'Save changes' : 'Create curator' }}</button>
@@ -401,6 +448,19 @@
     }
     if (cancelBtn) {
         cancelBtn.addEventListener('click', closeCuratorDrawer);
+    }
+    var passwordInput = document.getElementById('drawer_password');
+    var passwordToggle = document.getElementById('toggleCuratorPassword');
+    if (passwordInput && passwordToggle) {
+        passwordToggle.addEventListener('click', function () {
+            var show = passwordInput.type === 'password';
+            passwordInput.type = show ? 'text' : 'password';
+            passwordToggle.setAttribute('aria-label', show ? 'Hide password' : 'Show password');
+            passwordToggle.setAttribute('aria-pressed', show ? 'true' : 'false');
+            passwordToggle.setAttribute('title', show ? 'Hide password' : 'Show password');
+            passwordToggle.querySelector('[data-password-visible-icon]').hidden = show;
+            passwordToggle.querySelector('[data-password-hidden-icon]').hidden = !show;
+        });
     }
     backdrop.addEventListener('click', function (e) {
         if (e.target === backdrop) {
