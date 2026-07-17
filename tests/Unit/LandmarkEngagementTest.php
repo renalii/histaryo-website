@@ -32,4 +32,20 @@ class LandmarkEngagementTest extends TestCase
         $this->assertSame(7, $record['visitor_profile_visit_count']);
         $this->assertSame('2026-07-02T08:35:53+00:00', $record['occurred_at']);
     }
+
+    public function test_it_matches_nested_visit_documents_by_site_id_and_visit_count(): void
+    {
+        $service = new LandmarkEngagement($this->createMock(FirebaseService::class));
+        $method = new ReflectionMethod(LandmarkEngagement::class, 'recordFromVisitDocument');
+        $method->setAccessible(true);
+
+        $record = $method->invoke($service, new ArrayDocumentSnapshot('visit-2', [
+            'siteId' => 'site-1',
+            'visitCount' => 4,
+            'createdAt' => '2026-07-10T08:00:00.000Z',
+        ]), 'visitor-2', 'Mara', null, ['site-1' => true]);
+
+        $this->assertSame('site-1', $record['landmark_id']);
+        $this->assertSame(4, $record['visit_count']);
+    }
 }

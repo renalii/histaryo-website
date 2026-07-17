@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Services\FirebaseService;
+use App\Services\SiteManagerReadModel;
 use Illuminate\Support\Facades\Cache;
 use Mockery;
 use Tests\TestCase;
@@ -11,7 +12,7 @@ class SiteManagerDashboardPerformanceTest extends TestCase
 {
     public function test_cached_site_manager_dashboard_does_not_initialize_firebase_clients(): void
     {
-        Cache::put('site-manager:manager-1:dashboard:v4', [
+        Cache::put(app(SiteManagerReadModel::class)->dashboardKey('manager-1'), [
             'landmarkCount' => 0,
             'curatorCount' => 0,
             'siteManagerStatistics' => [

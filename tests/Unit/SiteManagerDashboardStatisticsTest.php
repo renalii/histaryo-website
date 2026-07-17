@@ -53,6 +53,8 @@ class SiteManagerDashboardStatisticsTest extends TestCase
         $this->assertSame(['Latest', 'Older', 'Lower'], array_column($statistics['leaderboard'], 'visitor_name'));
         $this->assertSame('67%', $statistics['leaderboard'][0]['score']);
         $this->assertSame('Today, 5:00 PM', $statistics['leaderboard'][0]['completed_at_label']);
+        $this->assertSame(['Lower', 'Latest', 'Older'], array_column($statistics['leaderboard_by_landmark']['all'], 'visitor_name'));
+        $this->assertSame(['5000', '3999', '3999'], array_column($statistics['leaderboard_by_landmark']['all'], 'total_score'));
     }
 
     public function test_it_groups_quiz_results_for_managed_landmarks(): void
@@ -78,7 +80,7 @@ class SiteManagerDashboardStatisticsTest extends TestCase
 
         $this->assertSame('Rena Olivo', $statistics['leaderboard_by_landmark']['all'][0]['visitor_name']);
         $this->assertSame('Osmena Peak', $statistics['leaderboard_by_landmark']['4aad73e1ea35411291b2'][0]['landmark']);
-        $this->assertSame('52%', $statistics['leaderboard_by_landmark']['all'][0]['score']);
+        $this->assertSame('5161', $statistics['leaderboard_by_landmark']['all'][0]['total_score']);
         $this->assertSame('Today, 12:11 PM', $statistics['leaderboard_by_landmark']['all'][0]['completed_at_label']);
     }
 

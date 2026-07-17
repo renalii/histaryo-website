@@ -57,28 +57,60 @@ class LandmarkApprovalOrderTest extends TestCase
         $this->assertSame(['alpha', 'mango', 'zulu'], array_column($landmarks, 'id'));
     }
 
-    public function test_site_manager_landmarks_put_pending_before_active_and_sort_each_group_by_name(): void
+    public function test_site_manager_landmarks_put_active_pending_rejected_in_order_and_sort_each_group_by_name(): void
     {
         $landmarks = [
             ['id' => 'active-z', 'name' => 'Zeta Active', 'activation_status' => 'active', 'created_at' => '2026-06-10 12:00:00'],
             ['id' => 'pending-b', 'name' => 'Beta Pending', 'activation_status' => 'pending', 'created_at' => '2026-06-08 12:00:00'],
+            ['id' => 'rejected-b', 'name' => 'Beta Rejected', 'activation_status' => 'rejected', 'created_at' => '2026-06-11 12:00:00'],
             ['id' => 'active-a', 'name' => 'Alpha Active', 'activation_status' => 'active', 'created_at' => '2026-06-07 12:00:00'],
+            ['id' => 'rejected-a', 'name' => 'Alpha Rejected', 'activation_status' => 'rejected', 'created_at' => '2026-06-12 12:00:00'],
             ['id' => 'pending-a', 'name' => 'Alpha Pending', 'activation_status' => 'pending', 'created_at' => '2026-06-09 12:00:00'],
         ];
 
-        usort($landmarks, fn (array $left, array $right) => LandmarkApprovalOrder::compare(
+        usort($landmarks, fn (array $left, array $right) => LandmarkApprovalOrder::comparePortfolioStatusThenName(
+            $left,
+            $left['id'],
+            $right,
+            $right['id']
+        ));
+
+        $this->assertSame([
+            'active-a',
+            'active-z',
+            'pending-a',
+            'pending-b',
+            'rejected-a',
+            'rejected-b',
+        ], array_column($landmarks, 'id'));
+    }
+
+    public function test_site_manager_landmarks_keep_status_priority_when_sorting_names_descending(): void
+    {
+        $landmarks = [
+            ['id' => 'pending-a', 'name' => 'Alpha Pending', 'activation_status' => 'pending'],
+            ['id' => 'active-a', 'name' => 'Alpha Active', 'activation_status' => 'active'],
+            ['id' => 'rejected-a', 'name' => 'Alpha Rejected', 'activation_status' => 'rejected'],
+            ['id' => 'pending-b', 'name' => 'Beta Pending', 'activation_status' => 'pending'],
+            ['id' => 'active-z', 'name' => 'Zeta Active', 'activation_status' => 'active'],
+            ['id' => 'rejected-b', 'name' => 'Beta Rejected', 'activation_status' => 'rejected'],
+        ];
+
+        usort($landmarks, fn (array $left, array $right) => LandmarkApprovalOrder::comparePortfolioStatusThenName(
             $left,
             $left['id'],
             $right,
             $right['id'],
-            true
+            'desc'
         ));
 
         $this->assertSame([
-            'pending-a',
-            'pending-b',
-            'active-a',
             'active-z',
+            'active-a',
+            'pending-b',
+            'pending-a',
+            'rejected-b',
+            'rejected-a',
         ], array_column($landmarks, 'id'));
     }
 

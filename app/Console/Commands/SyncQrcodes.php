@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Services\FirebaseService;
+use App\Services\QrCodeImageStorage;
 use App\Support\QrResolveUrl;
 use Google\Cloud\Firestore\FieldValue;
 use Illuminate\Console\Command;
@@ -41,6 +42,7 @@ class SyncQrcodes extends Command
                 'landmarkCode' => $code,
                 'landmarkName' => (string) ($data['name'] ?? 'Untitled'),
                 'qrUrl' => QrResolveUrl::forCode($code),
+                'image_path' => QrCodeImageStorage::pathFor($landmark->id(), $code),
                 'status' => 'active',
             ];
 
