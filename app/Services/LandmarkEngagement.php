@@ -3,13 +3,12 @@
 namespace App\Services;
 
 use Carbon\Carbon;
-use Google\Cloud\Firestore\FieldValue;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
 
 final class LandmarkEngagement
 {
-    public const COLLECTION = 'landmark_activity';
-
     public function __construct(protected FirebaseService $firebase) {}
 
     public function record(Request $request, string $landmarkId, string $eventType, array $extra = []): void
@@ -30,13 +29,10 @@ final class LandmarkEngagement
             $request->session()->put('engagement_visitor_key', $visitorKey);
         }
 
-        $this->firebase->firestore()->collection(self::COLLECTION)->add(array_merge([
+        Log::info('Landmark engagement skipped; Firestore landmark activity collection is disabled.', [
             'landmark_id' => $landmarkId,
-            'activity_type' => $eventType,
             'event_type' => $eventType,
-            'visitor_key' => $visitorKey,
-            'occurred_at' => FieldValue::serverTimestamp(),
-        ], $extra));
+        ]);
     }
 
     /**
@@ -106,15 +102,142 @@ final class LandmarkEngagement
             return ['totals' => $summary, 'records' => []];
         }
 
-        $visitors = [];
-        $visitorUsers = [];
-        $last = null;
-        $records = [];
+        $cacheKey = 'landmark-engagement:visitor-visits:v2:'.md5(implode('|', array_keys($landmarkSet)));
 
-        foreach ($this->firebase->userCollection(FirebaseService::VISITOR_ROLE)->documents() as $visitorDocument) {
+        return Cache::remember($cacheKey, now()->addMinutes(5), function () use ($summary, $days, $landmarkSet): array {
+            $start = microtime(true);
+            $visitorProfileCount = null;
+            $records = $this->visitRecordsForLandmarks($landmarkSet, $visitorProfileCount);
+            $visitors = [];
+            $visitorUsers = [];
+            $last = null;
+
+            foreach ($records as $record) {
+                $summary['landmark_views'] += max(1, (int) ($record['visit_count'] ?? 1));
+
+                $visitorKey = trim((string) ($record['visitor_key'] ?? ''));
+                if ($visitorKey !== '') {
+                    $visitors[$visitorKey] = true;
+                    $visitorUsers[$visitorKey] = true;
+                }
+
+                $occurredAt = $this->toCarbon($record['occurred_at'] ?? null);
+                if ($occurredAt !== null) {
+                    if ($last === null || $occurredAt->greaterThan($last)) {
+                        $last = $occurredAt;
+                    }
+                    $dayKey = $occurredAt->format('Y-m-d');
+                    if (array_key_exists($dayKey, $days)) {
+                        $days[$dayKey] += max(1, (int) ($record['visit_count'] ?? 1));
+                    }
+                }
+            }
+
+            usort($records, function (array $a, array $b): int {
+                $aTime = strtotime((string) ($a['occurred_at'] ?? '')) ?: 0;
+                $bTime = strtotime((string) ($b['occurred_at'] ?? '')) ?: 0;
+
+                return $bTime <=> $aTime;
+            });
+
+            $summary['unique_visitors'] = count($visitors);
+            $summary['visitor_users'] = $visitorProfileCount ?? count($visitorUsers);
+            $summary['last_activity'] = $last?->toIso8601String();
+            $summary['daily_values'] = array_values($days);
+
+            Log::info('Timing Firestore query', [
+                'query' => 'visitor_profiles.visits_by_landmark',
+                'landmark_count' => count($landmarkSet),
+                'records' => count($records),
+                'duration_ms' => (int) round((microtime(true) - $start) * 1000),
+            ]);
+
+            return ['totals' => $summary, 'records' => $records];
+        });
+    }
+
+    /** @param array<string, true> $landmarkSet @return list<array<string,mixed>> */
+    private function visitRecordsForLandmarks(array $landmarkSet, ?int &$visitorProfileCount = null): array
+    {
+        return $this->visitRecordsFromVisitorProfiles($landmarkSet, $visitorProfileCount);
+    }
+
+    /** @param array<string, true> $landmarkSet @return list<array<string,mixed>> */
+    private function visitRecordsFromCollectionGroup(array $landmarkSet): array
+    {
+        try {
+            $firestore = $this->firebase->firestore();
+            if (! method_exists($firestore, 'collectionGroup')) {
+                return [];
+            }
+
+            $records = [];
+            $seen = [];
+            $options = $this->firestoreDashboardOptions();
+            foreach (['landmarkId', 'landmark_id'] as $field) {
+                foreach (array_chunk(array_keys($landmarkSet), 30) as $chunk) {
+                    $query = count($chunk) === 1
+                        ? $firestore->collectionGroup('visits')->where($field, '==', $chunk[0])
+                        : $firestore->collectionGroup('visits')->where($field, 'in', $chunk);
+
+                    try {
+                        foreach ($query->documents($options) as $document) {
+                            if (! $document->exists()) {
+                                continue;
+                            }
+                            $key = $document->id().':'.md5(json_encode($document->data()));
+                            if (isset($seen[$key])) {
+                                continue;
+                            }
+                            $seen[$key] = true;
+
+                            $record = $this->recordFromVisitData($document->id(), $document->data(), $landmarkSet);
+                            if ($record !== null) {
+                                $records[] = $record;
+                            }
+                        }
+                    } catch (\Throwable $exception) {
+                        Log::warning('Unable to load visitor visits using collection group query.', [
+                            'field' => $field,
+                            'landmark_count' => count($chunk),
+                            'exception' => $exception->getMessage(),
+                        ]);
+                    }
+                }
+            }
+
+            return $records;
+        } catch (\Throwable $exception) {
+            Log::warning('Unable to load visitor visits using collection group query.', [
+                'exception' => $exception->getMessage(),
+            ]);
+
+            return [];
+        }
+    }
+
+    /** @return array<string, int|float> */
+    private function firestoreDashboardOptions(): array
+    {
+        return [
+            'maxRetries' => 0,
+            'requestTimeout' => (float) config('services.firebase.dashboard_query_timeout', 3),
+        ];
+    }
+
+    /** @param array<string, true> $landmarkSet @return list<array<string,mixed>> */
+    private function visitRecordsFromVisitorProfiles(array $landmarkSet, ?int &$visitorProfileCount = null): array
+    {
+        $start = microtime(true);
+        $options = $this->firestoreDashboardOptions();
+        $records = [];
+        $visitorCount = 0;
+
+        foreach ($this->firebase->userCollection(FirebaseService::VISITOR_ROLE)->documents($options) as $visitorDocument) {
             if (! $visitorDocument->exists()) {
                 continue;
             }
+            $visitorCount++;
 
             $visitorData = $visitorDocument->data();
             $visitorKey = trim((string) ($visitorData['uid'] ?? $visitorDocument->id()));
@@ -123,11 +246,7 @@ final class LandmarkEngagement
                 $visitorName = trim((string) ($visitorData['email'] ?? $visitorKey));
             }
 
-            if ($visitorKey !== '') {
-                $visitorUsers[$visitorKey] = true;
-            }
-
-            foreach ($visitorDocument->reference()->collection('visits')->documents() as $visitDocument) {
+            foreach ($visitorDocument->reference()->collection('visits')->documents($options) as $visitDocument) {
                 if (! $visitDocument->exists()) {
                     continue;
                 }
@@ -139,44 +258,47 @@ final class LandmarkEngagement
                     $visitorData['visitCount'] ?? null,
                     $landmarkSet
                 );
-                if ($record === null) {
-                    continue;
-                }
-
-                $records[] = $record;
-
-                $summary['landmark_views'] += 1;
-
-                if ($visitorKey !== '') {
-                    $visitors[$visitorKey] = true;
-                }
-
-                $occurredAt = $this->toCarbon($record['occurred_at'] ?? null);
-                if ($occurredAt !== null) {
-                    if ($last === null || $occurredAt->greaterThan($last)) {
-                        $last = $occurredAt;
-                    }
-                    $dayKey = $occurredAt->format('Y-m-d');
-                    if (array_key_exists($dayKey, $days)) {
-                        $days[$dayKey] += 1;
-                    }
+                if ($record !== null) {
+                    $records[] = $record;
                 }
             }
         }
 
-        usort($records, function (array $a, array $b): int {
-            $aTime = strtotime((string) ($a['occurred_at'] ?? '')) ?: 0;
-            $bTime = strtotime((string) ($b['occurred_at'] ?? '')) ?: 0;
+        Log::info('Timing Firestore query', [
+            'query' => 'visitor_profiles.visits_subcollections',
+            'visitor_count' => $visitorCount,
+            'landmark_count' => count($landmarkSet),
+            'records' => count($records),
+            'duration_ms' => (int) round((microtime(true) - $start) * 1000),
+        ]);
 
-            return $bTime <=> $aTime;
-        });
+        $visitorProfileCount = $visitorCount;
 
-        $summary['unique_visitors'] = count($visitors);
-        $summary['visitor_users'] = count($visitorUsers);
-        $summary['last_activity'] = $last?->toIso8601String();
-        $summary['daily_values'] = array_values($days);
+        return $records;
+    }
 
-        return ['totals' => $summary, 'records' => $records];
+    /** @param array<string, true> $landmarkSet */
+    private function recordFromVisitData(string $id, array $data, array $landmarkSet): ?array
+    {
+        $landmarkId = trim((string) ($data['landmarkId'] ?? $data['landmark_id'] ?? $data['siteId'] ?? $data['site_id'] ?? ''));
+        if (! isset($landmarkSet[$landmarkId])) {
+            return null;
+        }
+
+        $visitorKey = trim((string) ($data['visitor_key'] ?? $data['visitorId'] ?? $data['visitor_id'] ?? $data['uid'] ?? $data['userId'] ?? ''));
+        $visitorName = trim((string) ($data['visitor_name'] ?? $data['visitorName'] ?? $data['name'] ?? $data['userName'] ?? $visitorKey));
+        $occurredAt = $this->toCarbon($data['createdAt'] ?? $data['created_at'] ?? $data['timestamp'] ?? $data['date'] ?? null);
+
+        return [
+            'id' => $id,
+            'landmark_id' => $landmarkId,
+            'landmark_name' => trim((string) ($data['landmarkName'] ?? $data['landmark_name'] ?? '')),
+            'activity_type' => 'landmark_view',
+            'occurred_at' => $occurredAt?->toIso8601String(),
+            'visitor_key' => $visitorKey,
+            'visitor_name' => $visitorName !== '' ? $visitorName : 'Visitor',
+            'visit_count' => max(1, (int) ($data['visit_count'] ?? $data['visitCount'] ?? 1)),
+        ];
     }
 
     /**
@@ -191,12 +313,13 @@ final class LandmarkEngagement
         array $landmarkSet
     ): ?array {
         $data = $document->data();
-        $landmarkId = trim((string) ($data['landmarkId'] ?? $data['landmark_id'] ?? ''));
+        $landmarkId = trim((string) ($data['landmarkId'] ?? $data['landmark_id'] ?? $data['siteId'] ?? $data['site_id'] ?? ''));
         if (! isset($landmarkSet[$landmarkId])) {
             return null;
         }
 
         $occurredAt = $this->toCarbon($data['createdAt'] ?? $data['timestamp'] ?? $data['date'] ?? null);
+        $visitCount = $data['visitCount'] ?? $data['visit_count'] ?? $data['count'] ?? null;
 
         return [
             'id' => $document->id(),
@@ -206,7 +329,7 @@ final class LandmarkEngagement
             'occurred_at' => $occurredAt?->toIso8601String(),
             'visitor_key' => $visitorKey,
             'visitor_name' => $visitorName !== '' ? $visitorName : 'Visitor',
-            'visit_count' => 1,
+            'visit_count' => is_numeric($visitCount) ? max(1, (int) $visitCount) : 1,
             'visitor_profile_visit_count' => is_numeric($visitorVisitCount) ? (int) $visitorVisitCount : null,
         ];
     }

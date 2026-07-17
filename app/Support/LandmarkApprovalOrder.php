@@ -30,6 +30,23 @@ final class LandmarkApprovalOrder
             : strcmp($leftId, $rightId);
     }
 
+    public static function comparePortfolioStatusThenName(array $left, string $leftId, array $right, string $rightId, string $direction = 'asc'): int
+    {
+        $statusComparison = self::portfolioStatusRank($left['activation_status'] ?? $left['status'] ?? null)
+            <=> self::portfolioStatusRank($right['activation_status'] ?? $right['status'] ?? null);
+
+        if ($statusComparison !== 0) {
+            return $statusComparison;
+        }
+
+        $nameComparison = strnatcasecmp(self::name($left), self::name($right));
+        if ($nameComparison !== 0) {
+            return $direction === 'desc' ? -$nameComparison : $nameComparison;
+        }
+
+        return strcmp($leftId, $rightId);
+    }
+
     private static function statusRank(mixed $status): int
     {
         $status = strtolower(trim((string) $status));
@@ -37,6 +54,18 @@ final class LandmarkApprovalOrder
         return match ($status === '' ? 'active' : $status) {
             'pending' => 0,
             'active', 'approved' => 1,
+            'rejected' => 2,
+            default => 3,
+        };
+    }
+
+    private static function portfolioStatusRank(mixed $status): int
+    {
+        $status = strtolower(trim((string) $status));
+
+        return match ($status === '' ? 'active' : $status) {
+            'active', 'approved' => 0,
+            'pending' => 1,
             'rejected' => 2,
             default => 3,
         };

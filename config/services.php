@@ -39,14 +39,23 @@ return [
         'landmark_folder' => env('CLOUDINARY_LANDMARK_FOLDER', 'histaryo/landmarks'),
         'max_base64_bytes' => (int) env('CLOUDINARY_MAX_BASE64_BYTES', 700000),
     ],
+
+    'frontend' => [
+        'url' => env(
+            'FRONTEND_URL',
+            env('MAIL_PUBLIC_BASE_URL', env('APP_URL'))
+        ),
+    ],
     
     'firebase' => [
         'api_key' => env('FIREBASE_API_KEY'),
+        'storage_bucket' => env('FIREBASE_STORAGE_BUCKET'),
         // Bound Google API waits so connectivity failures do not exhaust PHP's execution limit.
-        'connect_timeout' => (float) env('FIREBASE_CONNECT_TIMEOUT', 5),
-        'request_timeout' => (float) env('FIREBASE_REQUEST_TIMEOUT', 10),
+        'connect_timeout' => (float) env('FIREBASE_CONNECT_TIMEOUT', 10),
+        'request_timeout' => (float) env('FIREBASE_REQUEST_TIMEOUT', 20),
         'firestore_transport' => env('FIRESTORE_TRANSPORT', 'grpc'),
         'tip_query_timeout' => (float) env('FIREBASE_TIP_QUERY_TIMEOUT', 3),
+        'dashboard_query_timeout' => (float) env('FIREBASE_DASHBOARD_QUERY_TIMEOUT', 3),
         // Optional comma-separated extra Firestore collection ids for crowd tips (merged with app defaults).
         'firestore_tip_collection_names' => array_values(array_filter(array_map(
             'trim',

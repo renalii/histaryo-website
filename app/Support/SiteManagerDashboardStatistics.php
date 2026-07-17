@@ -120,6 +120,8 @@ final class SiteManagerDashboardStatistics
                 'sort_score' => is_numeric($scorePercentage)
                     ? (float) $scorePercentage
                     : self::numericScore($score, $record['quiz_total'] ?? null),
+                'total_score' => self::formatTotalScore($score),
+                'sort_total_score' => self::numericTotalScore($score),
                 'completed_at' => $occurredAt?->toIso8601String(),
                 'completed_at_label' => $occurredAt !== null
                     ? self::formatDateTimeLabel($occurredAt, $now)
@@ -280,12 +282,17 @@ final class SiteManagerDashboardStatistics
     /** @param list<array<string,mixed>> $leaderboard */
     private static function leaderboardByLandmark(array $leaderboard, array $landmarkNames): array
     {
-        $grouped = ['all' => array_slice($leaderboard, 0, 10)];
+        usort($leaderboard, function (array $a, array $b): int {
+            return (($b['sort_total_score'] ?? 0) <=> ($a['sort_total_score'] ?? 0))
+                ?: (strtotime((string) ($b['completed_at'] ?? '')) <=> strtotime((string) ($a['completed_at'] ?? '')));
+        });
+
+        $grouped = ['all' => $leaderboard];
         foreach ($landmarkNames as $landmarkId => $name) {
-            $grouped[(string) $landmarkId] = array_slice(array_values(array_filter(
+            $grouped[(string) $landmarkId] = array_values(array_filter(
                 $leaderboard,
                 fn (array $entry): bool => (string) ($entry['landmark_id'] ?? '') === (string) $landmarkId
-            )), 0, 10);
+            ));
         }
 
         return $grouped;
@@ -303,6 +310,36 @@ final class SiteManagerDashboardStatistics
     private static function formatPercentage(float $percentage): string
     {
         return rtrim(rtrim(number_format($percentage, 2, '.', ''), '0'), '.').'%';
+    }
+
+    private static function formatTotalScore(mixed $score): string
+    {
+        if (is_numeric($score)) {
+            $number = (float) $score;
+
+            return floor($number) === $number
+                ? (string) (int) $number
+                : rtrim(rtrim(number_format($number, 2, '.', ''), '0'), '.');
+        }
+
+        if (is_string($score) && preg_match('/^\s*(\d+(?:\.\d+)?)\s*\/\s*\d+(?:\.\d+)?\s*$/', $score, $matches)) {
+            return self::formatTotalScore((float) $matches[1]);
+        }
+
+        return trim((string) $score);
+    }
+
+    private static function numericTotalScore(mixed $score): float
+    {
+        if (is_numeric($score)) {
+            return (float) $score;
+        }
+
+        if (is_string($score) && preg_match('/^\s*(\d+(?:\.\d+)?)\s*\//', $score, $matches)) {
+            return (float) $matches[1];
+        }
+
+        return 0;
     }
 
     private static function numericScore(mixed $score, mixed $total): float

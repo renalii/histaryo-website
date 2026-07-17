@@ -21,6 +21,19 @@ class PublicAppUrl
         return (string) static::usingPublicRoot(fn () => route($name, $parameters, $absolute));
     }
 
+    public static function action(string $path, array $parameters = []): string
+    {
+        $path = '/'.ltrim($path, '/');
+
+        if (static::shouldUseFrontController()) {
+            $path = '/index.php'.$path;
+        }
+
+        $query = http_build_query($parameters, '', '&', PHP_QUERY_RFC3986);
+
+        return static::base().$path.($query !== '' ? '?'.$query : '');
+    }
+
     public static function temporarySignedRoute(string $name, Carbon|\DateTimeInterface $expiration, array $parameters = []): string
     {
         return (string) static::usingPublicRoot(fn () => URL::temporarySignedRoute($name, $expiration, $parameters));
@@ -56,5 +69,16 @@ class PublicAppUrl
                 URL::forceScheme(null);
             }
         }
+    }
+
+    private static function shouldUseFrontController(): bool
+    {
+        if (! app()->environment('local')) {
+            return false;
+        }
+
+        $host = strtolower((string) parse_url(static::base(), PHP_URL_HOST));
+
+        return in_array($host, ['127.0.0.1', 'localhost'], true);
     }
 }

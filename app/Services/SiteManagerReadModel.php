@@ -91,6 +91,6 @@ final class SiteManagerReadModel
 
     private function key(string $managerUid, string $suffix): string
     {
-        return 'site-manager:'.$managerUid.':'.$suffix.':v11';
+        return 'site-manager:'.$managerUid.':'.$suffix.':v15';
     }
 }

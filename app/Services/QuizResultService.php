@@ -3,14 +3,12 @@
 namespace App\Services;
 
 use Carbon\Carbon;
-use Google\Cloud\Firestore\FieldValue;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
 
 final class QuizResultService
 {
-    public const COLLECTION = 'quiz_results';
-
     public function __construct(protected FirebaseService $firebase) {}
 
     /**
@@ -48,37 +46,16 @@ final class QuizResultService
             'score_points' => $scorePoints,
             'correct_answers' => $correctAnswers,
             'total_questions' => $totalQuestions,
-            'completed_at' => FieldValue::serverTimestamp(),
+            'completed_at' => now()->toIso8601String(),
         ];
 
-        $collection = $this->firebase->firestore()->collection(self::COLLECTION);
-        $document = null;
-
-        foreach ($collection->where('landmark_id', '=', $landmarkId)->documents() as $candidate) {
-            if (! $candidate->exists()) {
-                continue;
-            }
-
-            $candidateData = $candidate->data();
-            if (trim((string) ($candidateData['visitor_id'] ?? '')) === $result['visitor_id']) {
-                $document = $collection->document($candidate->id());
-                $document->set($result, ['merge' => true]);
-                break;
-            }
-        }
-
-        if ($document === null) {
-            $document = $collection->add($result);
-        }
-
-        Log::info('Quiz result saved.', [
-            'quiz_result_id' => $document->id(),
-            'result' => array_merge($result, ['completed_at' => 'server_timestamp']),
+        Log::info('Quiz result persistence skipped; Firestore quiz results collection is disabled.', [
+            'landmark_id' => $landmarkId,
+            'visitor_id' => $result['visitor_id'],
         ]);
 
         return array_merge($result, [
-            'id' => $document->id(),
-            'completed_at' => now()->toIso8601String(),
+            'id' => '',
         ]);
     }
 
@@ -90,14 +67,7 @@ final class QuizResultService
             return [];
         }
 
-        $results = $this->visitorTriviaResults([$landmarkId => true]);
-
-        Log::info('Dashboard quiz-result query completed.', [
-            'landmark_ids' => [$landmarkId],
-            'result_count' => count($results),
-        ]);
-
-        return $results;
+        return $this->resultsForLandmarkSet([$landmarkId => true]);
     }
 
     /**
@@ -117,28 +87,114 @@ final class QuizResultService
             return [];
         }
 
-        $results = $this->visitorTriviaResults($landmarkSet);
-
-        Log::info('Dashboard quiz-result query completed.', [
-            'landmark_ids' => array_keys($landmarkSet),
-            'result_count' => count($results),
-        ]);
-
-        return $results;
+        return $this->resultsForLandmarkSet($landmarkSet);
     }
 
     /**
      * @param  array<string, true>  $landmarkSet
      * @return list<array<string, mixed>>
      */
-    private function visitorTriviaResults(array $landmarkSet): array
+    private function resultsForLandmarkSet(array $landmarkSet): array
     {
-        $results = [];
+        $cacheKey = 'quiz-results:visitor-trivia:v2:'.md5(implode('|', array_keys($landmarkSet)));
 
-        foreach ($this->firebase->userCollection(FirebaseService::VISITOR_ROLE)->documents() as $visitorDocument) {
+        return Cache::remember($cacheKey, now()->addMinutes(5), function () use ($landmarkSet): array {
+            $start = microtime(true);
+            $results = $this->resultsFromVisitorProfiles($landmarkSet);
+
+            Log::info('Timing Firestore query', [
+                'query' => 'visitor_profiles.trivia_results_by_landmark',
+                'landmark_count' => count($landmarkSet),
+                'records' => count($results),
+                'duration_ms' => (int) round((microtime(true) - $start) * 1000),
+            ]);
+
+            return $results;
+        });
+    }
+
+    /**
+     * @param  array<string, true>  $landmarkSet
+     * @return list<array<string, mixed>>
+     */
+    private function resultsFromCollectionGroup(array $landmarkSet): array
+    {
+        try {
+            $firestore = $this->firebase->firestore();
+            if (! method_exists($firestore, 'collectionGroup')) {
+                return [];
+            }
+
+            $results = [];
+            $seen = [];
+            $options = $this->firestoreDashboardOptions();
+            foreach (['landmarkId', 'landmark_id'] as $field) {
+                foreach (array_chunk(array_keys($landmarkSet), 30) as $chunk) {
+                    $query = count($chunk) === 1
+                        ? $firestore->collectionGroup('triviaResults')->where($field, '==', $chunk[0])
+                        : $firestore->collectionGroup('triviaResults')->where($field, 'in', $chunk);
+
+                    try {
+                        foreach ($query->documents($options) as $document) {
+                            if (! $document->exists()) {
+                                continue;
+                            }
+                            $key = $document->id().':'.md5(json_encode($document->data()));
+                            if (isset($seen[$key])) {
+                                continue;
+                            }
+                            $seen[$key] = true;
+
+                            $result = $this->resultFromTriviaData($document->id(), $document->data(), $landmarkSet);
+                            if ($result !== null) {
+                                $results[] = $result;
+                            }
+                        }
+                    } catch (\Throwable $exception) {
+                        Log::warning('Unable to load trivia results using collection group query.', [
+                            'field' => $field,
+                            'landmark_count' => count($chunk),
+                            'exception' => $exception->getMessage(),
+                        ]);
+                    }
+                }
+            }
+
+            return $results;
+        } catch (\Throwable $exception) {
+            Log::warning('Unable to load trivia results using collection group query.', [
+                'exception' => $exception->getMessage(),
+            ]);
+
+            return [];
+        }
+    }
+
+    /** @return array<string, int|float> */
+    private function firestoreDashboardOptions(): array
+    {
+        return [
+            'maxRetries' => 0,
+            'requestTimeout' => (float) config('services.firebase.dashboard_query_timeout', 3),
+        ];
+    }
+
+    /**
+     * @param  array<string, true>  $landmarkSet
+     * @return list<array<string, mixed>>
+     */
+    private function resultsFromVisitorProfiles(array $landmarkSet): array
+    {
+        $start = microtime(true);
+        $options = $this->firestoreDashboardOptions();
+        $results = [];
+        $visitorCount = 0;
+
+        foreach ($this->firebase->userCollection(FirebaseService::VISITOR_ROLE)->documents($options) as $visitorDocument) {
             if (! $visitorDocument->exists()) {
                 continue;
             }
+            $visitorCount++;
 
             $visitorData = $visitorDocument->data();
             $visitorId = trim((string) ($visitorData['uid'] ?? $visitorDocument->id()));
@@ -147,7 +203,7 @@ final class QuizResultService
                 $visitorName = trim((string) ($visitorData['email'] ?? $visitorId));
             }
 
-            foreach ($visitorDocument->reference()->collection('triviaResults')->documents() as $resultDocument) {
+            foreach ($visitorDocument->reference()->collection('triviaResults')->documents($options) as $resultDocument) {
                 if (! $resultDocument->exists()) {
                     continue;
                 }
@@ -159,7 +215,43 @@ final class QuizResultService
             }
         }
 
+        Log::info('Timing Firestore query', [
+            'query' => 'visitor_profiles.trivia_results_subcollections',
+            'visitor_count' => $visitorCount,
+            'landmark_count' => count($landmarkSet),
+            'records' => count($results),
+            'duration_ms' => (int) round((microtime(true) - $start) * 1000),
+        ]);
+
         return $results;
+    }
+
+    /** @param array<string, true> $landmarkSet */
+    private function resultFromTriviaData(string $id, array $data, array $landmarkSet): ?array
+    {
+        $landmarkId = trim((string) ($data['landmarkId'] ?? $data['landmark_id'] ?? $data['siteId'] ?? $data['site_id'] ?? ''));
+        if (! isset($landmarkSet[$landmarkId])) {
+            return null;
+        }
+
+        $completedAt = $this->toCarbon($data['createdAt'] ?? $data['created_at'] ?? $data['completed_at'] ?? $data['timestamp'] ?? null);
+        $visitorId = trim((string) ($data['visitor_id'] ?? $data['visitorId'] ?? $data['uid'] ?? $data['userId'] ?? ''));
+        $visitorName = trim((string) ($data['visitor_name'] ?? $data['visitorName'] ?? $data['visitor_email'] ?? $data['name'] ?? $data['userName'] ?? $visitorId));
+
+        return [
+            'id' => $id,
+            'landmark_id' => $landmarkId,
+            'landmark_name' => trim((string) ($data['landmarkName'] ?? $data['landmark_name'] ?? '')),
+            'activity_type' => 'quiz_attempt',
+            'visitor_key' => $visitorId,
+            'visitor_name' => $visitorName !== '' ? $visitorName : 'Visitor',
+            'quiz_score' => $data['score_points'] ?? $data['score'] ?? $data['totalScore'] ?? null,
+            'quiz_total' => $data['total_points'] ?? $data['maxScore'] ?? $data['quiz_total'] ?? $data['total'] ?? null,
+            'score_percentage' => $data['score_percentage'] ?? $data['scorePercent'] ?? $data['percentage'] ?? null,
+            'correct_answers' => $data['correct_answers'] ?? $data['correctCount'] ?? $data['correct'] ?? null,
+            'total_questions' => $data['total_questions'] ?? $data['total'] ?? null,
+            'occurred_at' => $completedAt?->toIso8601String(),
+        ];
     }
 
     /**
@@ -169,12 +261,15 @@ final class QuizResultService
     private function resultFromTriviaDocument(mixed $document, string $visitorId, string $visitorName, array $landmarkSet): ?array
     {
         $data = $document->data();
-        $landmarkId = trim((string) ($data['landmarkId'] ?? $data['landmark_id'] ?? ''));
+        $landmarkId = trim((string) ($data['landmarkId'] ?? $data['landmark_id'] ?? $data['siteId'] ?? $data['site_id'] ?? ''));
         if (! isset($landmarkSet[$landmarkId])) {
             return null;
         }
 
-        $completedAt = $this->toCarbon($data['createdAt'] ?? $data['timestamp'] ?? null);
+        $completedAt = $this->toCarbon($data['createdAt'] ?? $data['created_at'] ?? $data['completed_at'] ?? $data['timestamp'] ?? null);
+        $scorePercentage = $data['score_percentage'] ?? $data['scorePercent'] ?? $data['percentage'] ?? null;
+        $score = $data['score_points'] ?? $data['score'] ?? $data['totalScore'] ?? null;
+        $total = $data['total_points'] ?? $data['maxScore'] ?? $data['quiz_total'] ?? null;
 
         return [
             'id' => $document->id(),
@@ -183,8 +278,9 @@ final class QuizResultService
             'activity_type' => 'quiz_attempt',
             'visitor_key' => $visitorId,
             'visitor_name' => $visitorName !== '' ? $visitorName : 'Visitor',
-            'quiz_score' => $data['totalScore'] ?? null,
-            'quiz_total' => null,
+            'quiz_score' => $score,
+            'quiz_total' => $total,
+            'score_percentage' => $scorePercentage,
             'correct_answers' => $data['correctCount'] ?? $data['correct'] ?? null,
             'total_questions' => $data['total'] ?? null,
             'occurred_at' => $completedAt?->toIso8601String(),

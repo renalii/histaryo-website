@@ -28,6 +28,8 @@ class FirebaseService
 
     protected $firestore = null;
 
+    protected $storage = null;
+
     protected function factory(): Factory
     {
         if ($this->factory !== null) {
@@ -40,8 +42,8 @@ class FirebaseService
             $_ENV['GOOGLE_CLOUD_DISABLE_GRPC'] = 'true';
         }
 
-        $connectTimeout = (float) config('services.firebase.connect_timeout', 5);
-        $requestTimeout = (float) config('services.firebase.request_timeout', 10);
+        $connectTimeout = (float) config('services.firebase.connect_timeout', 10);
+        $requestTimeout = (float) config('services.firebase.request_timeout', 20);
         $authHttpHandler = new Guzzle7HttpHandler(new Client([
             'connect_timeout' => $connectTimeout,
             'timeout' => $requestTimeout,
@@ -50,7 +52,7 @@ class FirebaseService
             ->withConnectTimeout($connectTimeout)
             ->withTimeout($requestTimeout);
 
-        return $this->factory = (new Factory)->withServiceAccount(
+        $factory = (new Factory)->withServiceAccount(
             storage_path('app/firebase_credentials.json')
         )->withHttpClientOptions(
             $httpClientOptions
@@ -59,6 +61,13 @@ class FirebaseService
             'requestTimeout' => $requestTimeout,
             'retries' => 0,
         ]);
+
+        $storageBucket = trim((string) config('services.firebase.storage_bucket', ''));
+        if ($storageBucket !== '') {
+            $factory = $factory->withDefaultStorageBucket($storageBucket);
+        }
+
+        return $this->factory = $factory;
     }
 
     
@@ -75,6 +84,11 @@ class FirebaseService
     public function firestore()
     {
         return $this->firestore ??= $this->factory()->createFirestore()->database();
+    }
+
+    public function storage()
+    {
+        return $this->storage ??= $this->factory()->createStorage();
     }
 
     public function normalizeUserRole(?string $role): string
@@ -205,15 +219,21 @@ class FirebaseService
     public function signInWithEmailAndPassword($email, $password)
     {
         $apiKey = config('services.firebase.api_key');
+        $connectTimeout = (float) config('services.firebase.connect_timeout', 10);
+        $requestTimeout = (float) config('services.firebase.request_timeout', 20);
 
-        $response = Http::post(
-            "https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key={$apiKey}",
-            [
+        if (! is_string($apiKey) || trim($apiKey) === '') {
+            throw new \Exception('Firebase login failed: missing Firebase API key.');
+        }
+
+        $response = Http::connectTimeout($connectTimeout)
+            ->timeout($requestTimeout)
+            ->asJson()
+            ->post("https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key={$apiKey}", [
                 'email'             => $email,
                 'password'          => $password,
                 'returnSecureToken' => true,
-            ]
-        );
+            ]);
 
         if ($response->successful()) {
             return $response->json();
