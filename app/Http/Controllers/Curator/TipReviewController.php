@@ -7,19 +7,24 @@ use App\Support\FirestoreTipCollections;
 use App\Services\FirebaseService;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Session;
 
 class TipReviewController extends Controller
 {
-    protected $firestore;
+    protected $firestore = null;
 
     protected FirebaseService $firebase;
 
     public function __construct(FirebaseService $firebaseService)
     {
         $this->firebase = $firebaseService;
-        $this->firestore = $firebaseService->firestore();
+    }
+
+    private function firestore()
+    {
+        return $this->firestore ??= $this->firebase->firestore();
     }
 
     public function index(Request $request)
@@ -55,19 +60,39 @@ class TipReviewController extends Controller
             return [];
         }
 
+        $cacheKey = 'curator:tips:'.$landmarkId.':'.$statusFilter;
+        return Cache::remember($cacheKey, now()->addMinutes(2), function () use ($landmarkId, $statusFilter): array {
+            return $this->loadTipsForLandmark($landmarkId, $statusFilter);
+        });
+    }
+
+    private function loadTipsForLandmark(string $landmarkId, string $statusFilter): array
+    {
+        $start = microtime(true);
         $tips = [];
         $seenTips = [];
         foreach (FirestoreTipCollections::names() as $collectionName) {
             foreach (['landmark_id', 'landmarkId'] as $landmarkField) {
                 try {
-                    $tipsSnapshot = $this->firestore
+                    $query = $this->firestore()
                         ->collection($collectionName)
-                        ->where($landmarkField, '==', $landmarkId)
-                        ->documents([
+                        ->where($landmarkField, '==', $landmarkId);
+                    if (in_array($statusFilter, ['accepted', 'rejected'], true)) {
+                        $query = $query->where('status', '==', $statusFilter);
+                    }
+                    $queryStart = microtime(true);
+                    $tipsSnapshot = $query->documents([
                             'maxRetries' => 0,
                             'requestTimeout' => (float) config('services.firebase.tip_query_timeout', 3),
                             'retries' => 0,
                         ]);
+                    Log::info('Timing Firestore query', [
+                        'query' => 'curator_tips.by_landmark_status',
+                        'collection' => $collectionName,
+                        'landmark_field' => $landmarkField,
+                        'status' => $statusFilter,
+                        'duration_ms' => (int) round((microtime(true) - $queryStart) * 1000),
+                    ]);
                 } catch (\Throwable $exception) {
                     Log::warning('Unable to load curator landmark tips from Firestore.', [
                         'collection' => $collectionName,
@@ -156,6 +181,14 @@ class TipReviewController extends Controller
             return $tip;
         }, $tips);
 
+        Log::info('Timing curator page segment', [
+            'segment' => 'tipsForLandmark',
+            'landmark_id' => $landmarkId,
+            'status' => $statusFilter,
+            'records' => count($tips),
+            'duration_ms' => (int) round((microtime(true) - $start) * 1000),
+        ]);
+
         return $tips;
     }
 
@@ -171,7 +204,7 @@ class TipReviewController extends Controller
         ]);
 
         $collection = $payload['source_collection'] ?? 'crowdsourced_tips';
-        $tipRef = $this->firestore->collection($collection)->document($tipId);
+        $tipRef = $this->firestore()->collection($collection)->document($tipId);
         $tipDoc = $tipRef->snapshot();
         if (!$tipDoc->exists()) {
             return redirect()->route('curators.tips.index')->with('error', 'Tip not found.');
@@ -196,7 +229,7 @@ class TipReviewController extends Controller
             'updatedAt' => now()->toISOString(),
         ], ['merge' => true]);
 
-        $this->firestore->collection('logs')->add([
+        $this->firestore()->collection('logs')->add([
             'email' => Session::get('email'),
             'role' => 'curator',
             'action' => 'Curator ' . ($decision === 'accepted' ? 'accepted' : 'rejected') . ' visitor tip: ' . $tipId,
@@ -204,6 +237,9 @@ class TipReviewController extends Controller
             'landmark_id' => $tipLm,
             'timestamp' => now()->toISOString(),
         ]);
+        foreach (['all', 'pending', 'accepted', 'rejected'] as $status) {
+            Cache::forget('curator:tips:'.$tipLm.':'.$status);
+        }
 
         $redirect = ! empty($payload['return_to_landmark'])
             ? redirect()->route('landmarks.show', $tipLm)
@@ -217,14 +253,7 @@ class TipReviewController extends Controller
 
     private function assignedLandmarkId(): string
     {
-        $curatorUid = trim((string) Session::get('uid', ''));
-        if ($curatorUid === '') {
-            return '';
-        }
-
-        $profile = $this->firebase->userProfile($curatorUid, 'curator');
-
-        return trim((string) ($profile['data']['assigned_landmark_id'] ?? ''));
+        return trim((string) Session::get('assigned_landmark_id', ''));
     }
 
     private function formatDate($value): string

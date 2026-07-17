@@ -5,6 +5,7 @@ namespace App\Http\Controllers\SiteManager;
 use App\Http\Controllers\Controller;
 use App\Services\CloudinaryImageService;
 use App\Services\FirebaseService;
+use App\Services\QrCodeImageStorage;
 use App\Services\SiteManagerReadModel;
 use App\Support\LandmarkEvidence;
 use App\Support\QrResolveUrl;
@@ -172,6 +173,7 @@ class SiteManagerController extends Controller
                 'landmarkCode' => $landmarkCode,
                 'landmarkName' => (string) $request->name,
                 'qrUrl' => QrResolveUrl::forCode($landmarkCode),
+                'image_path' => QrCodeImageStorage::pathFor($landmarkId, $landmarkCode),
                 'status' => 'active',
                 'createdAt' => FieldValue::serverTimestamp(),
             ], ['merge' => true]);
@@ -238,6 +240,114 @@ class SiteManagerController extends Controller
         return 'LM'.strtoupper(Str::random(10));
     }
 
+    public function update(Request $request, string $id)
+    {
+        $managerUid = (string) Session::get('uid', '');
+        if ($managerUid === '') {
+            abort(403);
+        }
+
+        $validator = Validator::make(
+            $request->all(),
+            array_merge([
+                'name' => 'required|string',
+                'category' => 'required|string',
+                'description' => 'nullable|string',
+                'location' => 'nullable|string|max:255',
+                'latitude' => 'nullable|numeric',
+                'longitude' => 'nullable|numeric',
+                'image' => 'nullable|image|max:512',
+                'evidence_files' => ['nullable', 'array', 'max:5'],
+                'evidence_files.*' => [
+                    'file',
+                    'mimes:pdf,jpg,jpeg,png,webp,doc,docx',
+                    'max:5120',
+                ],
+            ]),
+            array_merge([
+                'image.max' => 'The landmark photo must be 512 KB or smaller.',
+            ], LandmarkEvidence::validationMessages())
+        );
+
+        if ($validator->fails()) {
+            return redirect()->route('sitemanager.landmarks.show', $id)
+                ->withErrors($validator)
+                ->withInput();
+        }
+
+        $landmarkRef = $this->firebase->firestore()->collection('landmarks')->document($id);
+        $snapshot = $landmarkRef->snapshot();
+        if (! $snapshot->exists()) {
+            return redirect()->route('sitemanager.landmarks')
+                ->with('status_err', 'Landmark not found.');
+        }
+
+        $data = $snapshot->data();
+        $ownerUid = trim((string) ($data['manager_uid'] ?? $data['managerUid'] ?? ''));
+        if ($ownerUid === '' || $ownerUid !== $managerUid) {
+            abort(403);
+        }
+
+        $payload = [
+            'name' => (string) $request->name,
+            'category' => (string) $request->category,
+            'description' => $request->filled('description') ? (string) $request->description : '',
+            'location' => $request->filled('location') ? (string) $request->location : '',
+            'updated_at' => now()->toDateTimeString(),
+        ];
+        if (is_numeric($request->latitude)) {
+            $payload['latitude'] = (float) $request->latitude;
+        }
+        if (is_numeric($request->longitude)) {
+            $payload['longitude'] = (float) $request->longitude;
+        }
+
+        try {
+            $landmarkRef->set($payload, ['merge' => true]);
+
+            $evidenceFiles = $request->file('evidence_files', []);
+            if (! is_array($evidenceFiles)) {
+                $evidenceFiles = [];
+            }
+            if ($evidenceFiles !== []) {
+                $landmarkRef->set([
+                    'evidence_documents' => LandmarkEvidence::storeUploadedFiles($id, $evidenceFiles),
+                ], ['merge' => true]);
+            }
+
+            if ($request->hasFile('image')) {
+                $landmarkRef->set($this->cloudinary->uploadLandmark($request->file('image'), $id), ['merge' => true]);
+            }
+
+            $landmarkCode = $this->landmarkCode($data);
+            if ($landmarkCode !== '') {
+                $this->firebase->firestore()->collection('qrcodes')->document($landmarkCode)->set([
+                    'landmarkName' => (string) $request->name,
+                    'updatedAt' => FieldValue::serverTimestamp(),
+                ], ['merge' => true]);
+            }
+
+            $this->firebase->firestore()->collection('logs')->add([
+                'email' => (string) Session::get('email', ''),
+                'role' => 'site_manager',
+                'action' => 'Site Manager updated landmark: '.(string) $request->name,
+                'landmark_id' => $id,
+                'landmark_name' => (string) $request->name,
+                'timestamp' => now()->toIso8601String(),
+            ]);
+            $this->siteManagerReadModel->forget($managerUid);
+        } catch (\Throwable $e) {
+            report($e);
+
+            return redirect()->route('sitemanager.landmarks.show', $id)
+                ->with('status_err', 'Could not update landmark: '.$e->getMessage())
+                ->withInput();
+        }
+
+        return redirect()->route('sitemanager.landmarks.show', $id)
+            ->with('status', 'Landmark updated successfully.');
+    }
+
     public function destroy(Request $request, string $id)
     {
         $managerUid = (string) Session::get('uid', '');
@@ -248,7 +358,7 @@ class SiteManagerController extends Controller
         $landmarkRef = $this->firebase->firestore()->collection('landmarks')->document($id);
         $snapshot = $landmarkRef->snapshot();
         if (! $snapshot->exists()) {
-            return redirect()->route('sitemanager.landmarks', ['view' => 'list'])
+            return redirect()->route('sitemanager.landmarks')
                 ->with('status_err', 'Landmark not found.');
         }
 
@@ -259,8 +369,10 @@ class SiteManagerController extends Controller
         }
 
         $landmarkName = trim((string) ($data['name'] ?? ''));
+        $landmarkCode = $this->landmarkCode($data);
 
         try {
+            $this->deleteStoredQrCodeImage($id, $landmarkCode);
             $landmarkRef->delete();
             $this->firebase->firestore()->collection('logs')->add([
                 'email' => (string) Session::get('email', ''),
@@ -274,11 +386,52 @@ class SiteManagerController extends Controller
         } catch (\Throwable $e) {
             report($e);
 
-            return redirect()->route('sitemanager.landmarks', ['view' => 'list'])
+            return redirect()->route('sitemanager.landmarks')
                 ->with('status_err', 'Could not delete landmark: '.$e->getMessage());
         }
 
-        return redirect()->route('sitemanager.landmarks', ['view' => 'list'])
+        return redirect()->route('sitemanager.landmarks')
             ->with('status', 'Landmark deleted successfully.');
+    }
+
+    private function landmarkCode(array $landmarkData): string
+    {
+        foreach (['code', 'landmarkcode', 'landmark_code', 'landmarkCode', 'qr_code', 'qrCode'] as $field) {
+            $code = trim((string) ($landmarkData[$field] ?? ''));
+            if ($code !== '') {
+                return $code;
+            }
+        }
+
+        return '';
+    }
+
+    private function deleteStoredQrCodeImage(string $landmarkId, string $landmarkCode): void
+    {
+        try {
+            if ($landmarkCode !== '') {
+                $qrDoc = $this->firebase->firestore()->collection('qrcodes')->document($landmarkCode)->snapshot();
+                if ($qrDoc->exists()) {
+                    QrCodeImageStorage::deletePath((string) ($qrDoc->data()['image_path'] ?? ''));
+                }
+            }
+
+            $manualQrDocs = $this->firebase->firestore()->collection('qr_codes')
+                ->where('landmark_id', '==', $landmarkId)
+                ->documents();
+            foreach ($manualQrDocs as $qrDoc) {
+                if ($qrDoc->exists()) {
+                    QrCodeImageStorage::deletePath((string) ($qrDoc->data()['image_path'] ?? ''));
+                    QrCodeImageStorage::deleteFor($landmarkId, (string) ($qrDoc->data()['code'] ?? $landmarkCode));
+                }
+            }
+
+            QrCodeImageStorage::deleteFor($landmarkId, $landmarkCode);
+            if ($landmarkCode !== '') {
+                QrCodeImageStorage::deleteFor($landmarkCode, $landmarkId);
+            }
+        } catch (\Throwable $e) {
+            report($e);
+        }
     }
 }

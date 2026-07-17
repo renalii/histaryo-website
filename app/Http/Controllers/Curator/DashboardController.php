@@ -12,17 +12,22 @@ use App\Support\CuratorAssignedLandmark;
 use App\Support\LandmarkActivation;
 use App\Support\SiteManagerDashboardStatistics;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
 
 class DashboardController extends Controller
 {
-    protected $firestore;
+    protected $firestore = null;
 
     public function __construct(
         protected FirebaseService $firebase,
         protected LandmarkEngagement $engagement,
         protected QuizResultService $quizResults
-    ) {
-        $this->firestore = $firebase->firestore();
+    ) {}
+
+    private function firestore()
+    {
+        return $this->firestore ??= $this->firebase->firestore();
     }
 
     public function pendingAssignment(Request $request)
@@ -52,6 +57,7 @@ class DashboardController extends Controller
 
     public function index()
     {
+        $start = microtime(true);
         $landmarkId = CuratorAssignedLandmark::id();
         $landmark = [
             'id' => $landmarkId,
@@ -60,22 +66,53 @@ class DashboardController extends Controller
         ];
 
         if ($landmarkId !== null) {
-            $snapshot = $this->firestore->collection('landmarks')->document($landmarkId)->snapshot();
-            if ($snapshot->exists()) {
-                $data = $snapshot->data();
-                $activationStatus = strtolower(trim((string) ($data['activation_status'] ?? 'active')));
-                $landmark['name'] = trim((string) ($data['name'] ?? '')) ?: 'Untitled landmark';
-                $landmark['status'] = LandmarkActivation::label($activationStatus);
-            }
+            $landmark = Cache::remember(
+                'curator:dashboard:landmark:'.$landmarkId,
+                now()->addMinutes(10),
+                function () use ($landmarkId, $landmark): array {
+                    $queryStart = microtime(true);
+                    $snapshot = $this->firestore()->collection('landmarks')->document($landmarkId)->snapshot();
+                    Log::info('Timing Firestore query', [
+                        'query' => 'curator_dashboard.landmark_snapshot',
+                        'landmark_id' => $landmarkId,
+                        'duration_ms' => (int) round((microtime(true) - $queryStart) * 1000),
+                    ]);
+
+                    if (! $snapshot->exists()) {
+                        return $landmark;
+                    }
+
+                    $data = $snapshot->data();
+                    $activationStatus = strtolower(trim((string) ($data['activation_status'] ?? 'active')));
+
+                    return [
+                        'id' => $landmarkId,
+                        'name' => trim((string) ($data['name'] ?? '')) ?: 'Untitled landmark',
+                        'status' => LandmarkActivation::label($activationStatus),
+                    ];
+                }
+            );
         }
 
-        $activity = $this->engagement->analyticsForLandmarks($landmarkId !== null ? [$landmarkId] : []);
-        $quizResults = $landmarkId !== null ? $this->quizResults->forLandmark($landmarkId) : [];
-        $statistics = SiteManagerDashboardStatistics::fromRecords(
-            array_merge($activity['records'], $quizResults),
-            $landmarkId !== null ? [$landmarkId => $landmark['name']] : []
+        $statistics = Cache::remember(
+            'curator:dashboard:statistics:'.($landmarkId ?? 'none'),
+            now()->addMinutes(3),
+            function () use ($landmarkId, $landmark): array {
+                $activity = $this->engagement->analyticsForLandmarks($landmarkId !== null ? [$landmarkId] : []);
+                $quizResults = $landmarkId !== null ? $this->quizResults->forLandmark($landmarkId) : [];
+
+                return SiteManagerDashboardStatistics::fromRecords(
+                    array_merge($activity['records'], $quizResults),
+                    $landmarkId !== null ? [$landmarkId => $landmark['name']] : []
+                );
+            }
         );
         $landmark['total_visitors'] = $statistics['total_visitors'];
+
+        Log::info('Timing curator page', [
+            'route' => 'curators.dashboard',
+            'duration_ms' => (int) round((microtime(true) - $start) * 1000),
+        ]);
 
         return view('curators.dashboard', [
             'assignedLandmark' => $landmark,

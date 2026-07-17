@@ -7,10 +7,14 @@ use App\Support\CuratorAssignedLandmark;
 use Illuminate\Http\Request;
 use App\Services\FirebaseService;
 use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Session;
 
 class QuizController extends Controller
 {
+    private const PER_PAGE = 9;
+
     /**
      * Hold the Firebase service instance.
      */
@@ -24,75 +28,93 @@ class QuizController extends Controller
 
     public function all(Request $request)
     {
-        return $this->questionBankView($request, null);
+        return $this->questionBankView($request, null, null);
     }
 
     public function show(Request $request, string $id)
     {
-        return $this->questionBankView($request, $id);
+        return $this->questionBankView($request, $id, 'edit');
+    }
+
+    public function confirmDelete(Request $request, string $id)
+    {
+        return $this->questionBankView($request, $id, 'delete');
     }
 
     /**
      * @return \Illuminate\Contracts\View\View
      */
-    private function questionBankView(Request $request, ?string $openQuizId)
+    private function questionBankView(Request $request, ?string $openQuizId, ?string $autoOpenQuizMode)
     {
         $landmarkMap = [];
         $landmarkList = [];
-        $quizDocs = [];
+        $assignedLandmarkId = trim((string) (CuratorAssignedLandmark::id() ?? ''));
+        $landmarkIds = $assignedLandmarkId !== '' ? [$assignedLandmarkId] : CuratorAssignedLandmark::browseableIds();
+        $landmarkIds = array_values(array_filter(array_unique(array_map(
+            fn (mixed $id): string => trim((string) $id),
+            $landmarkIds
+        ))));
 
-        foreach (CuratorAssignedLandmark::browseableIds() as $lid) {
-            $lid = trim((string) $lid);
-            $snap = $this->firebase->getLandmarkById($lid);
-            if ($snap->exists()) {
-                $landmarkMap[$lid] = $snap['name'] ?? 'Unnamed';
-            }
-            $quizDocs = array_merge($quizDocs, iterator_to_array($this->firebase->getQuizByLandmarkId($lid)));
+        if ($landmarkIds !== []) {
+            $landmarkId = $landmarkIds[0];
+            $landmarkMap[$landmarkId] = $this->cachedLandmarkName($landmarkId);
+            $landmarkList[] = ['id' => $landmarkId, 'name' => $landmarkMap[$landmarkId]];
         }
 
-        foreach ($landmarkMap as $lid => $name) {
-            $landmarkList[] = ['id' => $lid, 'name' => $name];
-        }
-
-        usort($landmarkList, fn (array $a, array $b) => strcasecmp($a['name'], $b['name']));
-
-        $allQuiz = [];
-        foreach ($quizDocs as $doc) {
-            if (! $doc->exists()) {
-                continue;
-            }
-            $d = $doc->data();
-            $landmarkId = trim((string) ($d['landmark_id'] ?? ''));
-            $landmarkName = $landmarkMap[$landmarkId] ?? 'Unknown site';
-
-            $allQuiz[] = [
-                'quiz_id'      => $doc->id(),
-                'landmark_id'    => $landmarkId,
-                'landmark_name'  => $landmarkName,
-                'question'       => $d['question'] ?? '',
-                'choices'        => array_values($d['choices'] ?? []),
-                'correct_answer' => $d['correct_answer'] ?? '',
-            ];
-        }
-
-        $perPage = 9;
+        $perPage = self::PER_PAGE;
         $currentPage = max(1, (int) $request->query('page', 1));
+        $totalQuiz = 0;
+        $currentItems = [];
 
-        if ($openQuizId !== null && $openQuizId !== '') {
-            foreach ($allQuiz as $index => $item) {
-                if (($item['quiz_id'] ?? '') === $openQuizId) {
-                    $currentPage = (int) floor($index / $perPage) + 1;
-                    break;
+        if ($landmarkList !== []) {
+            $landmarkId = $landmarkList[0]['id'];
+            $totalQuiz = Cache::remember('curator:quiz-count:'.$landmarkId, now()->addMinutes(5), function () use ($landmarkId): int {
+                $start = microtime(true);
+                $query = $this->firebase->firestore()
+                    ->collection('question_bank')
+                    ->where('landmark_id', '=', $landmarkId);
+                $count = (int) $query->count();
+                Log::info('Timing Firestore query', [
+                    'query' => 'question_bank.count_by_landmark',
+                    'landmark_id' => $landmarkId,
+                    'duration_ms' => (int) round((microtime(true) - $start) * 1000),
+                ]);
+
+                return $count;
+            });
+            $lastPage = max(1, (int) ceil($totalQuiz / $perPage));
+            $currentPage = min($currentPage, $lastPage);
+            $offset = ($currentPage - 1) * $perPage;
+
+            $currentItems = Cache::remember(
+                'curator:quiz-page:'.$landmarkId.':'.$currentPage,
+                now()->addMinutes(5),
+                function () use ($landmarkId, $offset, $perPage, $landmarkMap): array {
+                    $start = microtime(true);
+                    $items = [];
+                    $query = $this->firebase->firestore()
+                        ->collection('question_bank')
+                        ->where('landmark_id', '=', $landmarkId);
+                    foreach ($query->offset($offset)->limit($perPage)->documents() as $doc) {
+                        if ($doc->exists()) {
+                            $items[] = $this->quizItemFromSnapshot($doc, $landmarkMap);
+                        }
+                    }
+                    Log::info('Timing Firestore query', [
+                        'query' => 'question_bank.page_by_landmark',
+                        'landmark_id' => $landmarkId,
+                        'records' => count($items),
+                        'duration_ms' => (int) round((microtime(true) - $start) * 1000),
+                    ]);
+
+                    return $items;
                 }
-            }
+            );
         }
-
-        $offset = ($currentPage - 1) * $perPage;
-        $currentItems = array_slice($allQuiz, $offset, $perPage);
 
         $quizPaginator = new LengthAwarePaginator(
             $currentItems,
-            count($allQuiz),
+            $totalQuiz,
             $perPage,
             $currentPage,
             [
@@ -102,7 +124,7 @@ class QuizController extends Controller
         );
 
         $writableLandmarkIdSet = [];
-        foreach (CuratorAssignedLandmark::writableIds() as $id) {
+        foreach ($landmarkIds as $id) {
             $writableLandmarkIdSet[trim((string) $id)] = true;
         }
 
@@ -114,31 +136,57 @@ class QuizController extends Controller
             }
             $d = $snap->data();
             $landmarkId = trim((string) ($d['landmark_id'] ?? ''));
-            if (! in_array($landmarkId, CuratorAssignedLandmark::browseableIds(), true)) {
+            if (! in_array($landmarkId, $landmarkIds, true)) {
                 abort(404);
             }
             CuratorAssignedLandmark::assertMatches($landmarkId);
 
-            $landmarkName = $landmarkMap[$landmarkId] ?? 'Unknown site';
-            $autoOpenQuiz = [
-                'quiz_id'      => $openQuizId,
-                'landmark_id'    => $landmarkId,
-                'landmark_name'  => $landmarkName,
-                'question'       => $d['question'] ?? '',
-                'choices'        => array_values($d['choices'] ?? []),
-                'correct_answer' => $d['correct_answer'] ?? '',
-            ];
+            $autoOpenQuiz = $this->quizItem($openQuizId, $d, $landmarkMap);
         }
-
-        $assignedLandmarkId = trim((string) (Session::get('assigned_landmark_id') ?? ''));
 
         return view('curators.quiz.all', compact(
             'quizPaginator',
             'landmarkList',
             'writableLandmarkIdSet',
             'assignedLandmarkId',
-            'autoOpenQuiz'
+            'autoOpenQuiz',
+            'autoOpenQuizMode'
         ));
+    }
+
+    private function cachedLandmarkName(string $landmarkId): string
+    {
+        return Cache::remember(
+            'curator:quiz-bank:landmark-name:'.$landmarkId,
+            now()->addMinutes(10),
+            function () use ($landmarkId): string {
+                $snap = $this->firebase->getLandmarkById($landmarkId);
+                if (! $snap->exists()) {
+                    return 'Unnamed';
+                }
+
+                return trim((string) ($snap['name'] ?? '')) ?: 'Unnamed';
+            }
+        );
+    }
+
+    private function quizItemFromSnapshot(mixed $doc, array $landmarkMap): array
+    {
+        return $this->quizItem($doc->id(), $doc->data(), $landmarkMap);
+    }
+
+    private function quizItem(string $quizId, array $data, array $landmarkMap): array
+    {
+        $landmarkId = trim((string) ($data['landmark_id'] ?? ''));
+
+        return [
+            'quiz_id'      => $quizId,
+            'landmark_id'    => $landmarkId,
+            'landmark_name'  => $landmarkMap[$landmarkId] ?? 'Unknown site',
+            'question'       => $data['question'] ?? '',
+            'choices'        => array_values($data['choices'] ?? []),
+            'correct_answer' => $data['correct_answer'] ?? '',
+        ];
     }
 
     public function store(Request $request)
@@ -169,6 +217,7 @@ class QuizController extends Controller
             'choices'        => array_values(array_filter($request->choices, fn($c) => $c !== null && $c !== '')),
             'correct_answer' => (string) $request->correct_answer,
         ]);
+        $this->forgetQuizCache($assigned);
         $this->firebase->firestore()->collection('logs')->add([
             'email' => Session::get('email'),
             'role' => 'curator',
@@ -207,6 +256,7 @@ class QuizController extends Controller
             'choices'        => array_values(array_filter($request->choices, fn($c) => $c !== null && $c !== '')),
             'correct_answer' => (string) $request->correct_answer,
         ]);
+        $this->forgetQuizCache((string) ($snap['landmark_id'] ?? ''));
         $this->firebase->firestore()->collection('logs')->add([
             'email' => Session::get('email'),
             'role' => 'curator',
@@ -232,6 +282,7 @@ class QuizController extends Controller
         $question = (string) ($snap['question'] ?? '');
 
         $this->firebase->deleteQuiz($id);
+        $this->forgetQuizCache((string) ($snap['landmark_id'] ?? ''));
         $this->firebase->firestore()->collection('logs')->add([
             'email' => Session::get('email'),
             'role' => 'curator',
@@ -245,5 +296,18 @@ class QuizController extends Controller
         return redirect()
             ->route('curators.quiz.all')
             ->with('success', 'Quiz deleted successfully');
+    }
+
+    private function forgetQuizCache(string $landmarkId): void
+    {
+        $landmarkId = trim($landmarkId);
+        if ($landmarkId === '') {
+            return;
+        }
+
+        Cache::forget('curator:quiz-count:'.$landmarkId);
+        for ($page = 1; $page <= 20; $page++) {
+            Cache::forget('curator:quiz-page:'.$landmarkId.':'.$page);
+        }
     }
 }

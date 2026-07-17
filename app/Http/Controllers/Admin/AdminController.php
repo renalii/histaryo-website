@@ -20,7 +20,6 @@ use Illuminate\Support\Facades\Log;
 use Kreait\Firebase\Auth;
 use App\Support\ArrayDocumentSnapshot;
 use App\Support\FirestoreBool;
-use App\Support\FirestoreCollectionCleaner;
 use App\Support\LandmarkActivation;
 use App\Support\LandmarkApprovalOrder;
 use App\Support\SiteManagerDashboardStatistics;
@@ -87,18 +86,24 @@ class AdminController extends Controller
         $curatorCount = 0;
         $adminCount = 0;
         $visitorCount = 0;
+        $siteManagerProfiles = [];
+        $curatorProfiles = [];
 
-        foreach ($users as $user) {
+        foreach ($users as $uid => $user) {
             $role = strtolower((string) ($user['role'] ?? ''));
             $userCount++;
             if ($role === 'curator') {
                 $curatorCount++;
+                $curatorProfiles[(string) $uid] = $user + ['uid' => (string) $uid];
             }
             if ($role === 'admin') {
                 $adminCount++;
             }
             if ($role === 'visitor') {
                 $visitorCount++;
+            }
+            if ($role === 'site_manager') {
+                $siteManagerProfiles[(string) $uid] = $user + ['uid' => (string) $uid];
             }
         }
 
@@ -107,11 +112,17 @@ class AdminController extends Controller
         $unassignedLandmarkCount = 0;
         $managedLandmarkIds = [];
         $managedLandmarkNames = [];
+        $landmarksById = [];
         foreach ($firestore->collection('landmarks')->documents() as $doc) {
             if ($doc->exists()) {
                 $landmarkCount++;
                 $data = $doc->data();
                 $managerUid = trim((string) ($data['manager_uid'] ?? $data['managerUid'] ?? ''));
+                $landmarksById[$doc->id()] = [
+                    'id' => $doc->id(),
+                    'name' => trim((string) ($data['name'] ?? '')) ?: 'Unnamed landmark',
+                    'manager_uid' => $managerUid,
+                ];
                 if (! $isSystemAdmin && $sessionUid !== '' && $managerUid === $sessionUid) {
                     $managedLandmarkNames[$doc->id()] = trim((string) ($data['name'] ?? '')) ?: 'Unnamed landmark';
                 }
@@ -150,6 +161,11 @@ class AdminController extends Controller
         ];
         $visitsByDayValues = [];
         $siteManagerStatistics = null;
+        $topPerformers = [
+            'site_managers' => [],
+            'curators' => [],
+            'has_visitor_data' => false,
+        ];
 
         if ($isSystemAdmin) {
             $logsSnapshot = $firestore->collection('logs')->documents();
@@ -175,6 +191,7 @@ class AdminController extends Controller
             }
 
             $visitsByDayValues = array_values($visitsByDay);
+            $topPerformers = $this->dashboardTopPerformers($landmarksById, $siteManagerProfiles, $curatorProfiles);
         } elseif ($sessionUid !== '') {
             $activity = $this->engagement->analyticsForLandmarks($managedLandmarkIds);
             $siteManagerStatistics = SiteManagerDashboardStatistics::fromRecords(
@@ -199,7 +216,242 @@ class AdminController extends Controller
             'visitsByDay' => $visitsByDayValues,
             'showSystemInsights' => $isSystemAdmin,
             'siteManagerStatistics' => $siteManagerStatistics,
+            'topPerformers' => $topPerformers,
         ]);
+    }
+
+    /**
+     * @param  array<string, array{id:string,name:string,manager_uid:string}>  $landmarksById
+     * @param  array<string, array<string, mixed>>  $siteManagerProfiles
+     * @param  array<string, array<string, mixed>>  $curatorProfiles
+     * @return array{site_managers:list<array<string,mixed>>,curators:list<array<string,mixed>>,has_visitor_data:bool}
+     */
+    private function dashboardTopPerformers(array $landmarksById, array $siteManagerProfiles, array $curatorProfiles): array
+    {
+        if ($landmarksById === []) {
+            return [
+                'site_managers' => [],
+                'curators' => [],
+                'has_visitor_data' => false,
+            ];
+        }
+
+        $activity = $this->engagement->analyticsForLandmarks(array_keys($landmarksById));
+        $visitorsByLandmark = [];
+        foreach ($activity['records'] as $record) {
+            $landmarkId = trim((string) ($record['landmark_id'] ?? ''));
+            if ($landmarkId === '' || ! isset($landmarksById[$landmarkId])) {
+                continue;
+            }
+
+            $visitorsByLandmark[$landmarkId] = ($visitorsByLandmark[$landmarkId] ?? 0)
+                + max(1, (int) ($record['visit_count'] ?? 1));
+        }
+
+        $hasVisitorData = array_sum($visitorsByLandmark) > 0;
+        if (! $hasVisitorData) {
+            return [
+                'site_managers' => [],
+                'curators' => [],
+                'has_visitor_data' => false,
+            ];
+        }
+
+        $managerRows = [];
+        foreach ($landmarksById as $landmarkId => $landmark) {
+            $managerUid = trim((string) ($landmark['manager_uid'] ?? ''));
+            if ($managerUid === '') {
+                continue;
+            }
+
+            $managerRows[$managerUid] ??= [
+                'site_manager' => $this->dashboardProfileName($siteManagerProfiles[$managerUid] ?? [], 'Site Manager'),
+                'managed_landmarks' => 0,
+                'total_visitors' => 0,
+            ];
+            $managerRows[$managerUid]['managed_landmarks']++;
+            $managerRows[$managerUid]['total_visitors'] += (int) ($visitorsByLandmark[$landmarkId] ?? 0);
+        }
+
+        $curatorRows = [];
+        foreach ($curatorProfiles as $curator) {
+            $landmarkId = trim((string) ($curator['assigned_landmark_id'] ?? ''));
+            if ($landmarkId === '' || ! isset($landmarksById[$landmarkId])) {
+                continue;
+            }
+
+            $curatorRows[] = [
+                'curator' => $this->dashboardProfileName($curator, 'Curator'),
+                'assigned_landmark' => $landmarksById[$landmarkId]['name'],
+                'total_visitors' => (int) ($visitorsByLandmark[$landmarkId] ?? 0),
+            ];
+        }
+
+        $managerRows = array_values(array_filter($managerRows, fn (array $row): bool => (int) $row['total_visitors'] > 0));
+        $curatorRows = array_values(array_filter($curatorRows, fn (array $row): bool => (int) $row['total_visitors'] > 0));
+
+        usort($managerRows, fn (array $a, array $b): int => ((int) $b['total_visitors'] <=> (int) $a['total_visitors'])
+            ?: strcasecmp((string) $a['site_manager'], (string) $b['site_manager']));
+        usort($curatorRows, fn (array $a, array $b): int => ((int) $b['total_visitors'] <=> (int) $a['total_visitors'])
+            ?: strcasecmp((string) $a['curator'], (string) $b['curator']));
+
+        return [
+            'site_managers' => array_slice($managerRows, 0, 2),
+            'curators' => array_slice($curatorRows, 0, 3),
+            'has_visitor_data' => true,
+        ];
+    }
+
+    /** @param  array<string, mixed>  $profile */
+    private function dashboardProfileName(array $profile, string $fallback): string
+    {
+        $name = trim((string) ($profile['name'] ?? $profile['displayName'] ?? ''));
+        if ($name === '') {
+            $name = trim(implode(' ', array_filter([
+                trim((string) ($profile['first_name'] ?? '')),
+                trim((string) ($profile['last_name'] ?? '')),
+            ])));
+        }
+        if ($name === '') {
+            $name = trim((string) ($profile['email'] ?? ''));
+        }
+
+        return $name !== '' ? $name : $fallback;
+    }
+
+    public function map()
+    {
+        $landmarks = [];
+        $mapCategories = [];
+        $mapCities = ['Carcar City', 'Cebu City', 'Lapu-Lapu City', 'Mandaue City', 'Talisay City'];
+
+        foreach ($this->firestore()->collection('landmarks')->documents() as $landmark) {
+            if (! $landmark->exists()) {
+                continue;
+            }
+
+            $data = $landmark->data();
+            $lat = $data['latitude'] ?? $data['lati'] ?? null;
+            $lng = $data['longitude'] ?? $data['longti'] ?? null;
+
+            if (! is_numeric($lat) || ! is_numeric($lng)) {
+                continue;
+            }
+
+            $landmarkId = (string) $landmark->id();
+            $category = trim((string) ($data['category'] ?? ''));
+            $city = $this->adminMapCity($data, (float) $lat, (float) $lng);
+            $imageSrc = '';
+            if (! empty($data['image_url'] ?? null)) {
+                $imageSrc = (string) $data['image_url'];
+            } elseif (! empty($data['image_base64'] ?? null)) {
+                $imageBase64 = (string) $data['image_base64'];
+                $imageSrc = str_starts_with($imageBase64, 'data:')
+                    ? $imageBase64
+                    : 'data:'.($data['image_mime'] ?? 'image/jpeg').';base64,'.$imageBase64;
+            } elseif (LandmarkImageStorage::publicUrl($landmarkId) !== null) {
+                $imageSrc = LandmarkImageStorage::publicUrl($landmarkId);
+            }
+
+            $landmarks[] = [
+                'id' => $landmarkId,
+                'name' => (string) ($data['name'] ?? 'Untitled'),
+                'status' => (string) ($data['activation_status'] ?? 'active'),
+                'location' => (string) ($data['location'] ?? ''),
+                'category' => $category,
+                'city' => $city,
+                'description' => (string) ($data['description'] ?? ''),
+                'imageSrc' => $imageSrc,
+                'detailsUrl' => route('admin.landmarks.show', $landmarkId),
+                'latitude' => (float) $lat,
+                'longitude' => (float) $lng,
+            ];
+
+            if ($category !== '') {
+                $mapCategories[strtolower($category)] = $category;
+            }
+        }
+
+        $mapCategories = array_values($mapCategories);
+        $mapCities = array_values($mapCities);
+        natcasesort($mapCategories);
+        natcasesort($mapCities);
+
+        return view('sitemanager.map', [
+            'landmarks' => $landmarks,
+            'mapCategories' => array_values($mapCategories),
+            'mapCities' => array_values($mapCities),
+            'enableUserLocation' => true,
+            'mapboxToken' => config('services.mapbox.token'),
+            'mapEmptyMessage' => 'No landmarks with coordinates found.',
+        ]);
+    }
+
+    /** @param  array<string, mixed>  $data */
+    private function adminMapCity(array $data, float $latitude, float $longitude): string
+    {
+        $supportedCities = [
+            'carcar city' => 'Carcar City',
+            'cebu city' => 'Cebu City',
+            'lapu lapu city' => 'Lapu-Lapu City',
+            'mandaue city' => 'Mandaue City',
+            'talisay city' => 'Talisay City',
+        ];
+        $address = is_array($data['address'] ?? null) ? $data['address'] : [];
+        $candidates = [
+            $data['city'] ?? null,
+            $data['city_name'] ?? null,
+            $data['cityName'] ?? null,
+            $data['municipality'] ?? null,
+            $data['address_city'] ?? null,
+            $data['addressCity'] ?? null,
+            $data['location_city'] ?? null,
+            $data['locality'] ?? null,
+            $address['city'] ?? null,
+            $address['municipality'] ?? null,
+            $address['locality'] ?? null,
+            is_string($data['address'] ?? null) ? $data['address'] : null,
+            $data['location'] ?? null,
+        ];
+
+        foreach ($candidates as $candidate) {
+            if (! is_scalar($candidate)) {
+                continue;
+            }
+
+            $normalized = strtolower(trim((string) $candidate));
+            $normalized = str_replace(['–', '—', '-', '_'], ' ', $normalized);
+            $normalized = preg_replace('/\s+/', ' ', $normalized) ?? $normalized;
+
+            foreach ($supportedCities as $cityKey => $cityLabel) {
+                if ($normalized === $cityKey || str_contains($normalized, $cityKey)) {
+                    return $cityLabel;
+                }
+            }
+        }
+
+        $cityCenters = [
+            'Carcar City' => [10.1060, 123.6402],
+            'Cebu City' => [10.3157, 123.8854],
+            'Lapu-Lapu City' => [10.3103, 123.9494],
+            'Mandaue City' => [10.3236, 123.9222],
+            'Talisay City' => [10.2447, 123.8494],
+        ];
+        $nearestCity = '';
+        $nearestDistance = INF;
+
+        foreach ($cityCenters as $cityLabel => [$cityLatitude, $cityLongitude]) {
+            $latitudeDistance = $latitude - $cityLatitude;
+            $longitudeDistance = ($longitude - $cityLongitude) * cos(deg2rad($latitude));
+            $distance = ($latitudeDistance ** 2) + ($longitudeDistance ** 2);
+
+            if ($distance < $nearestDistance) {
+                $nearestDistance = $distance;
+                $nearestCity = $cityLabel;
+            }
+        }
+
+        return $nearestDistance <= 0.0225 ? $nearestCity : '';
     }
 
     private function siteManagerDashboard(string $managerUid)
@@ -342,6 +594,10 @@ class AdminController extends Controller
         $roleFilter = strtolower(trim((string) $request->input('role', '')));
         $curatorsOnly = $request->routeIs('sitemanager.curators');
         $siteManagersOnly = $request->routeIs('admin.site-managers');
+        $adminUsersIndex = $request->routeIs('admin.users');
+        if ($adminUsersIndex && ! in_array($roleFilter, ['', 'admin', 'curator', 'site_manager'], true)) {
+            $roleFilter = '';
+        }
         if ($curatorsOnly) {
             $roleFilter = 'curator';
         }
@@ -385,6 +641,10 @@ class AdminController extends Controller
 
             if (! $role) {
                 $role = 'visitor';
+            }
+
+            if ($adminUsersIndex && $role === 'visitor') {
+                continue;
             }
 
             if ($siteManagersOnly && $role !== 'site_manager') {
@@ -483,9 +743,26 @@ class AdminController extends Controller
             }
         }
 
+        if ($adminUsersIndex) {
+            usort($mergedUsers, static function (object $left, object $right): int {
+                $approvalPriority = (empty($left->approval_actions) ? 1 : 0)
+                    <=> (empty($right->approval_actions) ? 1 : 0);
+
+                if ($approvalPriority !== 0) {
+                    return $approvalPriority;
+                }
+
+                $emailComparison = strnatcasecmp((string) $left->email, (string) $right->email);
+
+                return $emailComparison !== 0
+                    ? $emailComparison
+                    : strcmp((string) $left->uid, (string) $right->uid);
+            });
+        }
+
         $usersForView = $mergedUsers;
         if ($request->routeIs('admin.users')) {
-            $perPage = 7;
+            $perPage = 6;
             $totalUsers = count($mergedUsers);
             $lastPage = max(1, (int) ceil($totalUsers / $perPage));
             $page = min(max(1, (int) $request->query('page', 1)), $lastPage);
@@ -524,10 +801,6 @@ class AdminController extends Controller
         foreach ($this->siteManagerReadModel->curators($managerUid) as $profile) {
             $uid = (string) $profile['uid'];
             $email = strtolower((string) ($profile['email'] ?? ''));
-            if ($search !== '' && ! str_contains($email, $search) && ! str_contains(strtolower($uid), $search)) {
-                continue;
-            }
-
             $requiresApproval = UserApprovalPolicy::effectiveRequiresApproval(
                 'curator',
                 $profile['requires_approval'] ?? null
@@ -536,6 +809,21 @@ class AdminController extends Controller
                 ? strtolower((string) ($profile['approval_status'] ?? 'approved'))
                 : 'approved';
             $assignedLandmarkId = trim((string) ($profile['assigned_landmark_id'] ?? ''));
+            $assignedLandmarkName = $landmarkNames[$assignedLandmarkId] ?? 'Unassigned';
+            $accountStatus = strtolower((string) ($profile['account_status'] ?? 'active')) === 'inactive' ? 'inactive' : 'active';
+
+            if ($search !== '') {
+                $statusMatch = in_array($search, ['active', 'inactive'], true)
+                    ? $accountStatus === $search
+                    : str_contains($accountStatus, $search);
+
+                if (! str_contains($email, $search)
+                    && ! str_contains(strtolower($assignedLandmarkName), $search)
+                    && ! $statusMatch) {
+                    continue;
+                }
+            }
+
             $users[] = (object) [
                 'email' => $profile['email'] ?? '',
                 'uid' => $uid,
@@ -545,15 +833,31 @@ class AdminController extends Controller
                 'name' => (string) ($profile['name'] ?? ''),
                 'requires_approval' => $requiresApproval,
                 'approval_status' => $approvalStatus,
-                'account_status' => strtolower((string) ($profile['account_status'] ?? 'active')) === 'inactive' ? 'inactive' : 'active',
+                'account_status' => $accountStatus,
                 'curator_registration_type' => (string) ($profile['curator_registration_type'] ?? ''),
                 'assigned_landmark_id' => $assignedLandmarkId,
-                'assigned_landmark_name' => $landmarkNames[$assignedLandmarkId] ?? 'Unassigned',
+                'assigned_landmark_name' => $assignedLandmarkName,
                 'approval_actions' => $requiresApproval && $approvalStatus === 'pending'
                     && ($profile['curator_registration_type'] ?? '') === 'existing_landmark'
                     && isset($landmarkNames[$assignedLandmarkId]),
             ];
         }
+
+        usort($users, function (object $left, object $right): int {
+            $statusRank = static fn (string $status): int => $status === 'active' ? 1 : 2;
+            $statusComparison = $statusRank((string) $left->account_status)
+                <=> $statusRank((string) $right->account_status);
+
+            if ($statusComparison !== 0) {
+                return $statusComparison;
+            }
+
+            $emailComparison = strnatcasecmp((string) $left->email, (string) $right->email);
+
+            return $emailComparison !== 0
+                ? $emailComparison
+                : strcmp((string) $left->uid, (string) $right->uid);
+        });
 
         $editCurator = null;
         $editUid = trim((string) $request->query('edit', ''));
@@ -575,7 +879,7 @@ class AdminController extends Controller
             $page,
             [
                 'path' => route('sitemanager.curators'),
-                'query' => $request->except('page'),
+                'query' => $request->except(['page', 'edit', 'create']),
             ]
         );
 
@@ -774,7 +1078,7 @@ class AdminController extends Controller
         }
 
         return redirect()->route($this->usersIndexRouteName(), $request->only(['search', 'role']))
-            ->with('status', 'Registration rejected. Firebase account and profile were removed.');
+            ->with('status', 'Registration rejected successfully.');
     }
 
     public function landmarks(Request $request)
@@ -784,15 +1088,16 @@ class AdminController extends Controller
         if ($open !== '' && $sessionRole === 'site_manager') {
             return redirect()->route('sitemanager.landmarks.show', array_filter([
                 'id' => $open,
-                'view' => $request->query('view'),
             ]));
         }
         if ($open !== '' && $sessionRole === 'admin') {
             return redirect()->route('admin.landmarks.show', array_filter([
                 'id' => $open,
-                'view' => $request->query('view'),
                 'status' => $request->query('status'),
             ]));
+        }
+        if (in_array($sessionRole, ['site_manager', 'admin'], true) && $request->query->has('view')) {
+            return redirect()->route($sessionRole === 'site_manager' ? 'sitemanager.landmarks' : 'admin.landmarks', $request->except('view'));
         }
 
         return $this->landmarksIndexView($request);
@@ -803,8 +1108,8 @@ class AdminController extends Controller
      */
     private function landmarksIndexView(Request $request, ?string $openLandmarkId = null)
     {
-        $perPage = 4;
         $sessionRole = (string) $request->session()->get('role', '');
+        $perPage = $sessionRole === 'admin' ? 7 : 7;
         $sessionUid = (string) $request->session()->get('uid', '');
 
         if ($sessionRole === 'site_manager' && $sessionUid !== '') {
@@ -831,21 +1136,55 @@ class AdminController extends Controller
         }
 
         $landmarkStatusFilter = 'all';
+        $landmarkSearch = '';
+        $landmarkCategoryFilter = 'all';
         if ($sessionRole === 'admin') {
-            $landmarkStatusFilter = strtolower((string) $request->query('status', 'pending'));
+            $landmarkSearch = trim((string) $request->query('search', ''));
+            $landmarkStatusFilter = strtolower((string) $request->query('status', 'all'));
+            $landmarkCategoryFilter = strtolower(trim((string) $request->query('category', 'all')));
             if (! in_array($landmarkStatusFilter, ['pending', 'active', 'rejected', 'all'], true)) {
-                $landmarkStatusFilter = 'pending';
+                $landmarkStatusFilter = 'all';
             }
-            if ($landmarkStatusFilter !== 'all') {
-                $allLandmarks = array_values(array_filter($allLandmarks, function ($doc) use ($landmarkStatusFilter) {
-                    if (! $doc->exists()) {
+            if (! in_array($landmarkCategoryFilter, ['all', 'historical', 'religious', 'modern', 'natural', 'cultural', 'others'], true)) {
+                $landmarkCategoryFilter = 'all';
+            }
+
+            $searchNeedle = strtolower($landmarkSearch);
+            $knownCategories = ['historical', 'religious', 'modern', 'natural', 'cultural'];
+            $allLandmarks = array_values(array_filter($allLandmarks, function ($doc) use ($landmarkStatusFilter, $landmarkCategoryFilter, $searchNeedle, $knownCategories) {
+                if (! $doc->exists()) {
+                    return false;
+                }
+
+                $data = $doc->data();
+                $activation = strtolower((string) ($data['activation_status'] ?? 'active'));
+                if ($landmarkStatusFilter !== 'all' && $activation !== $landmarkStatusFilter) {
+                    return false;
+                }
+
+                $category = strtolower(trim((string) ($data['category'] ?? '')));
+                if ($landmarkCategoryFilter === 'others') {
+                    if ($category !== '' && in_array($category, $knownCategories, true)) {
                         return false;
                     }
-                    $activation = strtolower((string) ($doc->data()['activation_status'] ?? 'active'));
+                } elseif ($landmarkCategoryFilter !== 'all' && $category !== $landmarkCategoryFilter) {
+                    return false;
+                }
 
-                    return $activation === $landmarkStatusFilter;
-                }));
-            }
+                if ($searchNeedle !== '') {
+                    $haystack = strtolower(implode(' ', [
+                        trim((string) ($data['name'] ?? '')),
+                        trim((string) ($data['location'] ?? '')),
+                        trim((string) ($data['category'] ?? '')),
+                    ]));
+
+                    if (! str_contains($haystack, $searchNeedle)) {
+                        return false;
+                    }
+                }
+
+                return true;
+            }));
 
             usort($allLandmarks, function ($left, $right) use ($landmarkStatusFilter) {
                 return LandmarkApprovalOrder::compare(
@@ -857,13 +1196,109 @@ class AdminController extends Controller
                 );
             });
         } elseif ($sessionRole === 'site_manager') {
-            usort($allLandmarks, fn ($left, $right) => LandmarkApprovalOrder::compare(
-                $left->data(),
-                $left->id(),
-                $right->data(),
-                $right->id(),
-                true
-            ));
+            $landmarkSearch = trim((string) $request->query('search', ''));
+            $landmarkCategoryFilter = strtolower(trim((string) $request->query('category', 'all')));
+            $landmarkStatusFilter = strtolower(trim((string) $request->query('status', 'all')));
+            $landmarkOrder = strtolower(trim((string) $request->query('order', 'default')));
+            $allowedCategories = ['all', 'historical', 'religious', 'natural', 'modern'];
+            $allowedStatuses = ['all', 'active', 'pending', 'rejected'];
+            $allowedOrders = ['default', 'name_az', 'name_za', 'newest', 'oldest'];
+
+            if (! in_array($landmarkCategoryFilter, $allowedCategories, true)) {
+                $landmarkCategoryFilter = 'all';
+            }
+            if (! in_array($landmarkStatusFilter, $allowedStatuses, true)) {
+                $landmarkStatusFilter = 'all';
+            }
+            if (! in_array($landmarkOrder, $allowedOrders, true)) {
+                $landmarkOrder = 'default';
+            }
+
+            $searchNeedle = strtolower($landmarkSearch);
+            $allLandmarks = array_values(array_filter($allLandmarks, function ($doc) use ($searchNeedle, $landmarkCategoryFilter, $landmarkStatusFilter) {
+                if (! $doc->exists()) {
+                    return false;
+                }
+
+                $data = $doc->data();
+                if ($searchNeedle !== '') {
+                    $haystack = strtolower(trim((string) ($data['name'] ?? '')).' '.trim((string) ($data['location'] ?? '')));
+                    if (! str_contains($haystack, $searchNeedle)) {
+                        return false;
+                    }
+                }
+
+                if ($landmarkCategoryFilter !== 'all'
+                    && strtolower(trim((string) ($data['category'] ?? ''))) !== $landmarkCategoryFilter) {
+                    return false;
+                }
+
+                $status = strtolower(trim((string) ($data['activation_status'] ?? $data['status'] ?? 'active')));
+                if ($landmarkStatusFilter !== 'all' && $status !== $landmarkStatusFilter) {
+                    return false;
+                }
+
+                return true;
+            }));
+
+            usort($allLandmarks, function ($left, $right) use ($landmarkOrder) {
+                $leftData = $left->data();
+                $rightData = $right->data();
+
+                if ($landmarkOrder === 'default') {
+                    return LandmarkApprovalOrder::compare(
+                        $leftData,
+                        $left->id(),
+                        $rightData,
+                        $right->id(),
+                        true
+                    );
+                }
+
+                if (in_array($landmarkOrder, ['name_az', 'name_za'], true)) {
+                    $nameComparison = LandmarkApprovalOrder::compare(
+                        $leftData,
+                        $left->id(),
+                        $rightData,
+                        $right->id(),
+                        false
+                    );
+
+                    return $landmarkOrder === 'name_za' ? -$nameComparison : $nameComparison;
+                }
+
+                $dateValue = static function (mixed $value): int {
+                    if ($value instanceof \DateTimeInterface) {
+                        return $value->getTimestamp();
+                    }
+                    if (is_object($value) && method_exists($value, 'get')) {
+                        $date = $value->get();
+                        if ($date instanceof \DateTimeInterface) {
+                            return $date->getTimestamp();
+                        }
+                    }
+                    if (is_numeric($value)) {
+                        return (int) $value;
+                    }
+                    if (is_scalar($value)) {
+                        return strtotime((string) $value) ?: 0;
+                    }
+
+                    return 0;
+                };
+                $leftDate = $dateValue($leftData['created_at'] ?? $leftData['submitted_at'] ?? null);
+                $rightDate = $dateValue($rightData['created_at'] ?? $rightData['submitted_at'] ?? null);
+                $dateComparison = $landmarkOrder === 'oldest'
+                    ? $leftDate <=> $rightDate
+                    : $rightDate <=> $leftDate;
+
+                return LandmarkApprovalOrder::comparePortfolioStatusThenName(
+                    $leftData,
+                    $left->id(),
+                    $rightData,
+                    $right->id()
+                ) ?: $dateComparison;
+            });
         }
 
         $openLandmarkId = trim((string) ($openLandmarkId ?? ''));
@@ -890,32 +1325,31 @@ class AdminController extends Controller
             ? route('sitemanager.landmarks')
             : route('admin.landmarks');
 
-        if ($request->get('view') === 'list') {
-            $landmarks = collect($allLandmarks);
-        } else {
-            $page = max(1, (int) $request->get('page', 1));
-            if ($openLandmarkId !== '' && in_array($sessionRole, ['site_manager', 'admin'], true)) {
-                foreach ($allLandmarks as $index => $doc) {
-                    if ($doc->exists() && $doc->id() === $openLandmarkId) {
-                        $page = (int) floor($index / $perPage) + 1;
-                        break;
-                    }
+        $page = max(1, (int) $request->get('page', 1));
+        if ($openLandmarkId !== '' && in_array($sessionRole, ['site_manager', 'admin'], true)) {
+            foreach ($allLandmarks as $index => $doc) {
+                if ($doc->exists() && $doc->id() === $openLandmarkId) {
+                    $page = (int) floor($index / $perPage) + 1;
+                    break;
                 }
             }
-            $items = array_slice($allLandmarks, ($page - 1) * $perPage, $perPage);
-
-            $landmarks = new LengthAwarePaginator(
-                $items,
-                count($allLandmarks),
-                $perPage,
-                $page,
-                ['path' => $paginationPath, 'query' => $request->query()]
-            );
         }
+        $items = array_slice($allLandmarks, ($page - 1) * $perPage, $perPage);
+
+        $landmarks = new LengthAwarePaginator(
+            $items,
+            count($allLandmarks),
+            $perPage,
+            $page,
+            ['path' => $paginationPath, 'query' => $request->except(['view', 'page'])]
+        );
 
         return view('admin.landmarks', [
             'landmarks' => $landmarks,
             'landmarkStatusFilter' => $landmarkStatusFilter,
+            'landmarkSearch' => $landmarkSearch ?? '',
+            'landmarkCategoryFilter' => $landmarkCategoryFilter ?? 'all',
+            'landmarkOrder' => $landmarkOrder ?? 'default',
             'isLandmarkApprovalQueue' => $sessionRole === 'admin',
             'openViewModalId' => $openViewModalId,
             'openLandmarkId' => $openLandmarkId !== '' ? $openLandmarkId : null,
@@ -935,6 +1369,14 @@ class AdminController extends Controller
         }
 
         if (in_array($request->session()->get('role'), ['site_manager', 'admin'], true)) {
+            if ($request->query->has('view')) {
+                $routeName = $request->session()->get('role') === 'site_manager'
+                    ? 'sitemanager.landmarks.show'
+                    : 'admin.landmarks.show';
+
+                return redirect()->route($routeName, array_merge(['id' => $id], $request->except('view')));
+            }
+
             return $this->landmarksIndexView($request, $id);
         }
 
@@ -1093,84 +1535,6 @@ class AdminController extends Controller
 
         return redirect()->route('admin.landmarks', ['status' => 'rejected'])
             ->with('status', 'Landmark submission rejected.');
-    }
-
-    public function logs(Request $request)
-    {
-        $logsSnapshot = $this->firestore()->collection('logs')->documents();
-        $logs = iterator_to_array($logsSnapshot->rows());
-
-        usort($logs, fn ($left, $right): int => $this->logTimestampValue($right) <=> $this->logTimestampValue($left));
-
-        $perPage = 10;
-        $totalLogs = count($logs);
-        $lastPage = max(1, (int) ceil($totalLogs / $perPage));
-        $page = min(max(1, (int) $request->query('page', 1)), $lastPage);
-        $logs = new LengthAwarePaginator(
-            array_slice($logs, ($page - 1) * $perPage, $perPage),
-            $totalLogs,
-            $perPage,
-            $page,
-            [
-                'path' => route('admin.logs'),
-                'query' => $request->except('page'),
-            ]
-        );
-
-        $userRoles = [];
-
-        foreach ($this->firebase->allUserProfiles() as $data) {
-            if (isset($data['email'], $data['role'])) {
-                $userRoles[$data['email']] = $data['role'];
-            }
-        }
-
-        return view('admin.logs', compact('logs', 'userRoles'));
-    }
-
-    private function logTimestampValue($log): int
-    {
-        if (! $log->exists()) {
-            return 0;
-        }
-
-        $timestamp = $log->data()['timestamp'] ?? null;
-        if ($timestamp instanceof \DateTimeInterface) {
-            return $timestamp->getTimestamp();
-        }
-        if (is_object($timestamp) && method_exists($timestamp, 'get')) {
-            $timestamp = $timestamp->get();
-            if ($timestamp instanceof \DateTimeInterface) {
-                return $timestamp->getTimestamp();
-            }
-        }
-        if (is_object($timestamp) && ! method_exists($timestamp, '__toString')) {
-            return 0;
-        }
-
-        try {
-            return $timestamp ? Carbon::parse((string) $timestamp)->getTimestamp() : 0;
-        } catch (\Throwable) {
-            return 0;
-        }
-    }
-
-    public function clearLogs()
-    {
-        try {
-            $deleted = FirestoreCollectionCleaner::deleteAll(
-                $this->firestore(),
-                $this->firestore()->collection('logs')
-            );
-        } catch (\Throwable $e) {
-            report($e);
-
-            return redirect()->route('admin.logs')
-                ->with('status_err', 'Could not clear logs. Please check the Firestore connection and try again.');
-        }
-
-        return redirect()->route('admin.logs')
-            ->with('status', $deleted === 1 ? '1 log has been cleared.' : "{$deleted} logs have been cleared.");
     }
 
     /**

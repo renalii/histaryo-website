@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Services\FirebaseService;
 use App\Services\LandmarkEngagement;
+use App\Services\QrCodeImageStorage;
 use App\Support\CuratorAssignedLandmark;
 use App\Support\QrResolveUrl;
 use BaconQrCode\Common\ErrorCorrectionLevel;
@@ -11,7 +12,6 @@ use BaconQrCode\Encoder\Encoder as BaconQrEncoder;
 use Google\Cloud\Firestore\FieldValue;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Session;
-use Illuminate\Support\Facades\Storage;
 
 class QrController extends Controller
 {
@@ -48,7 +48,18 @@ class QrController extends Controller
                 continue;
             }
 
-            $openUrl = route('curators.qr.view', $doc->id());
+            $imagePath = (string) ($d['image_path'] ?? '');
+            if ($imagePath === '' || ! QrCodeImageStorage::exists($imagePath)) {
+                $imagePath = $this->generateQrImage($code, 'png', $lmId) ?? $imagePath;
+                if ($imagePath !== '') {
+                    $this->fs()->collection('qr_codes')->document($doc->id())->set([
+                        'image_path' => $imagePath,
+                    ], ['merge' => true]);
+                }
+            }
+            $openUrl = $imagePath !== '' && QrCodeImageStorage::exists($imagePath)
+                ? QrCodeImageStorage::url($imagePath)
+                : route('curators.qr.view', $doc->id());
 
             $qrs[] = [
                 'id' => $doc->id(),
@@ -93,13 +104,6 @@ class QrController extends Controller
             : trim((string) ($data['landmark_id'] ?? ''));
         $format = $data['format'] ?? 'png';
 
-        $existing = $this->fs()->collection('qr_codes')->where('code', '==', $code)->limit(1)->documents();
-        foreach ($existing as $ex) {
-            if ($ex->exists()) {
-                return back()->withErrors(['error' => 'QR code already exists. Choose another value.'])->withInput();
-            }
-        }
-
         if ($landmarkId === '') {
             return back()->withErrors(['error' => 'Site is required.'])->withInput();
         }
@@ -113,14 +117,51 @@ class QrController extends Controller
             CuratorAssignedLandmark::assertMatches($landmarkId);
         }
 
-        $this->fs()->collection('qr_codes')->add([
+        $existingDocId = null;
+        $existing = $this->fs()->collection('qr_codes')->where('code', '==', $code)->limit(1)->documents();
+        foreach ($existing as $ex) {
+            if (! $ex->exists()) {
+                continue;
+            }
+            if ((string) ($ex->data()['landmark_id'] ?? '') !== $landmarkId) {
+                return back()->withErrors(['error' => 'QR code already exists. Choose another value.'])->withInput();
+            }
+            $existingDocId = $ex->id();
+        }
+
+        if ($existingDocId === null) {
+            $sameLandmark = $this->fs()->collection('qr_codes')
+                ->where('landmark_id', '==', $landmarkId)
+                ->limit(1)
+                ->documents();
+            foreach ($sameLandmark as $ex) {
+                if ($ex->exists()) {
+                    $existingDocId = $ex->id();
+                    break;
+                }
+            }
+        }
+
+        $payload = [
             'code' => $code,
             'landmark_id' => $landmarkId,
             'is_auto' => true,
             'created_at' => FieldValue::serverTimestamp(),
-        ]);
+        ];
 
-        $saved = $this->generateQrImage($code, $format);
+        if ($existingDocId !== null) {
+            unset($payload['created_at']);
+            $docRef = $this->fs()->collection('qr_codes')->document($existingDocId);
+            $docRef->set($payload, ['merge' => true]);
+        } else {
+            $docRef = $this->fs()->collection('qr_codes')->add($payload);
+        }
+
+        $imagePath = $this->generateQrImage($code, 'png', $landmarkId);
+        if ($imagePath !== null) {
+            $docRef->set(['image_path' => $imagePath], ['merge' => true]);
+        }
+        $saved = $imagePath !== null;
         $this->fs()->collection('logs')->add([
             'email' => (string) Session::get('email', ''),
             'role' => (string) Session::get('role', ''),
@@ -148,16 +189,17 @@ class QrController extends Controller
 
         if ($doc->exists()) {
             $code = (string) ($doc['code'] ?? '');
+            $data = $doc->data();
+            $landmarkId = (string) ($data['landmark_id'] ?? '');
             $deletedCode = $code;
 
             $docRef->delete();
 
-            foreach (['png', 'svg'] as $ext) {
-                $path = "qrcodes/{$code}.{$ext}";
-                try {
-                    Storage::disk('public')->delete($path);
-                } catch (\Throwable $e) {
-                }
+            try {
+                QrCodeImageStorage::deletePath((string) ($data['image_path'] ?? ''));
+                QrCodeImageStorage::deleteFor($landmarkId, $code);
+                QrCodeImageStorage::deleteFor($code, $landmarkId);
+            } catch (\Throwable $e) {
             }
         }
 
@@ -186,7 +228,13 @@ class QrController extends Controller
         }
         $landmarkId = (string) ($doc->data()['landmark_id'] ?? '');
 
-        $this->generateQrImage($code, 'png');
+        $data = $doc->data();
+        $imagePath = $this->ensureQrImage(
+            $code,
+            (string) ($data['landmark_id'] ?? ''),
+            (string) ($data['image_path'] ?? ''),
+            $this->fs()->collection('qr_codes')->document($id)
+        );
         $this->fs()->collection('logs')->add([
             'email' => (string) Session::get('email', ''),
             'role' => (string) Session::get('role', ''),
@@ -196,18 +244,11 @@ class QrController extends Controller
             'timestamp' => now()->toISOString(),
         ]);
 
-        $pngPath = "qrcodes/{$code}.png";
-        if (Storage::disk('public')->exists($pngPath)) {
-            return response()->download(Storage::disk('public')->path($pngPath), "{$code}.png");
+        if ($imagePath !== null && QrCodeImageStorage::exists($imagePath)) {
+            return response()->download(QrCodeImageStorage::absolutePath($imagePath), basename($imagePath));
         }
 
-        $url = QrResolveUrl::forCode($code);
-        $svg = $this->makeQrSvg($url);
-
-        return response($svg, 200, [
-            'Content-Type' => 'image/svg+xml',
-            'Content-Disposition' => 'attachment; filename="'.$code.'.svg"',
-        ]);
+        abort(404, 'No QR code image could be generated.');
     }
 
     public function view(string $id)
@@ -227,32 +268,23 @@ class QrController extends Controller
             abort(404);
         }
 
-        $pngPath = "qrcodes/{$code}.png";
-        $svgPath = "qrcodes/{$code}.svg";
-
         // Stored PNG keeps the URL from when it was first saved; re-encode so preview matches QrResolveUrl / .env now.
-        $this->generateQrImage($code, 'png');
+        $data = $doc->data();
+        $imagePath = $this->ensureQrImage(
+            $code,
+            (string) ($data['landmark_id'] ?? ''),
+            (string) ($data['image_path'] ?? ''),
+            $this->fs()->collection('qr_codes')->document($id)
+        );
 
-        if (Storage::disk('public')->exists($pngPath)) {
-            return response(Storage::disk('public')->get($pngPath), 200, [
+        if ($imagePath !== null && QrCodeImageStorage::exists($imagePath)) {
+            return response(QrCodeImageStorage::get($imagePath), 200, [
                 'Content-Type' => 'image/png',
-                'Content-Disposition' => 'inline; filename="'.$code.'.png"',
+                'Content-Disposition' => 'inline; filename="'.basename($imagePath).'"',
             ]);
         }
 
-        if (Storage::disk('public')->exists($svgPath)) {
-            return response(Storage::disk('public')->get($svgPath), 200, [
-                'Content-Type' => 'image/svg+xml',
-                'Content-Disposition' => 'inline; filename="'.$code.'.svg"',
-            ]);
-        }
-
-        $svg = $this->makeQrSvg(QrResolveUrl::forCode($code));
-
-        return response($svg, 200, [
-            'Content-Type' => 'image/svg+xml',
-            'Content-Disposition' => 'inline; filename="'.$code.'.svg"',
-        ]);
+        abort(404, 'No QR code image could be generated.');
     }
 
     public function resolve(Request $request, string $code)
@@ -398,63 +430,42 @@ class QrController extends Controller
     }
 
     /**
-     * Attempt to generate and save a QR image to storage/app/public/qrcodes/{code}.{ext}
-     * Returns true on success, false otherwise.
+     * Attempt to generate and save a QR PNG to storage/app/public/qrcodes/{identifier}.png.
+     * Returns the relative storage path on success.
      */
-    private function generateQrImage(string $code, string $format = 'png'): bool
+    private function generateQrImage(string $code, string $format = 'png', string $landmarkId = ''): ?string
     {
         $url = QrResolveUrl::forCode($code);
-        $dir = 'qrcodes';
-        $ext = in_array($format, ['png', 'svg']) ? $format : 'png';
-        $path = "{$dir}/{$code}.{$ext}";
+        $path = QrCodeImageStorage::pathFor($landmarkId, $code);
 
         try {
-
-            if (! Storage::disk('public')->exists($dir)) {
-                Storage::disk('public')->makeDirectory($dir);
-            }
-
             if (class_exists(\SimpleSoftwareIO\QrCode\Facades\QrCode::class)) {
                 try {
-                    $qr = \SimpleSoftwareIO\QrCode\Facades\QrCode::format($ext)
+                    $qr = \SimpleSoftwareIO\QrCode\Facades\QrCode::format('png')
                         ->size(600)->margin(1)
                         ->generate($url);
 
-                    Storage::disk('public')->put($path, $qr);
+                    if (is_string($qr) && str_starts_with($qr, "\x89PNG\r\n\x1a\n")) {
+                        QrCodeImageStorage::putPng($path, $qr);
 
-                    return true;
+                        return $path;
+                    }
                 } catch (\Throwable $e) {
                     // PNG may fail on some environments. Try GD-based fallback first.
-                    if ($ext === 'png') {
-                        $gdPng = $this->generateQrPngWithGd($url);
-                        if ($gdPng !== false) {
-                            Storage::disk('public')->put($path, $gdPng);
-
-                            return true;
-                        }
-
-                        // Fall back to real scannable SVG instead of placeholder image.
-                        $svg = \SimpleSoftwareIO\QrCode\Facades\QrCode::format('svg')
-                            ->size(600)->margin(1)
-                            ->generate($url);
-                        Storage::disk('public')->put("{$dir}/{$code}.svg", $svg);
-
-                        return true;
-                    }
                 }
             }
 
-            if ($ext === 'svg') {
-                $svg = $this->makeQrSvg($url);
-                Storage::disk('public')->put($path, $svg);
+            $gdPng = $this->generateQrPngWithGd($url);
+            if ($gdPng !== false) {
+                QrCodeImageStorage::putPng($path, $gdPng);
 
-                return true;
+                return $path;
             }
 
-            return false;
+            return null;
 
         } catch (\Throwable $e) {
-            return false;
+            return null;
         }
     }
 
@@ -491,24 +502,21 @@ class QrController extends Controller
             return null;
         }
 
-        $png = $this->generateQrPngForValue($qr['qrUrl']);
-        if (! is_string($png) || ! str_starts_with($png, "\x89PNG\r\n\x1a\n")) {
+        $imagePath = $this->ensureQrImage($qr['landmarkCode'], $landmarkId, (string) ($qr['imagePath'] ?? ''));
+        if ($imagePath === null || ! QrCodeImageStorage::exists($imagePath)) {
             return null;
         }
 
-        $filenameCode = trim((string) preg_replace('/[^a-zA-Z0-9_-]+/', '-', $qr['landmarkCode']), '-');
-        if ($filenameCode === '') {
-            $filenameCode = 'landmark-code';
-        }
+        $png = QrCodeImageStorage::get($imagePath);
 
         return [
             'png' => $png,
-            'filename' => $filenameCode.'-qr.png',
+            'filename' => basename($imagePath),
         ];
     }
 
     /**
-     * @return array{landmarkCode: string, qrUrl: string}|null
+     * @return array{landmarkCode: string, qrUrl: string, imagePath: string}|null
      */
     private function qrcodeDocumentForLandmark(string $landmarkId): ?array
     {
@@ -527,6 +535,7 @@ class QrController extends Controller
         }
 
         $qrUrl = QrResolveUrl::forCode($code);
+        $imagePath = QrCodeImageStorage::pathFor($landmarkId, $code);
         $docRef = $this->fs()->collection('qrcodes')->document($code);
         $qrDoc = $docRef->snapshot();
         $payload = [
@@ -535,6 +544,7 @@ class QrController extends Controller
             'landmarkCode' => $code,
             'landmarkName' => (string) ($doc->data()['name'] ?? 'Untitled'),
             'qrUrl' => $qrUrl,
+            'image_path' => $imagePath,
             'status' => 'active',
         ];
 
@@ -547,7 +557,30 @@ class QrController extends Controller
         return [
             'landmarkCode' => $code,
             'qrUrl' => $qrUrl,
+            'imagePath' => $imagePath,
         ];
+    }
+
+    private function ensureQrImage(string $code, string $landmarkId = '', string $storedPath = '', mixed $docRef = null): ?string
+    {
+        $path = $storedPath !== '' ? $storedPath : QrCodeImageStorage::pathFor($landmarkId, $code);
+        $generatedPath = $this->generateQrImage($code, 'png', $landmarkId);
+        if ($generatedPath !== null) {
+            $path = $generatedPath;
+        }
+
+        if (! QrCodeImageStorage::exists($path)) {
+            return null;
+        }
+
+        if ($docRef !== null) {
+            try {
+                $docRef->set(['image_path' => $path], ['merge' => true]);
+            } catch (\Throwable $e) {
+            }
+        }
+
+        return $path;
     }
 
     private function landmarkCode(array $landmarkData): ?string
@@ -580,29 +613,6 @@ class QrController extends Controller
         }
 
         return $this->generateQrPngWithGd($value);
-    }
-
-    /**
-     * Minimal SVG QR (fallback). For high quality, install simple-qrcode package.
-     * NOTE: This is a placeholder; for production-quality PNG/SVG, use the package.
-     */
-    private function makeQrSvg(string $text): string
-    {
-
-        $safe = htmlspecialchars($text, ENT_QUOTES, 'UTF-8');
-
-        return <<<SVG
-                <svg xmlns="http://www.w3.org/2000/svg" width="600" height="600">
-                <rect width="100%" height="100%" fill="#ffffff"/>
-                <rect x="10" y="10" width="580" height="580" fill="none" stroke="#000" stroke-width="6"/>
-                <text x="50%" y="50%" font-family="monospace" font-size="18" text-anchor="middle">
-                    {$safe}
-                </text>
-                <text x="50%" y="570" font-family="monospace" font-size="14" text-anchor="middle" fill="#666">
-                    (Install simple-qrcode for scannable codes)
-                </text>
-                </svg>
-                SVG;
     }
 
     private function generateQrPngWithGd(string $url): string|false

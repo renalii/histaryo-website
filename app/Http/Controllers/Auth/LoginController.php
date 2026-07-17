@@ -76,11 +76,17 @@ class LoginController extends Controller
         $password = $request->password;
 
         try {
-            $signInResult = $this->firebase->getAuth()->signInWithEmailAndPassword($email, $password);
-            $idToken = $signInResult->idToken();
-            $firebaseUser = $this->firebase->getAuth()->verifyIdToken($idToken);
-            $uid = $firebaseUser->claims()->get('sub');
-            $role = $firebaseUser->claims()->get('role');
+            $signInResult = $this->firebase->signInWithEmailAndPassword($email, $password);
+            $uid = trim((string) ($signInResult['localId'] ?? ''));
+            $role = $this->roleFromIdToken((string) ($signInResult['idToken'] ?? ''));
+
+            if ($uid === '') {
+                Log::warning('Firebase login response did not include a user id.', [
+                    'email' => $email,
+                ]);
+
+                return back()->withErrors(['error' => 'Login failed. Please try again later.']);
+            }
 
             $profile = $this->firebase->userProfile($uid, is_string($role) ? $role : null);
             $userData = $profile['data'] ?? [];
@@ -191,6 +197,11 @@ class LoginController extends Controller
                 ]);
             }
 
+            Log::warning('Login failed due to backend exception.', [
+                'email' => $email,
+                'exception' => $e->getMessage(),
+            ]);
+
             return back()->withErrors(['error' => 'Login failed. Please try again later.']);
         }
     }
@@ -251,6 +262,41 @@ class LoginController extends Controller
             'Pragma' => 'no-cache',
             'Expires' => '0',
         ];
+    }
+
+    private function roleFromIdToken(string $idToken): ?string
+    {
+        $parts = explode('.', $idToken);
+        if (count($parts) < 2) {
+            return null;
+        }
+
+        $payload = $this->base64UrlDecode($parts[1]);
+        if ($payload === null) {
+            return null;
+        }
+
+        $claims = json_decode($payload, true);
+        if (! is_array($claims)) {
+            return null;
+        }
+
+        $role = $claims['role'] ?? null;
+
+        return is_string($role) ? $role : null;
+    }
+
+    private function base64UrlDecode(string $value): ?string
+    {
+        $value = strtr($value, '-_', '+/');
+        $padding = strlen($value) % 4;
+        if ($padding > 0) {
+            $value .= str_repeat('=', 4 - $padding);
+        }
+
+        $decoded = base64_decode($value, true);
+
+        return is_string($decoded) ? $decoded : null;
     }
 
     private function loginFailureMessage(\Throwable $exception, string $email): string

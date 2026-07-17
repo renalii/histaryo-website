@@ -18,6 +18,50 @@ class PasswordController extends Controller
 {
     public function __construct(protected FirebaseService $firebase) {}
 
+    public function showResetForm(Request $request): View|RedirectResponse
+    {
+        $oobCode = trim((string) $request->query('oobCode', ''));
+
+        try {
+            if ($oobCode === '') {
+                throw new \RuntimeException('Missing reset code.');
+            }
+            $this->firebase->getAuth()->verifyPasswordResetCode($oobCode);
+
+            return view('curators.reset-password', ['oobCode' => $oobCode]);
+        } catch (\Throwable $e) {
+            report($e);
+
+            return redirect()->route('curators.login')->withErrors([
+                'error' => 'This password reset link is invalid.',
+            ]);
+        }
+    }
+
+    public function resetPassword(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'oobCode' => 'required|string',
+            'password' => 'required|string|min:8|confirmed',
+        ], [
+            'password.confirmed' => 'New password and Confirm password must match.',
+        ]);
+
+        try {
+            $this->firebase->getAuth()->verifyPasswordResetCode($validated['oobCode']);
+            $this->firebase->getAuth()->confirmPasswordReset($validated['oobCode'], $validated['password']);
+
+            return redirect()->route('curators.login')
+                ->with('success', 'Password changed successfully.');
+        } catch (\Throwable $e) {
+            report($e);
+
+            return redirect()->route('curators.login')->withErrors([
+                'error' => 'Unable to change password. Please request a new reset link.',
+            ]);
+        }
+    }
+
     public function showSetupForm(Request $request): View|RedirectResponse
     {
         $uid = (string) $request->query('uid', '');

@@ -4,23 +4,26 @@ namespace App\Http\Controllers\Curator;
 
 use App\Http\Controllers\Controller;
 use App\Services\FirebaseService;
+use App\Services\QrCodeImageStorage;
+use App\Support\ArrayDocumentSnapshot;
 use App\Support\CuratorAssignedLandmark;
 use App\Support\QrResolveUrl;
-use BaconQrCode\Common\ErrorCorrectionLevel;
-use BaconQrCode\Encoder\Encoder as BaconQrEncoder;
-use Google\Cloud\Firestore\FieldValue;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
 
 class LandmarkController extends Controller
 {
-    protected $firestore;
+    protected $firestore = null;
 
     public function __construct(
         protected FirebaseService $firebaseService,
         protected TipReviewController $tipReviewController,
-    )
+    ) {}
+
+    private function firestore()
     {
-        $this->firestore = $firebaseService->firestore();
+        return $this->firestore ??= $this->firebaseService->firestore();
     }
 
     public function map(Request $request)
@@ -28,7 +31,7 @@ class LandmarkController extends Controller
         $landmarks = [];
 
         foreach (CuratorAssignedLandmark::browseableIds() as $lid) {
-            $doc = $this->firestore->collection('landmarks')->document($lid)->snapshot();
+            $doc = $this->firestore()->collection('landmarks')->document($lid)->snapshot();
             if (! $doc->exists()) {
                 continue;
             }
@@ -73,18 +76,35 @@ class LandmarkController extends Controller
             abort(403);
         }
 
-        $snapshot = $this->firestore->collection('landmarks')->document($id)->snapshot();
-        if (! $snapshot->exists()) {
+        $start = microtime(true);
+        $landmark = Cache::remember('curator:landmark-detail:'.$id, now()->addMinutes(5), function () use ($id): ?array {
+            $queryStart = microtime(true);
+            $snapshot = $this->firestore()->collection('landmarks')->document($id)->snapshot();
+            Log::info('Timing Firestore query', [
+                'query' => 'curator_landmark.detail_snapshot',
+                'landmark_id' => $id,
+                'duration_ms' => (int) round((microtime(true) - $queryStart) * 1000),
+            ]);
+
+            return $snapshot->exists() ? $snapshot->data() : null;
+        });
+
+        if ($landmark === null) {
             abort(404);
         }
-        $data = $snapshot->data();
+
+        Log::info('Timing curator page', [
+            'route' => 'curators.landmarks.show',
+            'landmark_id' => $id,
+            'duration_ms' => (int) round((microtime(true) - $start) * 1000),
+        ]);
 
         return view('curators.landmarks.index', [
-            'landmark' => $snapshot,
-            'siteManagerAttribution' => $this->resolveSiteManagerAttributionLabel($data),
+            'landmark' => new ArrayDocumentSnapshot($id, $landmark),
+            'siteManagerAttribution' => $this->resolveSiteManagerAttributionLabel($landmark),
             'mapboxToken' => config('services.mapbox.token'),
             'landmarkTips' => $this->tipReviewController->tipsForLandmark($id),
-            'qrPreview' => $this->qrPreviewForLandmark($id, $data),
+            'qrPreview' => $this->qrPreviewForLandmark($id, $landmark),
         ]);
     }
 
@@ -110,24 +130,33 @@ class LandmarkController extends Controller
             return null;
         }
 
-        $prof = $this->firebaseService->userDocument($managerUid, 'site_manager')->snapshot();
-        if (! $prof->exists()) {
-            return null;
-        }
+        return Cache::remember('curator:site-manager-label:'.$managerUid, now()->addMinutes(10), function () use ($managerUid): ?string {
+            $queryStart = microtime(true);
+            $prof = $this->firebaseService->userDocument($managerUid, 'site_manager')->snapshot();
+            Log::info('Timing Firestore query', [
+                'query' => 'curator_landmark.site_manager_profile',
+                'manager_uid' => $managerUid,
+                'duration_ms' => (int) round((microtime(true) - $queryStart) * 1000),
+            ]);
 
-        $pd = $prof->data();
-        $name = trim((string) ($pd['name'] ?? ''));
-        if ($name !== '') {
-            return $name;
-        }
+            if (! $prof->exists()) {
+                return null;
+            }
 
-        $email = trim((string) ($pd['email'] ?? ''));
+            $pd = $prof->data();
+            $name = trim((string) ($pd['name'] ?? ''));
+            if ($name !== '') {
+                return $name;
+            }
 
-        return $email !== '' ? $email : null;
+            $email = trim((string) ($pd['email'] ?? ''));
+
+            return $email !== '' ? $email : null;
+        });
     }
 
     /**
-     * @return array{base64: string, filename: string}|null
+     * @return array{base64: string, url: string, filename: string}|null
      */
     private function qrPreviewForLandmark(string $landmarkId, array $landmarkData): ?array
     {
@@ -136,24 +165,15 @@ class LandmarkController extends Controller
             return null;
         }
 
-        $png = $this->generateQrPng($qr['qrUrl']);
-        if ($png === null || ! str_starts_with($png, "\x89PNG\r\n\x1a\n")) {
-            return null;
-        }
-
-        $filenameCode = trim((string) preg_replace('/[^a-zA-Z0-9_-]+/', '-', $qr['landmarkCode']), '-');
-        if ($filenameCode === '') {
-            $filenameCode = 'landmark-code';
-        }
-
         return [
-            'base64' => base64_encode($png),
-            'filename' => $filenameCode.'-qr.png',
+            'base64' => '',
+            'url' => QrCodeImageStorage::url($qr['imagePath']),
+            'filename' => basename($qr['imagePath']),
         ];
     }
 
     /**
-     * @return array{landmarkCode: string, qrUrl: string}|null
+     * @return array{landmarkCode: string, qrUrl: string, imagePath: string}|null
      */
     private function qrcodeDocumentForLandmark(string $landmarkId, array $landmarkData): ?array
     {
@@ -163,26 +183,11 @@ class LandmarkController extends Controller
         }
 
         $qrUrl = QrResolveUrl::forCode($code);
-        $docRef = $this->firestore->collection('qrcodes')->document($code);
-        $doc = $docRef->snapshot();
-        $payload = [
-            'code' => $code,
-            'landmarkId' => $landmarkId,
-            'landmarkCode' => $code,
-            'landmarkName' => (string) ($landmarkData['name'] ?? 'Untitled'),
-            'qrUrl' => $qrUrl,
-            'status' => 'active',
-        ];
-
-        if (! $doc->exists() || ! array_key_exists('createdAt', $doc->data())) {
-            $payload['createdAt'] = FieldValue::serverTimestamp();
-        }
-
-        $docRef->set($payload, ['merge' => true]);
-
+        $imagePath = QrCodeImageStorage::pathFor($landmarkId, $code);
         return [
             'landmarkCode' => $code,
             'qrUrl' => $qrUrl,
+            'imagePath' => $imagePath,
         ];
     }
 
@@ -196,76 +201,6 @@ class LandmarkController extends Controller
         }
 
         return null;
-    }
-
-    private function generateQrPng(string $value): ?string
-    {
-        if (class_exists(\SimpleSoftwareIO\QrCode\Facades\QrCode::class)) {
-            try {
-                $png = \SimpleSoftwareIO\QrCode\Facades\QrCode::format('png')
-                    ->size(600)
-                    ->margin(1)
-                    ->generate($value);
-
-                if (is_string($png) && str_starts_with($png, "\x89PNG\r\n\x1a\n")) {
-                    return $png;
-                }
-            } catch (\Throwable $e) {
-                // Some local PHP installs lack Imagick; GD fallback below still returns a real PNG.
-            }
-        }
-
-        return $this->generateQrPngWithGd($value);
-    }
-
-    private function generateQrPngWithGd(string $value): ?string
-    {
-        if (! extension_loaded('gd')) {
-            return null;
-        }
-
-        try {
-            $qrCode = BaconQrEncoder::encode($value, ErrorCorrectionLevel::M());
-            $matrix = $qrCode->getMatrix();
-
-            $numCells = $matrix->getWidth();
-            $margin = 4;
-            $targetPx = 600;
-            $cellSize = max(1, (int) floor($targetPx / ($numCells + (2 * $margin))));
-            $imgSize = ($numCells + 2 * $margin) * $cellSize;
-
-            $img = imagecreatetruecolor($imgSize, $imgSize);
-            $white = imagecolorallocate($img, 255, 255, 255);
-            $black = imagecolorallocate($img, 0, 0, 0);
-
-            imagefill($img, 0, 0, $white);
-
-            for ($y = 0; $y < $numCells; $y++) {
-                for ($x = 0; $x < $numCells; $x++) {
-                    if ($matrix->get($x, $y) !== 0) {
-                        $px = ($x + $margin) * $cellSize;
-                        $py = ($y + $margin) * $cellSize;
-                        imagefilledrectangle(
-                            $img,
-                            $px,
-                            $py,
-                            $px + $cellSize - 1,
-                            $py + $cellSize - 1,
-                            $black
-                        );
-                    }
-                }
-            }
-
-            ob_start();
-            imagepng($img);
-            $png = ob_get_clean();
-            imagedestroy($img);
-
-            return is_string($png) && $png !== '' ? $png : null;
-        } catch (\Throwable $e) {
-            return null;
-        }
     }
 
 }
