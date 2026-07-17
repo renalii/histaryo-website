@@ -8,20 +8,6 @@
         min-height: 560px;
         display: flex;
         flex-direction: column;
-        gap: .85rem;
-    }
-    .sm-map-header {
-        display: flex;
-        align-items: flex-end;
-        justify-content: space-between;
-        gap: 1rem;
-        flex-wrap: wrap;
-    }
-    .sm-map-title {
-        margin: 0;
-        color: #7A2E1F;
-        font-size: 1.9rem;
-        font-weight: 800;
     }
     .sm-map-shell {
         position: relative;
@@ -45,7 +31,7 @@
         display: flex;
         align-items: center;
         gap: .45rem;
-        max-width: min(440px, calc(100% - 2rem));
+        max-width: calc(100% - 2rem);
         padding: .45rem;
         border-radius: 8px;
         background: rgba(255, 255, 255, .94);
@@ -66,6 +52,21 @@
         border-color: #7A2E1F;
         box-shadow: 0 0 0 2px rgba(122, 46, 31, .12);
     }
+    .sm-map-search select {
+        height: 2rem;
+        min-width: 132px;
+        padding: 0 1.8rem 0 .65rem;
+        border: 1px solid #d1d5db;
+        border-radius: 6px;
+        background: #fff;
+        color: #111827;
+        font: 500 .78rem Inter, system-ui, sans-serif;
+        outline: none;
+    }
+    .sm-map-search select:focus {
+        border-color: #7A2E1F;
+        box-shadow: 0 0 0 2px rgba(122, 46, 31, .12);
+    }
     .sm-map-search input.is-missing {
         border-color: #dc2626;
         box-shadow: 0 0 0 2px rgba(220, 38, 38, .14);
@@ -82,6 +83,35 @@
     }
     .sm-map-search button:hover {
         background: #f9fafb;
+    }
+    .sm-map-search input:not(.is-missing):focus,
+    .sm-map-search input:not(.is-missing):focus-visible,
+    .sm-map-search select:focus,
+    .sm-map-search select:focus-visible,
+    .sm-map-search button:focus,
+    .sm-map-search button:focus-visible {
+        outline: none !important;
+        box-shadow: none !important;
+        border-color: #d1d5db !important;
+    }
+    .sm-map-search input.is-missing:focus,
+    .sm-map-search input.is-missing:focus-visible {
+        outline: none !important;
+        box-shadow: none !important;
+    }
+    @media (max-width: 760px) {
+        .sm-map-search {
+            right: 1rem;
+            flex-wrap: wrap;
+        }
+        .sm-map-search input {
+            flex: 1 1 100%;
+            width: 100%;
+        }
+        .sm-map-search select {
+            flex: 1 1 130px;
+            min-width: 0;
+        }
     }
     .sm-map-empty,
     .sm-map-error {
@@ -121,6 +151,55 @@
         object-fit: cover;
         display: block;
         pointer-events: none;
+    }
+    .sm-map-user-location {
+        position: relative;
+        width: 32px;
+        height: 32px;
+        padding: 0;
+        border: 0;
+        background: transparent;
+        cursor: pointer;
+        overflow: visible;
+    }
+    .sm-map-user-location__pulse {
+        position: absolute;
+        inset: 4px;
+        border: 2px solid rgba(229, 182, 74, .7);
+        border-radius: 50%;
+        pointer-events: none;
+        animation: sm-map-user-location-pulse 1.8s ease-out infinite;
+    }
+    .sm-map-user-location__icon {
+        position: absolute;
+        inset: 3px;
+        z-index: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-sizing: border-box;
+        border: 3px solid #fff;
+        border-radius: 50%;
+        background: #e5b64a;
+        color: #fff;
+        box-shadow: 0 0 0 3px rgba(229, 182, 74, .2), 0 3px 10px rgba(122, 46, 31, .28);
+        pointer-events: none;
+    }
+    .sm-map-user-location__icon svg {
+        width: 14px;
+        height: 14px;
+        display: block;
+        fill: currentColor;
+    }
+    @keyframes sm-map-user-location-pulse {
+        0% {
+            opacity: .85;
+            transform: scale(.85);
+        }
+        75%, 100% {
+            opacity: 0;
+            transform: scale(1.8);
+        }
     }
     .mapboxgl-popup-content {
         border-radius: 4px;
@@ -177,12 +256,6 @@
 <link href="https://api.mapbox.com/mapbox-gl-js/v3.3.0/mapbox-gl.css" rel="stylesheet">
 
 <div class="sm-map-page">
-    <div class="sm-map-header">
-        <div>
-            <h1 class="sm-map-title">Map</h1>
-        </div>
-    </div>
-
     <div class="sm-map-shell">
         <div id="sm-map" aria-label="Managed landmarks map"></div>
         <form class="sm-map-search" id="sm-map-search" autocomplete="off">
@@ -191,10 +264,24 @@
                 type="text"
                 placeholder="Search landmarks... e.g., Magellan's Cross"
                 aria-label="Search landmarks">
+            @isset($mapCategories, $mapCities)
+                <select id="sm-map-category-filter" aria-label="Filter landmarks by category">
+                    <option value="">All Categories</option>
+                    @foreach ($mapCategories as $category)
+                        <option value="{{ $category }}">{{ $category }}</option>
+                    @endforeach
+                </select>
+                <select id="sm-map-city-filter" aria-label="Filter landmarks by city">
+                    <option value="">All Cities</option>
+                    @foreach ($mapCities as $city)
+                        <option value="{{ $city }}">{{ $city }}</option>
+                    @endforeach
+                </select>
+            @endisset
             <button type="submit">Go</button>
         </form>
         @if (count($landmarks) === 0)
-            <div class="sm-map-empty">No managed landmarks with coordinates found.</div>
+            <div class="sm-map-empty">{{ $mapEmptyMessage ?? 'No managed landmarks with coordinates found.' }}</div>
         @endif
         @if (empty($mapboxToken))
             <div class="sm-map-error">Missing MAPBOX_TOKEN in the environment.</div>
@@ -207,6 +294,7 @@
 document.addEventListener('DOMContentLoaded', function () {
     var token = @json($mapboxToken);
     var landmarks = @json(array_values($landmarks));
+    var userLocationEnabled = @json((bool) ($enableUserLocation ?? false));
     var defaultCenter = [123.8854, 10.3157];
 
     if (!token) {
@@ -272,7 +360,7 @@ document.addEventListener('DOMContentLoaded', function () {
             .setPopup(popup)
             .addTo(map);
 
-        markersById[landmark.id || landmark.name] = { marker: marker, popup: popup, data: landmark };
+        markersById[landmark.id || landmark.name] = { marker: marker, popup: popup, data: landmark, isVisible: true };
         bounds.extend([landmark.longitude, landmark.latitude]);
     });
 
@@ -280,13 +368,52 @@ document.addEventListener('DOMContentLoaded', function () {
         map.fitBounds(bounds, { padding: 70, maxZoom: 15 });
     }
 
+    if (userLocationEnabled && navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(function (position) {
+            var userCoordinates = [position.coords.longitude, position.coords.latitude];
+            var userMarkerElement = document.createElement('button');
+            userMarkerElement.type = 'button';
+            userMarkerElement.className = 'sm-map-user-location';
+            userMarkerElement.setAttribute('aria-label', 'Your current location');
+            userMarkerElement.innerHTML = ''
+                + '<span class="sm-map-user-location__pulse" aria-hidden="true"></span>'
+                + '<span class="sm-map-user-location__icon" aria-hidden="true">'
+                + '<svg viewBox="0 0 24 24" focusable="false"><path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm0 2c-4.42 0-8 2.24-8 5v1h16v-1c0-2.76-3.58-5-8-5Z"/></svg>'
+                + '</span>';
+
+            new mapboxgl.Marker({ element: userMarkerElement })
+                .setLngLat(userCoordinates)
+                .addTo(map);
+
+            map.flyTo({
+                center: userCoordinates,
+                zoom: 14,
+                essential: true
+            });
+        }, function () {
+            // Permission denial or lookup failure keeps the existing map view.
+        }, {
+            enableHighAccuracy: true,
+            timeout: 10000,
+            maximumAge: 60000
+        });
+    }
+
     var searchForm = document.getElementById('sm-map-search');
     var searchInput = document.getElementById('sm-map-search-input');
+    var categoryFilter = document.getElementById('sm-map-category-filter');
+    var cityFilter = document.getElementById('sm-map-city-filter');
 
     searchForm.addEventListener('submit', function (event) {
         event.preventDefault();
         var query = normalizeSearch(searchInput.value);
-        var match = findLandmark(query);
+        var filtersChangedMarkers = categoryFilter && cityFilter;
+
+        if (filtersChangedMarkers) {
+            applyFilters();
+        }
+
+        var match = findLandmark(query, filtersChangedMarkers);
 
         searchInput.classList.toggle('is-missing', !match && query !== '');
 
@@ -306,11 +433,43 @@ document.addEventListener('DOMContentLoaded', function () {
         match.marker.togglePopup();
     });
 
-    searchInput.addEventListener('input', function () {
-        searchInput.classList.remove('is-missing');
-    });
+    function applyFilters() {
+        var query = normalizeSearch(searchInput.value);
+        var category = normalizeSearch(categoryFilter.value);
+        var city = normalizeSearch(cityFilter.value);
+        var filteredBounds = new mapboxgl.LngLatBounds();
 
-    function findLandmark(query) {
+        if (activePopup) {
+            activePopup.remove();
+            activePopup = null;
+        }
+
+        Object.keys(markersById).forEach(function (key) {
+            var item = markersById[key];
+            var matchesSearch = !query || normalizeSearch(item.data.name).indexOf(query) !== -1;
+            var matchesCategory = !category || normalizeSearch(item.data.category) === category;
+            var matchesCity = !city || normalizeSearch(item.data.city) === city;
+            var shouldShow = matchesSearch && matchesCategory && matchesCity;
+
+            if (shouldShow && !item.isVisible) {
+                item.marker.addTo(map);
+            } else if (!shouldShow && item.isVisible) {
+                item.marker.remove();
+            }
+
+            item.isVisible = shouldShow;
+            if (shouldShow) {
+                filteredBounds.extend([item.data.longitude, item.data.latitude]);
+            }
+        });
+
+        searchInput.classList.toggle('is-missing', query !== '' && filteredBounds.isEmpty());
+        if (!filteredBounds.isEmpty() && query === '') {
+            map.fitBounds(filteredBounds, { padding: 70, maxZoom: 15 });
+        }
+    }
+
+    function findLandmark(query, onlyVisible) {
         if (!query) {
             return null;
         }
@@ -319,6 +478,9 @@ document.addEventListener('DOMContentLoaded', function () {
         var partial = null;
         Object.keys(markersById).some(function (key) {
             var item = markersById[key];
+            if (onlyVisible && !item.isVisible) {
+                return false;
+            }
             var name = normalizeSearch(item.data.name);
 
             if (name === query) {

@@ -6,9 +6,10 @@
     $evidenceDocuments = is_array($data['evidence_documents'] ?? null) ? $data['evidence_documents'] : [];
     $latRaw = $data['latitude'] ?? $data['lati'] ?? null;
     $lngRaw = $data['longitude'] ?? $data['longti'] ?? null;
-    $latDisplay = ($latRaw !== null && $latRaw !== '') ? $latRaw : 'N/A';
-    $lngDisplay = ($lngRaw !== null && $lngRaw !== '') ? $lngRaw : 'N/A';
     $hasCoords = is_numeric($latRaw) && is_numeric($lngRaw);
+    $locationDisplay = trim((string) ($data['location'] ?? ''));
+    $categoryDisplay = trim((string) ($data['category'] ?? ''));
+    $descriptionDisplay = trim((string) ($data['description'] ?? ''));
     $mapContainerId = 'lm-view-map-' . ($modalSafe ?? 'landmark');
     $isAdminApprovalView = ($panelRoutePrefix ?? '') !== 'sitemanager';
     $activationLabel = $isAdminApprovalView
@@ -19,6 +20,7 @@
             default => LandmarkActivation::label($activationStatus),
         }
         : LandmarkActivation::label($activationStatus);
+    $isSiteManagerView = ($panelRoutePrefix ?? '') === 'sitemanager';
 @endphp
 
 <div id="{{ $viewModalId }}"
@@ -28,28 +30,57 @@
      aria-labelledby="viewTitle_{{ $modalSafe }}"
      aria-hidden="true">
     <div class="lm-view-modal__panel" tabindex="-1">
-        <button type="button"
-                class="lm-view-modal__close"
-                onclick="smCloseLandmarkViewModal('{{ $viewModalId }}')"
-                aria-label="Close">&times;</button>
+        <div class="lm-view-modal__header">
+            <div class="lm-view-modal__heading">
+                <p class="lm-view-modal__eyebrow">Landmark detail</p>
+                <h2 id="viewTitle_{{ $modalSafe }}" class="lm-view-modal__title">{{ $data['name'] ?? 'Unnamed landmark' }}</h2>
+            </div>
+            <div class="lm-view-modal__top-actions" aria-label="Landmark actions">
+                @if ($isSiteManagerView)
+                    <button type="button"
+                            class="lm-view-modal__action lm-view-modal__action--edit"
+                            onclick="lmOpenEditModal('lmEditLandmarkModal_{{ $modalSafe }}', '{{ $viewModalId }}')">
+                        Edit
+                    </button>
+                    <form method="POST"
+                          action="{{ route('sitemanager.landmarks.destroy', $landmarkId) }}"
+                          id="land-delete-form-{{ $modalSafe }}"
+                          class="land-delete-form">
+                        @csrf
+                        @method('DELETE')
+                        <button type="button"
+                                class="lm-view-modal__action lm-view-modal__action--delete"
+                                data-landmark-delete
+                                data-delete-form-id="land-delete-form-{{ $modalSafe }}"
+                                data-landmark-name="{{ $data['name'] ?? 'this landmark' }}">
+                            Delete
+                        </button>
+                    </form>
+                @endif
+                <button type="button"
+                        class="lm-view-modal__close"
+                        onclick="smCloseLandmarkViewModal('{{ $viewModalId }}')"
+                        aria-label="Close">&times;</button>
+            </div>
+        </div>
 
-        <p class="lm-view-modal__eyebrow">Landmark detail</p>
-        <h2 id="viewTitle_{{ $modalSafe }}" class="lm-view-modal__title">{{ $data['name'] ?? 'Unnamed landmark' }}</h2>
-
-        <div class="lm-view-modal__chips" aria-label="Landmark metadata">
-            <span class="lm-view-chip lm-view-chip--coord">
+        <div class="lm-view-modal__body">
+            <div class="lm-view-modal__chips" aria-label="Landmark metadata">
+            <span class="lm-view-chip">
                 <span class="lm-view-chip__k">Location</span>
-                <span class="lm-view-chip__v">{{ $latDisplay }}, {{ $lngDisplay }}</span>
+                <span class="lm-view-chip__v">{{ $locationDisplay !== '' ? $locationDisplay : 'N/A' }}</span>
+            </span>
+            <span class="lm-view-chip">
+                <span class="lm-view-chip__k">Category</span>
+                <span class="lm-view-chip__v">{{ $categoryDisplay !== '' ? $categoryDisplay : 'N/A' }}</span>
             </span>
             <span class="lm-view-status lm-view-status--{{ $activationStatus === 'pending' || $activationStatus === 'rejected' ? $activationStatus : 'active' }}">
                 {{ $activationLabel }}
             </span>
         </div>
 
-        @if (! empty($data['description'] ?? ''))
-            <h3 class="lm-view-modal__section">Description</h3>
-            <p class="lm-view-modal__desc">{{ $data['description'] }}</p>
-        @endif
+        <h3 class="lm-view-modal__section">Full description</h3>
+        <p class="lm-view-modal__desc">{{ $descriptionDisplay !== '' ? $descriptionDisplay : 'No description available.' }}</p>
 
         @if ($hasCoords)
             <h3 class="lm-view-modal__section">Location</h3>
@@ -62,14 +93,16 @@
             ])
         @endif
 
+        <h3 class="lm-view-modal__section">Landmark photo</h3>
         @if ($imageSrc)
-            <h3 class="lm-view-modal__section">Landmark photo</h3>
             <div class="lm-view-media-grid">
                 <figure class="lm-view-media-frame">
                     <img src="{{ $imageSrc }}" alt="Photo of {{ $data['name'] ?? 'landmark' }}" loading="lazy" decoding="async">
                     <figcaption class="lm-view-media-frame__cap">Featured image</figcaption>
                 </figure>
             </div>
+        @else
+            <p class="lm-view-modal__muted">No photo available.</p>
         @endif
 
         <h3 class="lm-view-modal__section">Evidence &amp; supporting documents</h3>
@@ -177,58 +210,51 @@
                     line-height: 1.65;
                     color: #42403d;
                 }
-                .lm-approve-confirm-dialog__actions {
-                    display: flex;
-                    justify-content: flex-end;
-                    gap: .75rem;
-                    padding: 0 1.3rem 1.3rem;
-                }
+                .lm-approve-confirm-dialog__actions,
                 .lm-reject-confirm-dialog__actions {
                     display: flex;
+                    align-items: center;
                     justify-content: flex-end;
-                    gap: .75rem;
+                    gap: 10px;
                     padding: 0 1.3rem 1.3rem;
                 }
-                .lm-approve-confirm-btn {
-                    padding: .65rem 1.1rem;
-                    border-radius: 10px;
-                    font-weight: 700;
-                    font-size: .92rem;
-                    cursor: pointer;
-                    border: 1px solid transparent;
-                }
+                .lm-approve-confirm-btn,
                 .lm-reject-confirm-btn {
-                    padding: .65rem 1.1rem;
-                    border-radius: 10px;
-                    font-weight: 700;
-                    font-size: .92rem;
+                    box-sizing: border-box;
+                    height: 38px;
+                    padding: 0 18px;
+                    border-radius: 8px;
+                    font-weight: 600;
+                    font-size: 14px;
                     cursor: pointer;
                     border: 1px solid transparent;
                 }
-                .lm-approve-confirm-btn--cancel {
-                    background: #f8fafc;
-                    color: #374151;
-                    border-color: #d1d5db;
-                }
-                .lm-approve-confirm-btn--cancel:hover { background: #eff2f6; }
+                .lm-approve-confirm-btn--cancel,
                 .lm-reject-confirm-btn--cancel {
-                    background: #f8fafc;
+                    min-width: 74px;
+                    background: #fff;
                     color: #374151;
                     border-color: #d1d5db;
                 }
-                .lm-reject-confirm-btn--cancel:hover { background: #eff2f6; }
+                .lm-approve-confirm-btn--cancel:hover,
+                .lm-reject-confirm-btn--cancel:hover {
+                    background: #f9fafb;
+                    border-color: #9ca3af;
+                }
                 .lm-approve-confirm-btn--approve {
-                    background: #ecfdf5;
-                    color: #166534;
-                    border-color: #bbf7d0;
+                    min-width: 86px;
+                    background: #166534;
+                    color: #fff;
+                    border: 0;
                 }
-                .lm-approve-confirm-btn--approve:hover { background: #d1fae5; }
+                .lm-approve-confirm-btn--approve:hover { background: #14532d; }
                 .lm-reject-confirm-btn--reject {
-                    background: #fef2f2;
-                    color: #991b1b;
-                    border-color: #fecaca;
+                    min-width: 86px;
+                    background: #ef4444;
+                    color: #fff;
+                    border: 0;
                 }
-                .lm-reject-confirm-btn--reject:hover { background: #fee2e2; }
+                .lm-reject-confirm-btn--reject:hover { background: #dc2626; }
             </style>
 
             <div id="lm-approve-modal-{{ $modalSafe }}" class="lm-approve-confirm-overlay" role="dialog" aria-modal="true" aria-labelledby="lm-approve-modal-title-{{ $modalSafe }}" aria-hidden="true">
@@ -249,7 +275,7 @@
                     <div class="lm-reject-confirm-dialog__header">
                         <h2 id="lm-reject-modal-title-{{ $modalSafe }}" class="lm-reject-confirm-dialog__title">Reject Landmark</h2>
                     </div>
-                    <p class="lm-reject-confirm-dialog__body">Are you sure you want to reject this landmark submission? The Site Manager will need to submit again.</p>
+                    <p class="lm-reject-confirm-dialog__body">Are you sure you want to reject the landmark submission for "{{ $data['name'] ?? 'Unnamed landmark' }}"?<br><br>The Site Manager will need to submit it again.</p>
                     <div class="lm-reject-confirm-dialog__actions">
                         <button type="button" class="lm-reject-confirm-btn lm-reject-confirm-btn--cancel" onclick="lmCloseRejectModal('lm-reject-modal-{{ $modalSafe }}')">Cancel</button>
                         <button type="button" class="lm-reject-confirm-btn lm-reject-confirm-btn--reject" onclick="lmConfirmReject('lm-reject-form-{{ $modalSafe }}', 'lm-reject-modal-{{ $modalSafe }}')">Reject</button>
@@ -343,5 +369,6 @@
                 });
             </script>
         @endif
+        </div>
     </div>
 </div>

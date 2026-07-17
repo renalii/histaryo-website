@@ -76,6 +76,33 @@
     .admin-chart-lg { grid-column: span 7; }
     .admin-chart-sm { grid-column: span 5; }
     .admin-chart canvas { width: 100% !important; height: 320px !important; }
+    .top-performers-card { overflow-y: auto; }
+    .performer-section + .performer-section { margin-top: .95rem; }
+    .performer-section h4 { margin: 0 0 .45rem; color: #7A2E1F; font-size: .9rem; font-weight: 800; }
+    .performer-table-wrap { overflow-x: auto; }
+    .performer-table { width: 100%; min-width: 430px; border-collapse: collapse; }
+    .performer-table th,
+    .performer-table td { padding: .5rem .45rem; text-align: left; border-bottom: 1px solid #eceff3; }
+    .performer-table th { color: #6b7280; font-size: .68rem; letter-spacing: .04em; text-transform: uppercase; }
+    .performer-table td { color: #374151; font-size: .78rem; }
+    .performer-table tbody tr:last-child td { border-bottom: 0; }
+    .rank-badge {
+        width: 1.7rem;
+        height: 1.7rem;
+        border-radius: 999px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        background: #fff5dd;
+        color: #7A2E1F;
+        font-size: .78rem;
+        font-weight: 800;
+        border: 1px solid #f3d79b;
+    }
+    .rank-badge--gold { background: #E8B34B; color: #4b210f; border-color: #d69b2b; }
+    .rank-badge--silver { background: #e5e7eb; color: #374151; border-color: #cbd5e1; }
+    .rank-badge--bronze { background: #d08b54; color: #fffdf7; border-color: #b9703d; }
+    .performer-empty { margin: .45rem 0 0 !important; color: #6b7280 !important; font-size: .85rem !important; }
     .sm-section-title { grid-column: span 12; margin: .45rem 0 -.2rem; }
     .sm-section-title h2 { margin: 0; color: #3f261f; font-size: 1.2rem; }
     .sm-section-title p { margin: .3rem 0 0; color: #6b7280; font-size: .88rem; }
@@ -176,12 +203,6 @@
         <h3>Landmarks</h3>
         <p>{{ $landmarkCount ?? 0 }}</p>
     </div>
-    @if ($showInsights)
-    <div class="admin-stat admin-summary-stat">
-        <h3>Logs</h3>
-        <p>{{ $logCount ?? 0 }}</p>
-    </div>
-    @endif
 </div>
 
 @if ($isSiteManager)
@@ -280,10 +301,73 @@
         <canvas id="visitsChart" width="400" height="300"></canvas>
     </div>
 
-    <div class="admin-chart admin-chart-sm">
-        <h3>Usage by Role</h3>
-        <p>Current role distribution</p>
-        <canvas id="roleUsageChart" width="400" height="300"></canvas>
+    <div class="admin-chart admin-chart-sm top-performers-card">
+        <h3>Top Performers</h3>
+        @if (! ($topPerformers['has_visitor_data'] ?? false))
+            <p class="performer-empty">No visitor data available</p>
+        @else
+            <div class="performer-section">
+                <h4>Top Site Managers</h4>
+                <div class="performer-table-wrap">
+                    <table class="performer-table">
+                        <thead>
+                            <tr>
+                                <th>Rank</th>
+                                <th>Site Manager</th>
+                                <th>Managed Landmarks</th>
+                                <th>Total Visitors</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @forelse (($topPerformers['site_managers'] ?? []) as $performer)
+                                @php($rankClass = match ($loop->iteration) { 1 => 'rank-badge--gold', 2 => 'rank-badge--silver', 3 => 'rank-badge--bronze', default => '' })
+                                <tr>
+                                    <td><span class="rank-badge {{ $rankClass }}">{{ $loop->iteration }}</span></td>
+                                    <td>{{ $performer['site_manager'] }}</td>
+                                    <td>{{ number_format($performer['managed_landmarks']) }}</td>
+                                    <td><strong>{{ number_format($performer['total_visitors']) }}</strong></td>
+                                </tr>
+                            @empty
+                                <tr>
+                                    <td colspan="4" class="sm-empty">No visitor data available</td>
+                                </tr>
+                            @endforelse
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="performer-section">
+                <h4>Top Curators</h4>
+                <div class="performer-table-wrap">
+                    <table class="performer-table">
+                        <thead>
+                            <tr>
+                                <th>Rank</th>
+                                <th>Curator</th>
+                                <th>Assigned Landmark</th>
+                                <th>Total Visitors</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @forelse (($topPerformers['curators'] ?? []) as $performer)
+                                @php($rankClass = match ($loop->iteration) { 1 => 'rank-badge--gold', 2 => 'rank-badge--silver', 3 => 'rank-badge--bronze', default => '' })
+                                <tr>
+                                    <td><span class="rank-badge {{ $rankClass }}">{{ $loop->iteration }}</span></td>
+                                    <td>{{ $performer['curator'] }}</td>
+                                    <td>{{ $performer['assigned_landmark'] }}</td>
+                                    <td><strong>{{ number_format($performer['total_visitors']) }}</strong></td>
+                                </tr>
+                            @empty
+                                <tr>
+                                    <td colspan="4" class="sm-empty">No visitor data available</td>
+                                </tr>
+                            @endforelse
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        @endif
     </div>
 </div>
 @endif
@@ -309,75 +393,16 @@
         }]
     };
 
-    const usageData = {
-        labels: ['Curators', 'Visitors'],
-        datasets: [{
-            data: [
-                {{ (int) ($curatorCount ?? 0) }},
-                {{ (int) ($visitorCount ?? 0) }}
-            ],
-            backgroundColor: ['#E8B34B', '#4F46E5'],
-            borderWidth: 1
-        }]
-    };
-
     new Chart(document.getElementById('visitsChart'), {
         type: 'line',
         data: visitsData,
         options: {
             responsive: true,
             maintainAspectRatio: false,
-            plugins: { legend: { position: 'top' } },
+            plugins: { legend: { display: false } },
             scales: { y: { beginAtZero: true } }
         }
     });
-
-    const roleUsageChart = new Chart(document.getElementById('roleUsageChart'), {
-        type: 'doughnut',
-        data: usageData,
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                legend: { position: 'bottom' },
-                tooltip: {
-                    callbacks: {
-                        label(context) {
-                            const values = context.dataset.data.map(Number);
-                            const total = values.reduce((sum, value) => sum + value, 0);
-                            const value = Number(context.raw || 0);
-                            const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : '0.0';
-
-                            return `${context.label}: ${value.toLocaleString()} (${percentage}%)`;
-                        }
-                    }
-                }
-            }
-        }
-    });
-
-    const roleUsageUrl = @json(route('admin.dashboard.role-usage'));
-
-    async function refreshRoleUsageChart() {
-        try {
-            const response = await fetch(roleUsageUrl, {
-                headers: { Accept: 'application/json' },
-                credentials: 'same-origin'
-            });
-            if (!response.ok) return;
-
-            const counts = await response.json();
-            roleUsageChart.data.datasets[0].data = [
-                Number(counts.curators || 0),
-                Number(counts.visitors || 0)
-            ];
-            roleUsageChart.update();
-        } catch (error) {
-            console.error('Could not refresh dashboard role usage.', error);
-        }
-    }
-
-    window.setInterval(refreshRoleUsageChart, 30000);
 </script>
 @endif
 

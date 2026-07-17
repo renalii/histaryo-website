@@ -342,16 +342,16 @@
 <div id="qr-delete-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.55); z-index:10000; align-items:center; justify-content:center; padding:1rem;">
     <div style="background:#fff; width:min(480px, 96vw); border-radius:12px; overflow:hidden; box-shadow:0 20px 50px rgba(0,0,0,.3); border:1px solid #e5e7eb;">
         <div style="padding:.95rem 1rem; border-bottom:1px solid #e5e7eb;">
-            <h3 style="margin:0; font-size:1.05rem; font-weight:700; color:#111827;">Delete QR Code Mapping</h3>
+            <h3 style="margin:0; font-size:1.05rem; font-weight:700; color:#111827;">Delete this QR code mapping?</h3>
         </div>
         <div style="padding:1rem;">
             <p id="qr-delete-message" style="margin:0; color:#374151; line-height:1.5;"></p>
         </div>
         <div style="display:flex; justify-content:flex-end; gap:.6rem; padding:0 1rem 1rem;">
-            <button id="qr-delete-cancel" type="button" class="qr-btn" style="background:#f8fafc; color:#374151; border:1px solid #d1d5db;">
+            <button id="qr-delete-cancel" type="button" class="qr-btn" style="padding:.45rem .8rem; border-radius:8px; font-size:.85rem; line-height:1; background:#f3f4f6; color:#374151; border:1px solid #e5e7eb;">
                 Cancel
             </button>
-            <button id="qr-delete-confirm" type="button" class="qr-btn" style="background:#b91c1c; color:#fff; border:1px solid #991b1b;">
+            <button id="qr-delete-confirm" type="button" class="qr-btn" style="padding:.45rem .8rem; border-radius:8px; font-size:.85rem; line-height:1; background:#ef4444; color:#fff; border:1px solid #ef4444;">
                 Delete
             </button>
         </div>
@@ -408,7 +408,7 @@ document.addEventListener('DOMContentLoaded', function () {
             e.preventDefault();
             pendingDeleteForm = btn.closest('form');
             const code = btn.getAttribute('data-code') || '';
-            deleteMessage.textContent = `Are you sure you want to delete this "${code}"`;
+            deleteMessage.textContent = `Are you sure you want to delete "${code}"?`;
             deleteModal.style.display = 'flex';
             document.body.style.overflow = 'hidden';
         });

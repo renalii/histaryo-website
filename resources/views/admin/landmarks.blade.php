@@ -5,13 +5,12 @@
     use App\Support\LandmarkActivation;
     $landmarkCount = method_exists($landmarks, 'total') ? $landmarks->total() : $landmarks->count();
     $panelRoutePrefix = session('role') === 'site_manager' ? 'sitemanager' : 'admin';
-    $currentView = in_array(request()->get('view', 'card'), ['card', 'list'], true)
-        ? request()->get('view', 'card')
-        : 'card';
     $isLandmarkApprovalQueue = $isLandmarkApprovalQueue ?? false;
     $landmarkStatusFilter = $landmarkStatusFilter ?? 'all';
+    $landmarkSearch = $landmarkSearch ?? '';
+    $landmarkCategoryFilter = $landmarkCategoryFilter ?? 'all';
+    $landmarkOrder = $landmarkOrder ?? 'default';
     $landmarksListUrl = route($panelRoutePrefix . '.landmarks', array_filter([
-        'view' => request()->get('view'),
         'status' => $isLandmarkApprovalQueue ? $landmarkStatusFilter : null,
     ]));
     $mapboxToken = config('services.mapbox.token');
@@ -35,21 +34,30 @@
                 border: 1px solid #bbf7d0;
                 font-weight: 600;
             }
+            .flash-ok-lm--compact {
+                width: fit-content;
+                max-width: 100%;
+                margin-right: 0;
+                margin-left: 0;
+                padding: .55rem .8rem;
+            }
         </style>
         @if (session('status'))
-            <div class="flash-ok-lm">{{ session('status') }}</div>
+            <div class="flash-ok-lm{{ $panelRoutePrefix === 'sitemanager' ? ' flash-ok-lm--compact' : '' }}">{{ session('status') }}</div>
         @endif
         @if (session('status_err'))
             <div class="flash-ok-lm" style="background:#fef2f2;color:#991b1b;border-color:#fecaca;">{{ session('status_err') }}</div>
         @endif
     @endif
     <style>
-        html:has(body .land-wrap--sitemanager #card-view),
-        html:has(body .land-wrap--approval #card-view),
-        body:has(.land-wrap--sitemanager #card-view),
-        body:has(.land-wrap--approval #card-view) {
+        @if ($panelRoutePrefix === 'admin' && $isLandmarkApprovalQueue)
+        html:has(body .admin-landmarks-page),
+        body:has(.admin-landmarks-page) {
+            height: 100%;
             overflow-y: hidden;
         }
+        @endif
+
         .land-wrap { max-width: 2000px; margin: 0 auto; }
         .land-wrap--approval,
         .land-wrap--sitemanager {
@@ -58,14 +66,119 @@
             flex-direction: column;
             padding-bottom: 32px;
         }
-        .land-wrap--approval .pager,
-        .land-wrap--sitemanager .pager {
-            margin-top: 24px;
+        .land-wrap--sitemanager {
+            min-height: auto;
+            padding-bottom: 0;
+        }
+        .land-wrap--approval {
+            min-height: auto;
+        }
+        .land-wrap--approval .table-wrap {
+            margin-bottom: 24px;
+            padding: 1rem;
+            box-sizing: border-box;
+            overflow-x: auto;
+            border-color: #eceff3;
+            border-radius: 12px;
+            box-shadow: 0 6px 16px rgba(15, 23, 42, .05);
+        }
+        .land-wrap--approval .land-table {
+            min-width: 850px;
+            table-layout: fixed;
+            border-collapse: separate;
+            border-spacing: 0;
+        }
+        .land-wrap--approval .land-table th {
+            padding: .68rem .78rem;
+            background: #fff7ed;
+            border-bottom: 1px solid #f1f5f9;
+            line-height: 1.2;
+        }
+        .land-wrap--approval .land-table td {
+            padding: .65rem .78rem;
+            border-top: 0;
+            border-bottom: 1px solid #eef2f7;
+            vertical-align: middle;
+            line-height: 1.25;
+        }
+        .land-wrap--approval .land-table th:nth-child(1),
+        .land-wrap--approval .land-table td:nth-child(1) { width: 34%; }
+        .land-wrap--approval .land-table th:nth-child(2),
+        .land-wrap--approval .land-table td:nth-child(2) { width: 33%; }
+        .land-wrap--approval .land-table th:nth-child(3),
+        .land-wrap--approval .land-table td:nth-child(3) { width: 12%; }
+        .land-wrap--approval .land-table th:nth-child(4),
+        .land-wrap--approval .land-table td:nth-child(4) { width: 12%; }
+        .land-wrap--approval .land-table th:nth-child(5),
+        .land-wrap--approval .land-table td:nth-child(5) { width: 9%; }
+        .land-wrap--approval .land-table tbody tr:last-child td {
+            border-bottom: 0;
+        }
+        .land-wrap--approval .land-activation-pill {
+            margin-top: 0;
+            padding: .18rem .5rem;
+            line-height: 1;
+        }
+        .land-wrap--approval .pager {
+            margin-top: 0;
             margin-bottom: 40px;
         }
-        .land-wrap--sitemanager #card-view + .pager {
-            margin-top: 32px;
-            margin-bottom: 32px;
+        .land-wrap--sitemanager .pager {
+            margin-top: 24px;
+            margin-bottom: 0;
+            padding-bottom: 0;
+        }
+        .land-wrap--sitemanager .table-wrap {
+            margin-top: .75rem;
+            padding: 1rem;
+            box-sizing: border-box;
+            overflow-x: auto;
+            border-color: #eceff3;
+            border-radius: 12px;
+            box-shadow: 0 6px 16px rgba(15, 23, 42, .05);
+        }
+        .land-wrap--sitemanager .land-table {
+            min-width: 850px;
+            table-layout: fixed;
+            border-collapse: separate;
+            border-spacing: 0;
+        }
+        .land-wrap--sitemanager .land-table th {
+            padding: .68rem .78rem;
+            background: #fff7ed;
+            border-bottom: 1px solid #f1f5f9;
+            line-height: 1.2;
+        }
+        .land-wrap--sitemanager .land-table td {
+            padding: .65rem .78rem;
+            border-top: 0;
+            border-bottom: 1px solid #eef2f7;
+            vertical-align: middle;
+            line-height: 1.25;
+        }
+        .land-wrap--sitemanager .land-table th:nth-child(1),
+        .land-wrap--sitemanager .land-table td:nth-child(1) { width: 29%; }
+        .land-wrap--sitemanager .land-table th:nth-child(2),
+        .land-wrap--sitemanager .land-table td:nth-child(2) { width: 34%; }
+        .land-wrap--sitemanager .land-table th:nth-child(3),
+        .land-wrap--sitemanager .land-table td:nth-child(3) { width: 13%; }
+        .land-wrap--sitemanager .land-table th:nth-child(4),
+        .land-wrap--sitemanager .land-table td:nth-child(4) { width: 15%; min-width: 125px; }
+        .land-wrap--sitemanager .land-table th:nth-child(5),
+        .land-wrap--sitemanager .land-table td:nth-child(5) { width: 9%; }
+        .land-wrap--sitemanager .land-table tbody tr:last-child td {
+            border-bottom: 0;
+        }
+        .land-wrap--sitemanager .land-activation-pill {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            box-sizing: border-box;
+            min-height: 24px;
+            margin-top: 0;
+            padding: 3px 10px;
+            line-height: 1;
+            white-space: nowrap;
         }
         .land-header {
             display: flex;
@@ -92,16 +205,6 @@
         }
         .land-title { font-size: 1.9rem; font-weight: 800; margin: 0; color: #7A2E1F; }
         .land-sub { margin: 0; color: #6b7280; font-size: .95rem; }
-        .view-switch {
-            margin-bottom: 0;
-            display: inline-flex;
-            gap: .45rem;
-            background: #fff;
-            border: 1px solid #eceff3;
-            border-radius: 10px;
-            padding: .35rem;
-            box-shadow: 0 4px 12px rgba(15,23,42,.05);
-        }
         @media (max-width: 700px) {
             .land-header {
                 align-items: flex-start;
@@ -116,6 +219,13 @@
             .land-wrap--sitemanager {
                 min-height: calc(100vh - 2.5rem);
                 padding-bottom: 32px;
+            }
+            .land-wrap--sitemanager {
+                min-height: auto;
+                padding-bottom: 0;
+            }
+            .land-wrap--approval {
+                min-height: auto;
             }
         }
         .view-btn {
@@ -135,67 +245,6 @@
             color: #7A2E1F;
         }
         .view-btn:hover { transform: translateY(-1px); }
-        #card-view.card-grid {
-            display: flex !important;
-            /* flex-wrap: wrap; */
-            gap: 1rem;
-        }
-        #card-view.card-grid .land-card {
-            width: calc((100% - 2rem) / 3);
-        }
-        @media (max-width: 1100px) {
-            #card-view.card-grid .land-card {
-                width: calc((100% - 1rem) / 2);
-            }
-        }
-        @media (max-width: 700px) {
-            #card-view.card-grid .land-card {
-                width: 100%;
-            }
-        }
-        .land-card {
-            background:#fff;
-            padding:1rem;
-            border-radius:12px;
-            border:1px solid #eceff3;
-            box-shadow:0 6px 16px rgba(0,0,0,.05);
-            display:flex;
-            flex-direction:column;
-            gap:.6rem;
-        }
-        .land-wrap--sitemanager .land-card {
-            border-color: #e5e7eb;
-        }
-        .land-card h3 { font-size:1.2rem; color:#111827; margin:0; text-decoration:none; }
-        .meta { margin:0; font-size:.9rem; color:#4b5563; }
-        .land-card-section-title {
-            margin:0 0 .2rem;
-            font-size:.78rem;
-            font-weight:700;
-            color:#92400e;
-            text-transform:uppercase;
-        }
-        .land-card-location {
-            margin:0;
-        }
-        .desc {
-            margin:0;
-            font-size:.92rem;
-            color:#374151;
-            overflow:hidden;
-            display:-webkit-box;
-            -webkit-line-clamp:4;
-            -webkit-box-orient:vertical;
-            line-height:1.35;
-        }
-        .media-box img {
-            width:100%;
-            border-radius:8px;
-            display:block;
-            aspect-ratio:16 / 10;
-            object-fit:cover;
-            background:#f3f4f6;
-        }
         .table-wrap {
             margin-top: .5rem;
             border: 1px solid #eceff3;
@@ -279,7 +328,8 @@
                 font-size: .8rem;
             }
         }
-        .lm-create-modal {
+        .lm-create-modal,
+        .lm-edit-modal {
             display: none;
             position: fixed;
             z-index: 1000;
@@ -291,7 +341,8 @@
             align-items: center;
             justify-content: center;
         }
-        .lm-create-modal__panel {
+        .lm-create-modal__panel,
+        .lm-edit-modal__panel {
             background: #fefefe;
             margin: auto;
             padding: 1.5rem 1.85rem;
@@ -304,13 +355,15 @@
             position: relative;
             font-family: inherit;
         }
-        .lm-create-modal__panel h3 {
+        .lm-create-modal__panel h3,
+        .lm-edit-modal__panel h3 {
             margin: 0 2rem .5rem 0;
             font-size: 1.35rem;
             font-weight: 700;
             color: #4c1d95;
         }
-        .lm-create-modal__panel label {
+        .lm-create-modal__panel label,
+        .lm-edit-modal__panel label {
             display: block;
             font-weight: 600;
             color: #374151;
@@ -322,7 +375,12 @@
         .lm-create-modal__panel input[type="url"],
         .lm-create-modal__panel input[type="file"],
         .lm-create-modal__panel textarea,
-        .lm-create-modal__panel select {
+        .lm-create-modal__panel select,
+        .lm-edit-modal__panel input[type="text"],
+        .lm-edit-modal__panel input[type="number"],
+        .lm-edit-modal__panel input[type="file"],
+        .lm-edit-modal__panel textarea,
+        .lm-edit-modal__panel select {
             width: 100%;
             padding: .5rem .75rem;
             border: 1px solid #d1d5db;
@@ -333,7 +391,19 @@
             box-sizing: border-box;
             font-family: inherit;
         }
-        .lm-create-modal__panel button[type="submit"] {
+        .lm-create-modal__panel input:focus,
+        .lm-create-modal__panel textarea:focus,
+        .lm-create-modal__panel select:focus,
+        .lm-edit-modal__panel input:focus,
+        .lm-edit-modal__panel textarea:focus,
+        .lm-edit-modal__panel select:focus,
+        .lm-edit-modal__panel .lm-create-location-search input[type="search"]:focus {
+            outline: none !important;
+            border-color: #d1d5db !important;
+            box-shadow: none !important;
+        }
+        .lm-create-modal__panel button[type="submit"],
+        .lm-edit-modal__panel button[type="submit"] {
             margin-top: 1.35rem;
             background: #E8B34B;
             color: #7A2E1F;
@@ -344,8 +414,31 @@
             border: 1px solid #F3C96A;
             cursor: pointer;
         }
-        .lm-create-modal__panel button[type="submit"]:hover { background: #F3C96A; }
-        .lm-create-modal__close {
+        .lm-create-modal__panel button[type="submit"]:hover,
+        .lm-edit-modal__panel button[type="submit"]:hover { background: #F3C96A; }
+        .lm-edit-modal__actions {
+            display: flex;
+            justify-content: flex-end;
+            align-items: center;
+            gap: .55rem;
+            margin-top: 1.35rem;
+        }
+        .lm-edit-modal__actions button { margin-top: 0 !important; }
+        .lm-edit-modal__cancel {
+            background: #f9fafb;
+            color: #374151;
+            padding: .55rem 1.1rem;
+            font-size: .9rem;
+            line-height: normal;
+            border-radius: 8px;
+            font-weight: 700;
+            border: 1px solid #d1d5db;
+            cursor: pointer;
+            font-family: inherit;
+        }
+        .lm-edit-modal__cancel:hover { background: #f3f4f6; }
+        .lm-create-modal__close,
+        .lm-edit-modal__close {
             position: absolute;
             top: 10px;
             right: 14px;
@@ -360,8 +453,11 @@
             font-family: inherit;
         }
         .lm-create-modal__close:hover,
-        .lm-create-modal__close:focus-visible { color: #111827; }
-        .lm-create-modal__hint {
+        .lm-create-modal__close:focus-visible,
+        .lm-edit-modal__close:hover,
+        .lm-edit-modal__close:focus-visible { color: #111827; }
+        .lm-create-modal__hint,
+        .lm-edit-modal__hint {
             margin: .35rem 0 0;
             font-size: .78rem;
             color: #6b7280;
@@ -433,9 +529,10 @@
             outline: none;
         }
         .lm-create-location-search input[type="search"]:focus {
-            border-color: #7A2E1F;
-            box-shadow: 0 0 0 3px rgba(122, 46, 31, .14);
-            background: #fff;
+            border-color: #d1d5db !important;
+            box-shadow: none !important;
+            outline: none !important;
+            background: #f9fafb;
         }
         .lm-create-location-results {
             display: none;
@@ -489,33 +586,6 @@
         .land-activation-pill--pending { background: #fffbeb; color: #b45309; border: 1px solid #fde68a; }
         .land-activation-pill--active { background: #ecfdf5; color: #166534; border: 1px solid #bbf7d0; }
         .land-activation-pill--rejected { background: #fef2f2; color: #991b1b; border: 1px solid #fecaca; }
-        .land-card-badges {
-            display: flex;
-            align-items: center;
-            flex-wrap: wrap;
-            gap: .35rem;
-        }
-        .land-card-badges .land-activation-pill {
-            margin-top: 0;
-        }
-        .land-card-link {
-            color: inherit;
-            text-decoration: none;
-        }
-        .land-card-link:hover h3 { text-decoration: none; }
-        .land-card--clickable {
-            cursor: pointer;
-            transition: box-shadow .15s ease, border-color .15s ease;
-        }
-        .land-card--clickable:hover {
-            
-            box-shadow: 0 8px 22px rgba(122, 46, 31, 0.1);
-        }
-        .land-card--clickable:focus-visible {
-            outline: 2px solid #e5e7eb;
-            outline-offset: 2px;
-        }
-        .land-card--clickable:hover h3 { text-decoration: none; }
         .lm-view-modal {
             display: none;
             position: fixed;
@@ -531,33 +601,92 @@
         .lm-view-modal__panel {
             background: #fff;
             margin: auto;
-            padding: 1.5rem 1.75rem 1.75rem;
+            padding: 0;
             border-radius: 14px;
             max-width: min(720px, 100%);
             width: 100%;
             max-height: min(90vh, 880px);
-            overflow-y: auto;
+            overflow: hidden;
             box-shadow: 0 16px 40px rgba(0,0,0,.12);
             position: relative;
             font-family: inherit;
+            display: flex;
+            flex-direction: column;
         }
         .lm-view-modal__close {
-            position: absolute;
-            top: 10px;
-            right: 14px;
-            font-size: 28px;
-            font-weight: bold;
+            position: static;
+            width: 36px;
+            height: 36px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 8px;
+            font-size: 1.55rem;
+            font-weight: 700;
             color: #6b7280;
             cursor: pointer;
             line-height: 1;
             border: none;
-            background: none;
-            padding: .25rem .4rem;
+            background: #fff;
+            padding: 0;
             font-family: inherit;
         }
         .lm-view-modal__close:hover,
-        .lm-view-modal__close:focus-visible { color: #111827; }
+        .lm-view-modal__close:focus-visible { color: #111827; background: #f9fafb; }
+        .lm-view-modal__header {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 1rem;
+            flex-shrink: 0;
+            margin: 0;
+            padding: 1.25rem 1.35rem 1rem;
+            border-bottom: 1px solid #f1f5f9;
+            background: #fff;
+        }
+        .lm-view-modal__heading {
+            min-width: 0;
+        }
+        .lm-view-modal__top-actions {
+            display: inline-flex;
+            align-items: center;
+            gap: .45rem;
+            flex-shrink: 0;
+            z-index: 2;
+        }
+        .lm-view-modal__top-actions .land-delete-form {
+            margin: 0;
+            display: inline-flex;
+        }
+        .lm-view-modal__action {
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            background: #fff;
+            color: #7A2E1F;
+            padding: .48rem .72rem;
+            font: inherit;
+            font-size: .9rem;
+            font-weight: 800;
+            line-height: 1;
+            cursor: pointer;
+        }
+        .lm-view-modal__action--edit {
+            background: #f3f4f6;
+            border-color: #e5e7eb;
+            color: #374151;
+        }
+        .lm-view-modal__action--edit:hover { background: #e5e7eb; }
+        .lm-view-modal__action--delete {
+            color: #991b1b;
+            border-color: #fecaca;
+            background: #fff;
+        }
+        .lm-view-modal__action--delete:hover { background: #fef2f2; }
+        .lm-view-modal__action:hover {
+            transform: translateY(-1px);
+        }
         .lm-view-modal__eyebrow {
+            display: none;
             margin: 0 0 .35rem;
             font-size: .7rem;
             font-weight: 700;
@@ -566,12 +695,27 @@
             color: #A67C52;
         }
         .lm-view-modal__title {
-            margin: 0 2.35rem 1rem 0;
+            margin: 0;
             font-size: clamp(1.35rem, 3vw, 1.65rem);
             font-weight: 800;
-            color: #4c1d95;
+            color: #7A2E1F;
             line-height: 1.2;
             letter-spacing: -0.02em;
+        }
+        .lm-view-modal__body {
+            flex: 1 1 auto;
+            min-height: 0;
+            overflow-y: auto;
+            padding: 1rem 1.35rem 1.35rem;
+        }
+        @media (max-width: 640px) {
+            .lm-view-modal__header {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            .lm-view-modal__top-actions {
+                justify-content: flex-end;
+            }
         }
         .lm-view-modal__chips {
             display: flex;
@@ -720,28 +864,39 @@
             padding-top: 1rem;
             border-top: 1px solid #e7e5e4;
             display: flex;
-            flex-wrap: wrap;
-            gap: .55rem;
+            align-items: center;
+            flex-wrap: nowrap;
+            gap: 8px;
         }
         .lm-view-btn-approve {
-            padding: .55rem 1rem;
-            border-radius: 8px;
-            border: 1px solid #bbf7d0;
-            background: #ecfdf5;
-            color: #166534;
-            font-weight: 700;
+            height: 30px;
+            min-width: 64px;
+            padding: 0 12px;
+            border-radius: 6px;
+            border: 0;
+            background: #166534;
+            color: #fff;
+            font-weight: 600;
             cursor: pointer;
-            font-size: .875rem;
+            font-size: 13px;
+        }
+        .lm-view-btn-approve:hover {
+            background: #14532d;
         }
         .lm-view-btn-reject {
-            padding: .55rem 1rem;
-            border-radius: 8px;
-            border: 1px solid #fecaca;
-            background: #fef2f2;
-            color: #991b1b;
-            font-weight: 700;
+            height: 30px;
+            min-width: 60px;
+            padding: 0 12px;
+            border-radius: 6px;
+            border: 1px solid #fca5a5;
+            background: #fff;
+            color: #b91c1c;
+            font-weight: 600;
             cursor: pointer;
-            font-size: .875rem;
+            font-size: 13px;
+        }
+        .lm-view-btn-reject:hover {
+            background: #fef2f2;
         }
         .land-table .row-name-btn {
             border: none;
@@ -767,6 +922,20 @@
             text-decoration: none;
         }
         .land-expand-btn:hover { text-decoration: none; }
+        .land-wrap--approval .land-expand-btn,
+        .land-wrap--sitemanager .land-expand-btn {
+            padding: .35rem .65rem;
+            border-radius: 8px;
+            border: 1px solid #d1d5db;
+            font-weight: 700;
+            font-size: .78rem;
+            cursor: pointer;
+            background: #fff;
+            color: #374151;
+            text-decoration: none;
+        }
+        .land-wrap--approval .land-expand-btn:hover,
+        .land-wrap--sitemanager .land-expand-btn:hover { background: #f9fafb; }
         .land-row-actions {
             display: inline-flex;
             align-items: center;
@@ -841,8 +1010,10 @@
         }
         .land-delete-modal__btn {
             border-radius: 8px;
-            padding: .5rem .9rem;
+            padding: .45rem .8rem;
             font-weight: 700;
+            font-size: .85rem;
+            line-height: 1;
             border: 1px solid transparent;
             cursor: pointer;
             transition: all .15s ease;
@@ -855,10 +1026,10 @@
         .land-delete-modal__btn.cancel:hover { background: #e5e7eb; }
         .land-delete-modal__btn.confirm {
             background: #ef4444;
-            border-color: #fecaca;
+            border-color: #ef4444;
             color: #fff;
         }
-        .land-delete-modal__btn.confirm:hover { background: #dc2626; }
+        .land-delete-modal__btn.confirm:hover { background: #dc2626; border-color: #dc2626; }
         .land-detail-row td {
             padding: 0;
             border-top: 0;
@@ -932,8 +1103,150 @@
             font-weight: 700;
             cursor: pointer;
         }
+        .land-controls {
+            display: grid;
+            grid-template-columns: minmax(220px, 1fr) repeat(3, minmax(145px, max-content));
+            gap: .65rem;
+            align-items: center;
+            margin: .85rem 0 .7rem;
+        }
+        .land-controls--approval {
+            display: flex;
+            flex-wrap: nowrap;
+            align-items: flex-end;
+        }
+        .land-controls input,
+        .land-controls select {
+            height: 40px;
+            border: 1px solid #d1d5db;
+            border-radius: 8px;
+            background: #fff;
+            color: #374151;
+            font: inherit;
+            font-size: .88rem;
+            font-weight: 600;
+        }
+        .land-controls input {
+            width: 100%;
+            padding: 0 .8rem;
+        }
+        .land-controls input[type="search"]::-webkit-search-cancel-button,
+        .land-controls input[type="search"]::-webkit-search-decoration {
+            -webkit-appearance: none;
+            appearance: none;
+        }
+        .land-controls select {
+            min-width: 145px;
+            padding: 0 2rem 0 .7rem;
+            cursor: pointer;
+        }
+        .land-controls button[type="submit"] {
+            height: 40px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0 .95rem;
+            border: 1px solid #F3C96A;
+            border-radius: 8px;
+            background: #E8B34B;
+            color: #7A2E1F;
+            font: inherit;
+            font-size: .88rem;
+            font-weight: 800;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+        .land-controls button[type="submit"]:hover { background: #F3C96A; }
+        .land-controls--approval input[type="search"] {
+            width: 350px;
+            flex: 0 0 350px;
+        }
+        .land-controls--approval select {
+            width: 140px;
+            flex: 0 0 140px;
+        }
+        .land-controls--approval button[type="submit"],
+        .land-controls--approval .land-clear-btn {
+            flex: 0 0 auto;
+            width: auto;
+        }
+        .land-controls--approval input:focus,
+        .land-controls--approval select:focus,
+        .land-controls--approval button:focus,
+        .land-controls--approval .land-clear-btn:focus {
+            border-color: #d1d5db !important;
+            box-shadow: none !important;
+            outline: none !important;
+        }
+        .land-wrap--sitemanager .land-controls {
+            display: flex;
+            flex-wrap: nowrap;
+            align-items: center;
+        }
+        .land-wrap--sitemanager .land-controls input[type="search"] {
+            width: 350px;
+            flex: 0 0 350px;
+        }
+        .land-wrap--sitemanager .land-controls select[name="category"] {
+            width: 150px;
+            min-width: 150px;
+            flex: 0 0 150px;
+        }
+        .land-wrap--sitemanager .land-controls select[name="status"],
+        .land-wrap--sitemanager .land-controls select[name="order"] {
+            width: 140px;
+            min-width: 140px;
+            flex: 0 0 140px;
+        }
+        .land-wrap--sitemanager .land-controls input[type="search"]:focus,
+        .land-wrap--sitemanager .land-controls select:focus {
+            border-color: #d1d5db !important;
+            box-shadow: none !important;
+            outline: none !important;
+        }
+        .land-wrap--sitemanager .land-controls button[type="submit"] {
+            flex: 0 0 auto;
+        }
+        .land-wrap--sitemanager .land-controls .land-clear-btn {
+            flex: 0 0 auto;
+        }
+        .land-clear-btn {
+            height: 40px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0 .85rem;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            background: #fff;
+            color: #374151;
+            font-size: .88rem;
+            font-weight: 700;
+            text-decoration: none;
+            white-space: nowrap;
+        }
+        .land-clear-btn:hover { background: #e5e7eb; }
+        .land-controls input:focus,
+        .land-controls select:focus {
+            outline: none;
+            border-color: #E8B34B;
+            box-shadow: 0 0 0 3px rgba(232, 179, 75, .22);
+        }
+        @media (max-width: 900px) {
+            .land-controls {
+                grid-template-columns: 1fr 1fr;
+            }
+        }
+        @media (max-width: 560px) {
+            .land-controls {
+                grid-template-columns: 1fr;
+            }
+            .land-controls select {
+                width: 100%;
+            }
+        }
     </style>
-    <div class="land-wrap {{ $isLandmarkApprovalQueue ? 'land-wrap--approval' : ($panelRoutePrefix === 'sitemanager' ? 'land-wrap--sitemanager' : '') }}">
+    <div class="land-wrap {{ $isLandmarkApprovalQueue ? 'land-wrap--approval' : ($panelRoutePrefix === 'sitemanager' ? 'land-wrap--sitemanager' : '') }} {{ $panelRoutePrefix === 'admin' && $isLandmarkApprovalQueue ? 'admin-landmarks-page content-wrapper' : '' }}">
     <div class="land-header">
         <div class="land-header-main">
             <h2 class="land-title">{{ $isLandmarkApprovalQueue ? 'Landmark Approvals' : 'All Landmarks' }}</h2>
@@ -954,149 +1267,96 @@
                     + Create landmark
                 </button>
             @endif
-            @if ($isLandmarkApprovalQueue)
-                <form method="GET" action="{{ route('admin.landmarks') }}" class="land-status-filter">
-                    <label for="landmark-status-filter">Status:</label>
-                    <input type="hidden" name="view" value="{{ $currentView }}">
-                    <select id="landmark-status-filter" name="status" onchange="this.form.submit()">
-                        <option value="pending" @selected($landmarkStatusFilter === 'pending')>Pending</option>
-                        <option value="all" @selected($landmarkStatusFilter === 'all')>All</option>
-                        <option value="active" @selected($landmarkStatusFilter === 'active')>Approved</option>
-                        <option value="rejected" @selected($landmarkStatusFilter === 'rejected')>Rejected</option>
-                    </select>
-                </form>
-            @endif
-            <div class="view-switch">
-                <a href="{{ route($panelRoutePrefix . '.landmarks', array_filter(['view' => 'card', 'status' => $isLandmarkApprovalQueue ? $landmarkStatusFilter : null])) }}"
-                   class="view-btn {{ $currentView === 'card' ? 'active' : '' }}">
-                    Card View
-                </a>
-                <a href="{{ route($panelRoutePrefix . '.landmarks', array_filter(['view' => 'list', 'status' => $isLandmarkApprovalQueue ? $landmarkStatusFilter : null])) }}"
-                   class="view-btn {{ $currentView === 'list' ? 'active' : '' }}">
-                    List View
-                </a>
-            </div>
         </div>
     </div>
 
+    @if ($isLandmarkApprovalQueue)
+        <form method="GET" action="{{ route('admin.landmarks') }}" class="land-controls land-controls--approval land-controls--manual">
+            <input
+                type="search"
+                name="search"
+                value="{{ $landmarkSearch }}"
+                placeholder="Search landmarks..."
+                aria-label="Search landmarks">
+
+            <select name="status" aria-label="Filter by status">
+                <option value="all" @selected($landmarkStatusFilter === 'all')>All Status</option>
+                <option value="pending" @selected($landmarkStatusFilter === 'pending')>Pending</option>
+                <option value="active" @selected($landmarkStatusFilter === 'active')>Approved</option>
+                <option value="rejected" @selected($landmarkStatusFilter === 'rejected')>Rejected</option>
+            </select>
+
+            <select name="category" aria-label="Filter by category">
+                <option value="all" @selected($landmarkCategoryFilter === 'all')>All Category</option>
+                <option value="historical" @selected($landmarkCategoryFilter === 'historical')>Historical</option>
+                <option value="religious" @selected($landmarkCategoryFilter === 'religious')>Religious</option>
+                <option value="modern" @selected($landmarkCategoryFilter === 'modern')>Modern</option>
+                <option value="natural" @selected($landmarkCategoryFilter === 'natural')>Natural</option>
+                <option value="cultural" @selected($landmarkCategoryFilter === 'cultural')>Cultural</option>
+                <option value="others" @selected($landmarkCategoryFilter === 'others')>Others</option>
+            </select>
+
+            <button type="submit">Search</button>
+
+            <a href="{{ route('admin.landmarks') }}" class="land-clear-btn">
+                Clear
+            </a>
+        </form>
+    @endif
+
+    @if ($panelRoutePrefix === 'sitemanager' && ! $isLandmarkApprovalQueue)
+        <form method="GET" action="{{ route('sitemanager.landmarks') }}" class="land-controls land-controls--manual">
+            <input
+                type="search"
+                name="search"
+                value="{{ $landmarkSearch }}"
+                placeholder="Search landmarks..."
+                aria-label="Search landmarks">
+
+            <select name="category" aria-label="Filter by category">
+                <option value="all" @selected($landmarkCategoryFilter === 'all')>All Category</option>
+                <option value="historical" @selected($landmarkCategoryFilter === 'historical')>Historical</option>
+                <option value="religious" @selected($landmarkCategoryFilter === 'religious')>Religious</option>
+                <option value="natural" @selected($landmarkCategoryFilter === 'natural')>Natural</option>
+                <option value="modern" @selected($landmarkCategoryFilter === 'modern')>Modern</option>
+            </select>
+
+            <select name="status" aria-label="Filter by status">
+                <option value="all" @selected($landmarkStatusFilter === 'all')>All Status</option>
+                <option value="active" @selected($landmarkStatusFilter === 'active')>Active</option>
+                <option value="pending" @selected($landmarkStatusFilter === 'pending')>Pending Approval</option>
+                <option value="rejected" @selected($landmarkStatusFilter === 'rejected')>Rejected</option>
+            </select>
+
+            <select name="order" aria-label="Order landmarks">
+                <option value="default" @selected($landmarkOrder === 'default')>Default order</option>
+                <option value="name_az" @selected($landmarkOrder === 'name_az')>Name A-Z</option>
+                <option value="name_za" @selected($landmarkOrder === 'name_za')>Name Z-A</option>
+                <option value="newest" @selected($landmarkOrder === 'newest')>Newest</option>
+                <option value="oldest" @selected($landmarkOrder === 'oldest')>Oldest</option>
+            </select>
+
+            <button type="submit">Search</button>
+
+            <a href="{{ route('sitemanager.landmarks') }}" class="land-clear-btn">
+                Clear
+            </a>
+        </form>
+    @endif
+
     @if ($landmarks->isEmpty())
-        <p class="empty-box">{{ $isLandmarkApprovalQueue ? 'No landmarks in this queue.' : 'No landmarks found.' }}</p>
+        <p class="empty-box">No landmarks found.</p>
     @else
 
-        
-        @if ($currentView === 'card')
-            <div id="card-view" class="card-grid">
-                @foreach ($landmarks as $landmark)
-                    @php
-                        $lid = $landmark->id();
-                        $modalSafe = preg_replace('/[^a-zA-Z0-9_-]/', '_', $lid);
-                        $viewModalId = 'viewModal_' . $modalSafe;
-                        $data = $landmark->data();
-                        $imageSrc = null;
-                        $storedImageUrl = $data['image_url'] ?? LandmarkImageStorage::publicUrl($lid);
-
-                        if (!empty($data['image_base64']) || $storedImageUrl !== null) {
-                            $imageSrc = $storedImageUrl ?? route($panelRoutePrefix . '.landmarks.image', $lid);
-                        }
-
-                        $activation = strtolower((string) ($data['activation_status'] ?? 'active'));
-                        $activationLabel = $isLandmarkApprovalQueue
-                            ? match ($activation) {
-                                'pending' => 'Pending',
-                                'active' => 'Approved',
-                                'rejected' => 'Rejected',
-                                default => LandmarkActivation::label($activation),
-                            }
-                            : LandmarkActivation::label($activation);
-                        $useViewModal = true;
-                        $canApproveLandmark = $isLandmarkApprovalQueue
-                            && $activation === 'pending';
-                    @endphp
-
-                    <div class="land-card {{ $useViewModal ? 'land-card--clickable' : '' }}"
-                         @if ($useViewModal)
-                             role="button"
-                             tabindex="0"
-                             onclick="smOpenLandmarkViewModal('{{ $viewModalId }}', '{{ $lid }}')"
-                             onkeydown="if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); smOpenLandmarkViewModal('{{ $viewModalId }}', '{{ $lid }}'); }"
-                             aria-haspopup="dialog"
-                             aria-controls="{{ $viewModalId }}"
-                         @endif>
-                        @if ($useViewModal)
-                            <h3>{{ $data['name'] ?? 'Unnamed Landmark' }}</h3>
-                            <div class="land-card-badges">
-                                <span class="land-activation-pill land-activation-pill--{{ $activation === 'pending' || $activation === 'rejected' ? $activation : 'active' }}">
-                                    {{ $activationLabel }}
-                                </span>
-                            </div>
-                        @else
-                            <a class="land-card-link" href="{{ $showRoute }}">
-                                <h3>{{ $data['name'] ?? 'Unnamed Landmark' }}</h3>
-                                <div class="land-card-badges">
-                                    <span class="land-activation-pill land-activation-pill--{{ $activation === 'pending' || $activation === 'rejected' ? $activation : 'active' }}">
-                                        {{ $activationLabel }}
-                                    </span>
-                                </div>
-                            </a>
-                        @endif
-                        @if ($panelRoutePrefix !== 'sitemanager' && ! $isLandmarkApprovalQueue && ! empty($data['landmarkcode'] ?? ''))
-                            <p class="meta" style="font-family:ui-monospace,monospace;font-weight:600;color:#92400e;">{{ $data['landmarkcode'] }}</p>
-                        @endif
-
-                        @if (!empty($data['description']))
-                            <div @if ($useViewModal) onclick="event.stopPropagation()" @endif>
-                                <p class="land-card-section-title">Description</p>
-                                <p class="desc">{{ $data['description'] }}</p>
-                            </div>
-                        @endif
-
-                        <div class="land-card-location">
-                            <p class="land-card-section-title">Location</p>
-                            <p class="meta">
-                                Latitude: {{ $data['latitude'] ?? 'N/A' }}<br>
-                                Longitude: {{ $data['longitude'] ?? 'N/A' }}
-                            </p>
-                        </div>
-
-                        @if (!empty($imageSrc))
-                            <p class="land-card-section-title">Landmark photo</p>
-                        @endif
-
-                        @if (!empty($imageSrc))
-                            <div class="media-box" @if ($useViewModal) onclick="event.stopPropagation()" @endif>
-                                <img src="{{ $imageSrc }}" alt="Landmark Image" loading="lazy" decoding="async">
-                            </div>
-                        @endif
-
-                    </div>
-
-                    @if ($useViewModal)
-                        @include('admin.partials.landmark-view-modal', [
-                            'viewModalId' => $viewModalId,
-                            'modalSafe' => $modalSafe,
-                            'landmarkId' => $lid,
-                            'data' => $data,
-                            'imageSrc' => $imageSrc,
-                            'canApproveLandmark' => $canApproveLandmark,
-                            'panelRoutePrefix' => $panelRoutePrefix,
-                        ])
-                    @endif
-                @endforeach
-            </div>
-
-        @endif
-
-        
-        @if ($currentView === 'list')
-            <div id="list-view" class="table-wrap">
+        <div id="list-view" class="table-wrap">
                 <table class="land-table">
                     <thead>
                         <tr>
                             <th>Name</th>
                             <th>Location</th>
-                            <th>Categorical</th>
+                            <th>Category</th>
                             <th>Status</th>
-                            @if ($panelRoutePrefix === 'sitemanager')
+                            @if ($panelRoutePrefix === 'sitemanager' || $isLandmarkApprovalQueue)
                             <th>Action</th>
                             @endif
                         </tr>
@@ -1150,57 +1410,22 @@
                                         {{ $activationLabel }}
                                     </span>
                                 </td>
-                                @if ($panelRoutePrefix === 'sitemanager')
+                                @if ($panelRoutePrefix === 'sitemanager' || $isLandmarkApprovalQueue)
                                     <td>
                                         <div class="land-row-actions">
                                             <button type="button"
                                                     class="land-expand-btn"
                                                     data-landmark-expand
-                                                    data-target="land-detail-{{ $index }}"
-                                                    aria-controls="land-detail-{{ $index }}"
-                                                    aria-expanded="false">
-                                                Click to expand
+                                                    data-modal-id="{{ $viewModalId }}"
+                                                    data-landmark-id="{{ $lid }}"
+                                                    aria-haspopup="dialog"
+                                                    aria-controls="{{ $viewModalId }}">
+                                                View
                                             </button>
-                                            <span class="land-action-divider" aria-hidden="true">|</span>
-                                            <form method="POST"
-                                                  action="{{ route('sitemanager.landmarks.destroy', $lid) }}"
-                                                  class="land-delete-form">
-                                                @csrf
-                                                @method('DELETE')
-                                                <button type="button"
-                                                        class="land-delete-btn"
-                                                        data-landmark-delete
-                                                        data-landmark-name="{{ $data['name'] ?? 'this landmark' }}">
-                                                    Delete
-                                                </button>
-                                            </form>
                                         </div>
                                     </td>
                                 @endif
                             </tr>
-
-                            @if ($panelRoutePrefix === 'sitemanager')
-                                <tr class="land-detail-row" id="land-detail-{{ $index }}">
-                                    <td colspan="5">
-                                        <div class="land-detail-panel">
-                                            <div class="land-detail-content">
-                                                <section>
-                                                    <h4 class="land-detail-heading">Landmark Photo</h4>
-                                                    @if (!empty($imageSrc))
-                                                        <img class="land-detail-photo" src="{{ $imageSrc }}" alt="Landmark Image" loading="lazy" decoding="async">
-                                                    @else
-                                                        <p class="land-detail-empty">No photo available.</p>
-                                                    @endif
-                                                </section>
-                                                <section>
-                                                    <h4 class="land-detail-heading">Full Description</h4>
-                                                    <p class="land-detail-description">{{ trim((string) ($data['description'] ?? '')) !== '' ? $data['description'] : 'No description available.' }}</p>
-                                                </section>
-                                            </div>
-                                        </div>
-                                    </td>
-                                </tr>
-                            @endif
 
                             @if ($useViewModal)
                                 @include('admin.partials.landmark-view-modal', [
@@ -1212,25 +1437,100 @@
                                     'canApproveLandmark' => $canApproveLandmark,
                                     'panelRoutePrefix' => $panelRoutePrefix,
                                 ])
+                                @if ($panelRoutePrefix === 'sitemanager')
+                                    <div id="lmEditLandmarkModal_{{ $modalSafe }}"
+                                         class="lm-edit-modal"
+                                         role="dialog"
+                                         aria-modal="true"
+                                         aria-labelledby="lmEditLandmarkHeading_{{ $modalSafe }}"
+                                         aria-hidden="true">
+                                        <div class="lm-edit-modal__panel">
+                                            <button type="button"
+                                                    class="lm-edit-modal__close"
+                                                    onclick="lmCloseEditModal('lmEditLandmarkModal_{{ $modalSafe }}')"
+                                                    aria-label="Close">&times;</button>
+                                            <h3 id="lmEditLandmarkHeading_{{ $modalSafe }}">Edit Landmark</h3>
+
+                                            <form method="POST"
+                                                  action="{{ route('sitemanager.landmarks.update', $lid) }}"
+                                                  enctype="multipart/form-data"
+                                                  data-landmark-edit-form>
+                                                @csrf
+                                                @method('PUT')
+
+                                                <label for="lm-edit-name-{{ $modalSafe }}">Landmark Name</label>
+                                                <input id="lm-edit-name-{{ $modalSafe }}" type="text" name="name" value="{{ $data['name'] ?? '' }}" required autocomplete="organization">
+
+                                                <label for="lm-edit-category-{{ $modalSafe }}">Category</label>
+                                                <select id="lm-edit-category-{{ $modalSafe }}" name="category" required>
+                                                    @foreach (['Historical', 'Natural', 'Cultural', 'Religious', 'Modern'] as $cat)
+                                                        <option value="{{ $cat }}" {{ strcasecmp((string) ($data['category'] ?? ''), $cat) === 0 ? 'selected' : '' }}>{{ $cat }}</option>
+                                                    @endforeach
+                                                </select>
+
+                                                <label for="lm-edit-description-{{ $modalSafe }}">Description</label>
+                                                <textarea id="lm-edit-description-{{ $modalSafe }}" name="description" rows="4">{{ $data['description'] ?? '' }}</textarea>
+
+                                                <label for="lm-edit-location-{{ $modalSafe }}">Location</label>
+                                                <div class="lm-create-location-map-wrap"
+                                                     data-edit-location-picker
+                                                     data-modal-id="lmEditLandmarkModal_{{ $modalSafe }}"
+                                                     data-map-id="lm-edit-map-{{ $modalSafe }}"
+                                                     data-search-id="lm-edit-location-search-{{ $modalSafe }}"
+                                                     data-results-id="lm-edit-location-results-{{ $modalSafe }}"
+                                                     data-location-id="lm-edit-location-{{ $modalSafe }}"
+                                                     data-lat-id="lm-edit-lat-{{ $modalSafe }}"
+                                                     data-lng-id="lm-edit-lng-{{ $modalSafe }}"
+                                                     data-category-id="lm-edit-category-{{ $modalSafe }}"
+                                                     data-initial-lat="{{ $data['latitude'] ?? $data['lati'] ?? '' }}"
+                                                     data-initial-lng="{{ $data['longitude'] ?? $data['longti'] ?? '' }}">
+                                                    <div class="lm-create-location-search">
+                                                        <label for="lm-edit-location-search-{{ $modalSafe }}">Search location</label>
+                                                        <input id="lm-edit-location-search-{{ $modalSafe }}" type="search" value="{{ $locationLabel }}" autocomplete="off" placeholder="Search Cebu landmark or place..." aria-controls="lm-edit-location-results-{{ $modalSafe }}" aria-expanded="false">
+                                                        <div id="lm-edit-location-results-{{ $modalSafe }}" class="lm-create-location-results" role="listbox"></div>
+                                                    </div>
+                                                    <div id="lm-edit-map-{{ $modalSafe }}" class="lm-create-location-map"></div>
+                                                </div>
+                                                <input id="lm-edit-location-{{ $modalSafe }}" type="hidden" name="location" value="{{ $locationLabel }}">
+                                                <input id="lm-edit-lat-{{ $modalSafe }}" type="hidden" name="latitude" value="{{ $data['latitude'] ?? $data['lati'] ?? '' }}">
+                                                <input id="lm-edit-lng-{{ $modalSafe }}" type="hidden" name="longitude" value="{{ $data['longitude'] ?? $data['longti'] ?? '' }}">
+
+                                                <label for="lm-edit-image-{{ $modalSafe }}">Landmark photo</label>
+                                                <input id="lm-edit-image-{{ $modalSafe }}" type="file" name="image" accept="image/*" data-max-bytes="524288">
+                                                <p class="lm-edit-modal__hint">Leave blank to keep the current photo.</p>
+
+                                                <label for="lm-edit-evidence-{{ $modalSafe }}">Evidence / supporting documents</label>
+                                                <input id="lm-edit-evidence-{{ $modalSafe }}" type="file" name="evidence_files[]" accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx,image/*,application/pdf" multiple data-max-files="5" data-max-file-bytes="5242880">
+                                                <p class="lm-edit-modal__hint">Leave blank to keep the current evidence files.</p>
+
+                                                <div class="lm-edit-modal__actions">
+                                                    <button type="button" class="lm-edit-modal__cancel" onclick="lmCloseEditModal('lmEditLandmarkModal_{{ $modalSafe }}')">Cancel</button>
+                                                    <button type="submit">Save changes</button>
+                                                </div>
+                                            </form>
+                                        </div>
+                                    </div>
+                                @endif
                             @endif
                         @endforeach
                     </tbody>
                 </table>
-            </div>
-        @endif
+        </div>
 
-        @if (method_exists($landmarks, 'hasPages') && $landmarks->hasPages())
+        @if (method_exists($landmarks, 'currentPage')
+            && method_exists($landmarks, 'lastPage')
+            && (! $isLandmarkApprovalQueue || $landmarks->hasPages()))
             <nav class="pager" aria-label="Landmarks pagination">
                 @if ($landmarks->onFirstPage())
                     <span class="pager-btn disabled">← Prev</span>
                 @else
-                    <a class="pager-btn active" href="{{ $landmarks->appends(['view' => $currentView])->previousPageUrl() }}">← Prev</a>
+                    <a class="pager-btn active" href="{{ $landmarks->previousPageUrl() }}">← Prev</a>
                 @endif
 
                 <span class="pager-text">Page {{ $landmarks->currentPage() }} of {{ $landmarks->lastPage() }}</span>
 
                 @if ($landmarks->hasMorePages())
-                    <a class="pager-btn active" href="{{ $landmarks->appends(['view' => $currentView])->nextPageUrl() }}">Next →</a>
+                    <a class="pager-btn active" href="{{ $landmarks->nextPageUrl() }}">Next →</a>
                 @else
                     <span class="pager-btn disabled">Next →</span>
                 @endif
@@ -1247,8 +1547,8 @@
                  role="dialog"
                  aria-modal="true"
                  aria-labelledby="landDeleteModalTitle">
-                <h3 id="landDeleteModalTitle" class="land-delete-modal__title">Delete Landmark</h3>
-                <p class="land-delete-modal__message">Are you sure you want to delete this landmark?</p>
+                <h3 id="landDeleteModalTitle" class="land-delete-modal__title">Delete this landmark?</h3>
+                <p class="land-delete-modal__message">Are you sure you want to delete</p>
                 <p class="land-delete-modal__name" id="landDeleteModalName"></p>
                 <div class="land-delete-modal__actions">
                     <button type="button" id="cancelLandDelete" class="land-delete-modal__btn cancel">Cancel</button>
@@ -1340,41 +1640,27 @@
             var buttons = document.querySelectorAll('[data-landmark-expand]');
             if (!buttons.length) return;
 
-            function closeExpandedRows(exceptId) {
-                buttons.forEach(function (button) {
-                    if (button.dataset.target !== exceptId) {
-                        button.setAttribute('aria-expanded', 'false');
-                    }
-                });
-                document.querySelectorAll('.land-detail-row.is-open').forEach(function (row) {
-                    if (row.id !== exceptId) {
-                        var panel = row.querySelector('.land-detail-panel');
-                        if (panel) panel.style.maxHeight = '0px';
-                        row.classList.remove('is-open');
-                    }
-                });
-            }
-
             buttons.forEach(function (button) {
                 button.addEventListener('click', function () {
-                    var targetId = button.dataset.target;
-                    var row = document.getElementById(targetId);
-                    if (!row) return;
-
-                    var shouldOpen = !row.classList.contains('is-open');
-                    var panel = row.querySelector('.land-detail-panel');
-                    closeExpandedRows(targetId);
-                    row.classList.toggle('is-open', shouldOpen);
-                    button.setAttribute('aria-expanded', shouldOpen ? 'true' : 'false');
-                    if (panel) {
-                        panel.style.maxHeight = shouldOpen ? panel.scrollHeight + 'px' : '0px';
-                        if (shouldOpen) {
-                            window.setTimeout(function () {
-                                panel.style.maxHeight = panel.scrollHeight + 'px';
-                            }, 60);
-                        }
-                    }
+                    smOpenLandmarkViewModal(button.dataset.modalId, button.dataset.landmarkId);
                 });
+            });
+        }
+
+        function smInitLandmarkControls() {
+            var form = document.querySelector('.land-controls');
+            if (!form) return;
+            if (form.classList.contains('land-controls--manual')) return;
+
+            var search = form.querySelector('input[name="search"]');
+            var timer = null;
+            if (!search) return;
+
+            search.addEventListener('input', function () {
+                clearTimeout(timer);
+                timer = setTimeout(function () {
+                    form.submit();
+                }, 300);
             });
         }
 
@@ -1384,10 +1670,12 @@
             var cancelBtn = document.getElementById('cancelLandDelete');
             var confirmBtn = document.getElementById('confirmLandDelete');
             var pendingForm = null;
+            var pendingViewModal = null;
             if (!modal || !nameEl || !cancelBtn || !confirmBtn) return;
 
-            function openModal(form, landmarkName) {
+            function openModal(form, viewModal, landmarkName) {
                 pendingForm = form;
+                pendingViewModal = viewModal;
                 nameEl.textContent = landmarkName || 'This landmark';
                 modal.classList.add('is-open');
                 modal.setAttribute('aria-hidden', 'false');
@@ -1398,19 +1686,33 @@
                 modal.classList.remove('is-open');
                 modal.setAttribute('aria-hidden', 'true');
                 pendingForm = null;
+                pendingViewModal = null;
             }
 
             document.querySelectorAll('[data-landmark-delete]').forEach(function (button) {
                 button.addEventListener('click', function () {
-                    openModal(button.closest('form'), button.dataset.landmarkName || 'This landmark');
+                    var form = document.getElementById(button.dataset.deleteFormId);
+                    openModal(form, button.closest('.lm-view-modal'), button.dataset.landmarkName || 'This landmark');
                 });
             });
 
             cancelBtn.addEventListener('click', closeModal);
             confirmBtn.addEventListener('click', function () {
-                if (pendingForm) {
-                    pendingForm.submit();
+                if (!pendingForm) return;
+
+                var form = pendingForm;
+                var viewModal = pendingViewModal;
+                modal.classList.remove('is-open');
+                modal.setAttribute('aria-hidden', 'true');
+                if (viewModal) {
+                    viewModal.style.display = 'none';
+                    viewModal.setAttribute('aria-hidden', 'true');
                 }
+                document.body.style.overflow = '';
+                pendingForm = null;
+                pendingViewModal = null;
+
+                HTMLFormElement.prototype.submit.call(form);
             });
             modal.addEventListener('click', function (event) {
                 if (event.target === modal) {
@@ -1445,9 +1747,13 @@
         function smAnyModalOpen() {
             var createModal = document.getElementById('lmCreateLandmarkModal');
             if (createModal && createModal.style.display === 'flex') return true;
+            var editModals = document.querySelectorAll('.lm-edit-modal');
+            for (var i = 0; i < editModals.length; i++) {
+                if (editModals[i].style.display === 'flex') return true;
+            }
             var viewModals = document.querySelectorAll('.lm-view-modal');
-            for (var i = 0; i < viewModals.length; i++) {
-                if (viewModals[i].style.display === 'flex') return true;
+            for (var j = 0; j < viewModals.length; j++) {
+                if (viewModals[j].style.display === 'flex') return true;
             }
             return false;
         }
@@ -1523,6 +1829,40 @@
             }
         }
 
+        function lmOpenEditModal(modalId, viewModalId) {
+            if (viewModalId) {
+                smCloseLandmarkViewModal(viewModalId, false);
+            }
+            var modal = document.getElementById(modalId);
+            if (!modal) return;
+            modal.dataset.returnViewModalId = viewModalId || '';
+            modal.style.display = 'flex';
+            modal.setAttribute('aria-hidden', 'false');
+            lmInitEditMap(modalId);
+            smSyncBodyScrollLock();
+        }
+
+        function lmCloseEditModal(modalId) {
+            var modal = document.getElementById(modalId);
+            if (!modal) return;
+            var form = modal.querySelector('form');
+            if (form) form.reset();
+            var picker = typeof lmEditPickers !== 'undefined' ? lmEditPickers[modalId] : null;
+            if (picker && picker.map) {
+                picker.map.remove();
+                delete lmEditPickers[modalId];
+            }
+            modal.style.display = 'none';
+            modal.setAttribute('aria-hidden', 'true');
+            var viewModalId = modal.dataset.returnViewModalId || '';
+            modal.dataset.returnViewModalId = '';
+            if (viewModalId) {
+                smOpenLandmarkViewModal(viewModalId, null, false);
+            } else {
+                smSyncBodyScrollLock();
+            }
+        }
+
         function lmShouldOpenCreateModal() {
             return window.location.hash === '#create-landmark';
         }
@@ -1535,6 +1875,7 @@
         var lmCreateGeocodeTimer = null;
         var lmCreateGeocodeRequestId = 0;
         var lmCreateSearchFeatures = [];
+        var lmEditPickers = {};
         var lmHasInitialCreateCoordinates = @json($createHasCoordinates);
         var lmCebuGeocodeBounds = {
             west: 123.25,
@@ -1615,7 +1956,10 @@
         }
 
         function lmSuggestCreateCategory(feature) {
-            var select = document.getElementById('lm-create-category');
+            lmSuggestLocationCategory(document.getElementById('lm-create-category'), feature);
+        }
+
+        function lmSuggestLocationCategory(select, feature) {
             if (!select || !feature) return;
 
             var properties = feature.properties || {};
@@ -1907,8 +2251,311 @@
                 lmCreateMap.resize();
             }, 120);
         }
+
+        function lmSetEditLocationSearchValue(picker, value) {
+            if (picker.searchInput) picker.searchInput.value = value;
+            if (picker.locationInput) picker.locationInput.value = value;
+        }
+
+        function lmSetEditCoordinates(picker, lngLat) {
+            if (!picker.latInput || !picker.lngInput) return;
+            picker.latInput.value = Number(lngLat.lat).toFixed(6);
+            picker.lngInput.value = Number(lngLat.lng).toFixed(6);
+        }
+
+        function lmCloseEditLocationResults(picker) {
+            if (picker.searchInput) picker.searchInput.setAttribute('aria-expanded', 'false');
+            if (picker.resultsEl) {
+                picker.resultsEl.classList.remove('is-open');
+                picker.resultsEl.replaceChildren();
+            }
+            picker.searchFeatures = [];
+        }
+
+        function lmSuggestEditCategory(picker, feature) {
+            lmSuggestLocationCategory(picker.categorySelect, feature);
+        }
+
+        function lmSelectEditLocation(picker, feature) {
+            if (!feature || !Array.isArray(feature.center) || feature.center.length < 2) return;
+            clearTimeout(picker.geocodeTimer);
+            picker.geocodeRequestId++;
+            lmSetEditLocationSearchValue(picker, feature.place_name || feature.text || '');
+            lmSuggestEditCategory(picker, feature);
+            lmCloseEditLocationResults(picker);
+            lmMoveEditMarker(picker, feature.center[0], feature.center[1], 15);
+        }
+
+        function lmMoveEditMarker(picker, lng, lat, zoom) {
+            if (!picker.map || !picker.marker) return;
+            var lngLat = { lng: Number(lng), lat: Number(lat) };
+            if (!Number.isFinite(lngLat.lng) || !Number.isFinite(lngLat.lat)) return;
+            picker.marker.setLngLat([lngLat.lng, lngLat.lat]);
+            lmSetEditCoordinates(picker, lngLat);
+            picker.map.flyTo({
+                center: [lngLat.lng, lngLat.lat],
+                zoom: zoom || 15,
+                essential: true
+            });
+        }
+
+        function lmEditRenderedLandmarkLabel(picker, point) {
+            if (!picker.map || !point) return '';
+
+            var radius = 36;
+            var features = picker.map.queryRenderedFeatures([
+                [point.x - radius, point.y - radius],
+                [point.x + radius, point.y + radius]
+            ]);
+            var rejectedLayerPattern = /(road|street|settlement|place|locality|neighborhood|admin|country|state|address|transit)/i;
+            var landmarkLayerPattern = /(poi|landmark|landuse|park|museum|attraction|historic|monument|memorial)/i;
+
+            var landmarks = features.filter(function (feature) {
+                var layerId = String(feature && feature.layer && feature.layer.id || '');
+                if (rejectedLayerPattern.test(layerId)) return false;
+
+                var properties = feature && feature.properties || {};
+                var descriptor = [
+                    layerId,
+                    properties.class,
+                    properties.type,
+                    properties.category,
+                    properties.maki
+                ].join(' ');
+                var name = properties.name || properties.name_en || properties.name_und || '';
+
+                return Boolean(name) && landmarkLayerPattern.test(descriptor);
+            });
+
+            if (landmarks.length === 0) return '';
+            lmSuggestEditCategory(picker, landmarks[0]);
+            var properties = landmarks[0].properties || {};
+            return properties.name || properties.name_en || properties.name_und || '';
+        }
+
+        function lmReverseGeocodeEditLocation(picker, lngLat, requestId, renderedLandmarkLabel) {
+            if (renderedLandmarkLabel) {
+                lmSetEditLocationSearchValue(picker, renderedLandmarkLabel);
+                return;
+            }
+
+            var params = new URLSearchParams({
+                access_token: @json($mapboxToken),
+                country: 'ph'
+            });
+            var url = 'https://api.mapbox.com/geocoding/v5/mapbox.places/'
+                + Number(lngLat.lng) + ',' + Number(lngLat.lat)
+                + '.json?'
+                + params.toString();
+
+            fetch(url)
+                .then(function (response) {
+                    if (!response.ok) throw new Error('Mapbox reverse geocoding failed');
+                    return response.json();
+                })
+                .then(function (payload) {
+                    if (requestId !== picker.geocodeRequestId) return;
+                    var features = payload && Array.isArray(payload.features) ? payload.features.slice() : [];
+                    features.sort(function (a, b) {
+                        return lmCreateReverseFeaturePriority(a) - lmCreateReverseFeaturePriority(b);
+                    });
+                    var landmark = features.find(function (feature) {
+                        return lmCreateReverseFeaturePriority(feature) <= 1;
+                    });
+                    if (!landmark && features.length > 0) {
+                        landmark = features[0];
+                    }
+                    var label = landmark ? lmCreateReverseFeatureLabel(landmark) : '';
+                    lmSetEditLocationSearchValue(picker, label);
+                    if (landmark) lmSuggestEditCategory(picker, landmark);
+                })
+                .catch(function () {});
+        }
+
+        function lmHandleManualEditLocation(picker, lngLat, moveMarker, point) {
+            var location = { lng: Number(lngLat.lng), lat: Number(lngLat.lat) };
+            if (!Number.isFinite(location.lng) || !Number.isFinite(location.lat)) return;
+
+            clearTimeout(picker.geocodeTimer);
+            var requestId = ++picker.geocodeRequestId;
+            lmCloseEditLocationResults(picker);
+            lmSetEditLocationSearchValue(picker, '');
+            if (moveMarker && picker.marker) picker.marker.setLngLat([location.lng, location.lat]);
+            lmSetEditCoordinates(picker, location);
+            var renderedLandmarkLabel = lmEditRenderedLandmarkLabel(picker, point || picker.map.project(location));
+            lmReverseGeocodeEditLocation(picker, location, requestId, renderedLandmarkLabel);
+        }
+
+        function lmRenderEditLocationResults(picker, features) {
+            if (!picker.searchInput || !picker.resultsEl) return;
+
+            picker.searchFeatures = features;
+            picker.resultsEl.replaceChildren();
+
+            features.forEach(function (feature, index) {
+                var option = document.createElement('button');
+                option.type = 'button';
+                option.className = 'lm-create-location-result';
+                option.setAttribute('role', 'option');
+                option.textContent = feature.place_name || feature.text || '';
+                option.addEventListener('click', function () {
+                    lmSelectEditLocation(picker, picker.searchFeatures[index]);
+                });
+                picker.resultsEl.appendChild(option);
+            });
+
+            var hasResults = features.length > 0;
+            picker.resultsEl.classList.toggle('is-open', hasResults);
+            picker.searchInput.setAttribute('aria-expanded', hasResults ? 'true' : 'false');
+        }
+
+        function lmSearchEditLocations(picker, searchValue) {
+            var query = String(searchValue || '').trim();
+            if (query.length < 3 || !picker.map || !picker.marker) {
+                lmCloseEditLocationResults(picker);
+                return;
+            }
+
+            var requestId = ++picker.geocodeRequestId;
+            var params = new URLSearchParams({
+                access_token: @json($mapboxToken),
+                autocomplete: 'true',
+                bbox: [
+                    lmCebuGeocodeBounds.west,
+                    lmCebuGeocodeBounds.south,
+                    lmCebuGeocodeBounds.east,
+                    lmCebuGeocodeBounds.north
+                ].join(','),
+                country: 'ph',
+                limit: '5',
+                types: 'poi,address,place,locality',
+                proximity: picker.startLng + ',' + picker.startLat
+            });
+            var url = 'https://api.mapbox.com/geocoding/v5/mapbox.places/'
+                + encodeURIComponent(query + ' Cebu Philippines')
+                + '.json?'
+                + params.toString();
+
+            fetch(url)
+                .then(function (response) {
+                    if (!response.ok) throw new Error('Mapbox geocoding failed');
+                    return response.json();
+                })
+                .then(function (payload) {
+                    if (requestId !== picker.geocodeRequestId) return;
+                    var features = payload && payload.features
+                        ? payload.features.filter(lmFeatureIsInCebu)
+                        : [];
+                    lmRenderEditLocationResults(picker, features);
+                })
+                .catch(function () {
+                    if (requestId === picker.geocodeRequestId) lmCloseEditLocationResults(picker);
+                });
+        }
+
+        function lmScheduleEditLocationSearchGeocode(picker) {
+            if (!picker.searchInput) return;
+            clearTimeout(picker.geocodeTimer);
+            picker.geocodeRequestId++;
+            lmCloseEditLocationResults(picker);
+            if (!picker.searchInput.value.trim()) {
+                return;
+            }
+            picker.geocodeTimer = setTimeout(function () {
+                lmSearchEditLocations(picker, picker.searchInput.value);
+            }, 450);
+        }
+
+        function lmInitEditMap(modalId) {
+            if (!window.mapboxgl) return;
+            var pickerEl = document.querySelector('[data-edit-location-picker][data-modal-id="' + modalId + '"]');
+            if (!pickerEl) return;
+
+            var existingPicker = lmEditPickers[modalId];
+            if (existingPicker && existingPicker.map) {
+                setTimeout(function () {
+                    existingPicker.map.resize();
+                }, 80);
+                return;
+            }
+
+            var mapEl = document.getElementById(pickerEl.dataset.mapId || '');
+            if (!mapEl) return;
+
+            mapboxgl.accessToken = @json($mapboxToken);
+            var initialLat = Number(pickerEl.dataset.initialLat);
+            var initialLng = Number(pickerEl.dataset.initialLng);
+            var hasInitialCoordinates = Number.isFinite(initialLat) && Number.isFinite(initialLng);
+            var startLat = hasInitialCoordinates ? initialLat : lmDefaultLat;
+            var startLng = hasInitialCoordinates ? initialLng : lmDefaultLng;
+
+            var picker = {
+                el: pickerEl,
+                mapEl: mapEl,
+                searchInput: document.getElementById(pickerEl.dataset.searchId || ''),
+                resultsEl: document.getElementById(pickerEl.dataset.resultsId || ''),
+                locationInput: document.getElementById(pickerEl.dataset.locationId || ''),
+                latInput: document.getElementById(pickerEl.dataset.latId || ''),
+                lngInput: document.getElementById(pickerEl.dataset.lngId || ''),
+                categorySelect: document.getElementById(pickerEl.dataset.categoryId || ''),
+                startLat: startLat,
+                startLng: startLng,
+                hasInitialCoordinates: hasInitialCoordinates,
+                geocodeTimer: null,
+                geocodeRequestId: 0,
+                searchFeatures: []
+            };
+
+            picker.map = new mapboxgl.Map({
+                container: mapEl,
+                style: 'mapbox://styles/mapbox/streets-v12',
+                center: [startLng, startLat],
+                zoom: hasInitialCoordinates ? 15 : 13
+            });
+
+            picker.map.addControl(new mapboxgl.NavigationControl({ showCompass: false }), 'top-right');
+
+            picker.marker = new mapboxgl.Marker({ draggable: true })
+                .setLngLat([startLng, startLat])
+                .addTo(picker.map);
+
+            if (hasInitialCoordinates) {
+                lmSetEditCoordinates(picker, { lng: startLng, lat: startLat });
+            }
+            lmSetEditLocationSearchValue(picker, picker.searchInput ? picker.searchInput.value : '');
+
+            picker.map.on('click', function (event) {
+                lmHandleManualEditLocation(picker, event.lngLat, true, event.point);
+            });
+
+            picker.marker.on('dragend', function () {
+                lmHandleManualEditLocation(picker, picker.marker.getLngLat(), false);
+            });
+
+            if (picker.searchInput) {
+                picker.searchInput.addEventListener('input', function () {
+                    lmScheduleEditLocationSearchGeocode(picker);
+                });
+            }
+
+            lmEditPickers[modalId] = picker;
+
+            setTimeout(function () {
+                picker.map.resize();
+            }, 120);
+        }
+
+        document.addEventListener('click', function (event) {
+            Object.keys(lmEditPickers).forEach(function (modalId) {
+                var picker = lmEditPickers[modalId];
+                if (picker && picker.el && !event.target.closest('[data-edit-location-picker][data-modal-id="' + modalId + '"]')) {
+                    lmCloseEditLocationResults(picker);
+                }
+            });
+        });
         @else
         function lmInitCreateMap() {}
+        function lmInitEditMap() {}
         @endif
 
         @if ($panelRoutePrefix === 'sitemanager')
@@ -1964,13 +2611,59 @@
                 alert(errors.join('\n'));
             });
         }
+
+        function lmAttachEditUploadGuards() {
+            document.querySelectorAll('[data-landmark-edit-form]').forEach(function (form) {
+                form.addEventListener('submit', function (event) {
+                    var errors = [];
+                    var imageInput = form.querySelector('input[name="image"]');
+                    var evidenceInput = form.querySelector('input[name="evidence_files[]"]');
+                    var totalBytes = 0;
+                    var maxPostBytes = 115 * 1024 * 1024;
+
+                    if (imageInput && imageInput.files && imageInput.files[0]) {
+                        var imageFile = imageInput.files[0];
+                        totalBytes += imageFile.size;
+                        var imageMax = Number(imageInput.dataset.maxBytes || 0);
+                        if (imageMax > 0 && imageFile.size > imageMax) {
+                            errors.push('Landmark photo must be 512 KB or smaller.');
+                        }
+                    }
+
+                    if (evidenceInput && evidenceInput.files) {
+                        var evidenceMaxFiles = Number(evidenceInput.dataset.maxFiles || 0);
+                        var evidenceMaxBytes = Number(evidenceInput.dataset.maxFileBytes || 0);
+                        if (evidenceMaxFiles > 0 && evidenceInput.files.length > evidenceMaxFiles) {
+                            errors.push('Upload up to five evidence files only.');
+                        }
+                        for (var i = 0; i < evidenceInput.files.length; i++) {
+                            var evidenceFile = evidenceInput.files[i];
+                            totalBytes += evidenceFile.size;
+                            if (evidenceMaxBytes > 0 && evidenceFile.size > evidenceMaxBytes) {
+                                errors.push('Each evidence file must be 5 MB or smaller. "' + evidenceFile.name + '" is ' + lmBytesToMegabytes(evidenceFile.size) + ' MB.');
+                            }
+                        }
+                    }
+
+                    if (totalBytes > maxPostBytes) {
+                        errors.push('Combined uploads are too large. Keep the photo and evidence under about 115 MB total.');
+                    }
+
+                    if (errors.length === 0) return;
+                    event.preventDefault();
+                    alert(errors.join('\n'));
+                });
+            });
+        }
         @endif
 
         document.addEventListener('DOMContentLoaded', function () {
             smInitLandmarkListExpansion();
+            smInitLandmarkControls();
             smInitLandmarkDeleteModal();
             @if ($panelRoutePrefix === 'sitemanager')
             lmAttachCreateUploadGuard();
+            lmAttachEditUploadGuards();
             if (lmShouldOpenCreateModal() || @json($errors->any())) {
                 lmOpenCreateModal();
                 return;
@@ -2013,6 +2706,9 @@
             if (modal && event.target === modal) {
                 lmCloseCreateModal();
             }
+            if (event.target.classList && event.target.classList.contains('lm-edit-modal')) {
+                lmCloseEditModal(event.target.id);
+            }
         });
         @endif
 
@@ -2027,6 +2723,11 @@
             var modal = document.getElementById('lmCreateLandmarkModal');
             if (modal && modal.style.display === 'flex') {
                 lmCloseCreateModal();
+                return;
+            }
+            var editModal = document.querySelector('.lm-edit-modal[style*="flex"]');
+            if (editModal) {
+                lmCloseEditModal(editModal.id);
             }
             @endif
         });

@@ -126,6 +126,7 @@
       flex-direction:column;
       gap:12px;
       min-height:0;
+      position:relative;
       transition:transform .15s ease, box-shadow .15s ease
     }
 
@@ -134,6 +135,9 @@
       flex-direction:column;
       gap:10px;
       flex:1;
+      width:100%;
+      box-sizing:border-box;
+      padding-right:34px;
     }
 
     .card:hover {
@@ -146,6 +150,8 @@
       box-shadow:0 0 0 2px rgba(232,179,75,.35), 0 8px 24px rgba(17,24,39,.06);
     }
 
+    .card:focus-within { z-index:20; }
+
     .card-footer {
       display:flex;
       gap:.5rem;
@@ -154,46 +160,77 @@
       flex-wrap:wrap;
       margin-top:auto;
       padding-top:.65rem;
+      min-height:1.6rem;
       border-top:1px solid #f1f5f9;
     }
 
-    .card-footer .js-delete-form {
-      display:inline-flex;
-      margin:0
+    .quiz-action-menu {
+      position:absolute;
+      top:10px;
+      right:10px;
+      z-index:10;
     }
 
-    .btn-quiz {
+    .quiz-action-trigger {
+      width:28px;
+      height:28px;
       display:inline-flex;
       align-items:center;
       justify-content:center;
-      font-size:.875rem;
-      line-height:1.25;
-      padding:.25rem .75rem;
-      border-radius:.375rem;
-      border:none;
+      padding:0;
+      border:0;
+      border-radius:7px;
+      background:transparent;
+      color:#4b5563;
+      font:inherit;
+      font-size:1.25rem;
+      line-height:1;
       cursor:pointer;
+    }
+
+    .quiz-action-trigger:hover,
+    .quiz-action-trigger:focus-visible {
+      background:#f3f4f6;
+      outline:none;
+    }
+
+    .quiz-action-dropdown {
+      position:absolute;
+      top:calc(100% + 4px);
+      right:0;
+      min-width:120px;
+      display:none;
+      padding:.3rem;
+      border:1px solid #e5e7eb;
+      border-radius:9px;
+      background:#fff;
+      box-shadow:0 10px 24px rgba(15,23,42,.14);
+    }
+
+    .quiz-action-menu.is-open .quiz-action-dropdown { display:block; }
+    .quiz-action-dropdown form { margin:0; }
+    .quiz-action-item {
+      width:100%;
+      display:flex;
+      align-items:center;
+      padding:.48rem .62rem;
+      border:0;
+      border-radius:6px;
+      background:transparent;
+      color:#374151;
+      font:inherit;
+      font-size:.875rem;
       font-weight:600;
+      line-height:1.2;
+      text-align:left;
       text-decoration:none;
-      transition:background .15s ease, filter .15s ease;
-      box-sizing:border-box;
+      cursor:pointer;
     }
 
-    .btn-quiz-edit {
-      background:#3b82f6;
-      color:#fff
-    }
-
-    .btn-quiz-edit:hover {
-      background:#2563eb
-    }
-
-    .btn-quiz-del {
-      background:#ef4444;
-      color:#fff
-    }
-
-    .btn-quiz-del:hover {
-      background:#dc2626
+    .quiz-action-item:hover,
+    .quiz-action-item:focus-visible {
+      background:#f3f4f6;
+      outline:none;
     }
 
     .qtext {
@@ -202,6 +239,7 @@
       line-height:1.45;
       font-size:1.02rem;
       word-break:break-word;
+      overflow-wrap:anywhere;
     }
 
     /* modal */
@@ -243,6 +281,26 @@
       gap:.5rem;
       justify-content:flex-end;
       margin-top:.9rem;
+    }
+    #deleteOverlay .modal-actions .btn {
+      padding:.45rem .8rem;
+      border-radius:8px;
+      border:1px solid #e5e7eb;
+      background:#f3f4f6;
+      color:#374151;
+      font-size:.85rem;
+      line-height:1;
+      font-weight:700;
+      box-shadow:none;
+    }
+    #deleteOverlay .modal-actions .btn-del {
+      background:#ef4444;
+      border-color:#ef4444;
+      color:#fff;
+    }
+    #deleteOverlay .modal-actions .btn-del:hover {
+      background:#dc2626;
+      border-color:#dc2626;
     }
     
     .row {
@@ -376,22 +434,37 @@
           $isEditingThis = !empty($autoOpenQuiz) && ($autoOpenQuiz['quiz_id'] ?? '') === ($t['quiz_id'] ?? '');
         @endphp
         <div class="card{{ $isEditingThis ? ' card--editing' : '' }}">
+            @if ($canEditQuiz)
+                <div class="quiz-action-menu">
+                    <button type="button"
+                            class="quiz-action-trigger"
+                            data-quiz-menu-trigger
+                            aria-label="Quiz actions"
+                            aria-haspopup="menu"
+                            aria-expanded="false">&#8942;</button>
+                    <div class="quiz-action-dropdown" role="menu">
+                        <button type="button"
+                                class="quiz-action-item"
+                                role="menuitem"
+                                data-quiz-edit="{{ $t['quiz_id'] }}"
+                                data-quiz-menu-item>Edit</button>
+                        <form method="POST"
+                              action="{{ route('curators.quiz.destroy', $t['quiz_id']) }}"
+                              class="js-delete-form"
+                              data-quiz-id="{{ $t['quiz_id'] }}"
+                              data-quiz-name="{{ $t['question'] }}">
+                            @csrf
+                            @method('DELETE')
+                            <button type="submit" class="quiz-action-item" role="menuitem" data-quiz-menu-item>Delete</button>
+                        </form>
+                    </div>
+                </div>
+            @endif
             <div class="card-body">
                 <div class="qtext">{{ $t['question'] }}</div>
             </div>
             @if ($canEditQuiz)
-                <div class="card-footer">
-                    <a href="{{ route('curators.quiz.show', $t['quiz_id']) }}"
-                       class="btn-quiz btn-quiz-edit">
-                        Edit
-                    </a>
-                    <form action="{{ route('curators.quiz.destroy', $t['quiz_id']) }}"
-                          method="POST"
-                          class="js-delete-form">
-                        @csrf @method('DELETE')
-                        <button type="submit" class="btn-quiz btn-quiz-del">Delete</button>
-                    </form>
-                </div>
+                <div class="card-footer" aria-hidden="true"></div>
             @endif
         </div>
       @endforeach
@@ -467,7 +540,8 @@
 
 <div id="editOverlay" class="overlay">
   <div class="modal">
-    <h2>Edit Quiz (Quiz Bank)</h2>
+    <button type="button" class="btn" onclick="closeEdit()" aria-label="Close" style="float:right;padding:.2rem .55rem;">&times;</button>
+    <h2>Edit Quiz</h2>
     <form id="editForm" method="POST">
       @csrf @method('PUT')
 
@@ -484,7 +558,7 @@
 
       <div style="display:flex;gap:.5rem;justify-content:flex-end;margin-top:.75rem">
         <button type="button" class="btn" onclick="closeEdit()">Cancel</button>
-        <button type="submit" class="btn btn-add">Update</button>
+        <button type="submit" class="btn btn-add">Save changes</button>
       </div>
     </form>
   </div>
@@ -492,19 +566,44 @@
 
 <div id="deleteOverlay" class="overlay">
   <div class="modal">
-    <h2>Delete Quiz</h2>
-    <p class="modal-message">Are you sure you want to delete this quiz?</p>
-    <div class="modal-actions">
-      <button type="button" class="btn btn-del" onclick="confirmDelete()">Delete</button>
-      <button type="button" class="btn" onclick="closeDelete()">Cancel</button>
-    </div>
+    <button type="button" class="btn" onclick="closeDelete()" aria-label="Close" style="float:right;padding:.2rem .55rem;">&times;</button>
+    <h2>Delete this quiz?</h2>
+    <p id="deleteQuizMessage" class="modal-message">Are you sure you want to delete this quiz question?</p>
+    <form id="deleteForm" method="POST">
+      @csrf
+      @method('DELETE')
+      <div class="modal-actions">
+        <button type="button" class="btn" onclick="closeDelete()">Cancel</button>
+        <button type="submit" class="btn btn-del">Delete</button>
+      </div>
+    </form>
   </div>
 </div>
 
 <script>
-  let pendingDeleteForm = null;
+  let editHistoryPushed = false;
+  let deleteHistoryPushed = false;
   const quizUpdateRouteTemplate = @json(route('curators.quiz.update', ['id' => '__QUIZ_ID__']));
+  const quizDestroyRouteTemplate = @json(route('curators.quiz.destroy', ['id' => '__QUIZ_ID__']));
+  const quizEditUrlTemplate = @json(route('curators.quiz.show', ['id' => '__QUIZ_ID__']));
+  const quizDeleteUrlTemplate = @json(route('curators.quiz.delete-confirm', ['id' => '__QUIZ_ID__']));
   const quizIndexUrl = @json(route('curators.quiz.all'));
+  const quizItemsById = @json(collect($quizPaginator->items())->keyBy('quiz_id')->all());
+  const autoOpenQuiz = @json($autoOpenQuiz);
+  const autoOpenQuizMode = @json($autoOpenQuizMode);
+
+  if (autoOpenQuiz && autoOpenQuiz.quiz_id) {
+      quizItemsById[autoOpenQuiz.quiz_id] = autoOpenQuiz;
+  }
+
+  function closeQuizActionMenus(exceptMenu){
+      document.querySelectorAll('.quiz-action-menu.is-open').forEach((menu)=>{
+          if (menu === exceptMenu) return;
+          menu.classList.remove('is-open');
+          const trigger = menu.querySelector('[data-quiz-menu-trigger]');
+          if (trigger) trigger.setAttribute('aria-expanded', 'false');
+      });
+  }
 
   function openAdd(){ 
       document.getElementById('addOverlay').style.display='flex'; 
@@ -516,7 +615,25 @@
       document.body.style.overflow='';
   }
 
-  function openEdit(t){
+  function quizEditUrl(quizId){
+      return quizEditUrlTemplate.replace('__QUIZ_ID__', encodeURIComponent(quizId || ''));
+  }
+
+  function quizDeleteUrl(quizId){
+      return quizDeleteUrlTemplate.replace('__QUIZ_ID__', encodeURIComponent(quizId || ''));
+  }
+
+  function quizModalRouteFromPath(){
+      let match = window.location.pathname.match(/^\/curators\/quiz\/([^/]+)\/delete\/?$/);
+      if (match) return { mode: 'delete', quizId: decodeURIComponent(match[1]) };
+
+      match = window.location.pathname.match(/^\/curators\/quiz\/([^/]+)\/?$/);
+      if (match) return { mode: 'edit', quizId: decodeURIComponent(match[1]) };
+
+      return null;
+  }
+
+  function openEdit(t, updateUrl = true){
       document.getElementById('editOverlay').style.display='flex';
       document.body.style.overflow='hidden';
       const form = document.getElementById('editForm');
@@ -539,31 +656,66 @@
           box.appendChild(row);
       }
       syncRadios('editChoices');
+
+      if (updateUrl && t.quiz_id) {
+          const targetUrl = quizEditUrl(t.quiz_id);
+          if (window.location.pathname !== new URL(targetUrl, window.location.origin).pathname) {
+              history.pushState({ quizEditId: t.quiz_id }, '', targetUrl);
+              editHistoryPushed = true;
+          }
+      }
   }
-  function closeEdit(){
-      document.getElementById('editOverlay').style.display='none';
+  function closeEdit(updateUrl = true){
+      const overlay = document.getElementById('editOverlay');
+      if (overlay.style.display !== 'flex') return;
+
+      overlay.style.display='none';
       document.body.style.overflow='';
-      const path = window.location.pathname.replace(/\/+$/, '');
-      if (/^\/curators\/quiz\/[^/]+$/.test(path)) {
-          window.location.assign(quizIndexUrl);
+      document.getElementById('editForm').reset();
+      document.getElementById('editChoices').innerHTML = '';
+
+      const modalRoute = quizModalRouteFromPath();
+      if (updateUrl && modalRoute && modalRoute.mode === 'edit') {
+          if (editHistoryPushed) {
+              editHistoryPushed = false;
+              history.back();
+          } else {
+              history.replaceState(null, '', quizIndexUrl);
+          }
       }
   }
 
-  function openDelete(form){
-      pendingDeleteForm = form;
+  function openDelete(quizId, name, updateUrl = true){
+      document.getElementById('deleteForm').action = quizDestroyRouteTemplate.replace('__QUIZ_ID__', encodeURIComponent(quizId || ''));
+      document.getElementById('deleteQuizMessage').textContent = `Are you sure you want to delete "${name || 'this quiz question'}"?`;
       document.getElementById('deleteOverlay').style.display='flex';
       document.body.style.overflow='hidden';
+
+      if (updateUrl && quizId) {
+          const targetUrl = quizDeleteUrl(quizId);
+          if (window.location.pathname !== new URL(targetUrl, window.location.origin).pathname) {
+              history.pushState({ quizDeleteId: quizId }, '', targetUrl);
+              deleteHistoryPushed = true;
+          }
+      }
   }
 
-  function closeDelete(){
-      document.getElementById('deleteOverlay').style.display='none';
-      pendingDeleteForm = null;
+  function closeDelete(updateUrl = true){
+      const overlay = document.getElementById('deleteOverlay');
+      if (overlay.style.display !== 'flex') return;
+
+      overlay.style.display='none';
+      document.getElementById('deleteForm').removeAttribute('action');
       document.body.style.overflow='';
-  }
 
-  function confirmDelete(){
-      if (pendingDeleteForm) {
-          pendingDeleteForm.submit();
+      const modalRoute = quizModalRouteFromPath();
+      if (updateUrl && modalRoute && modalRoute.mode === 'delete') {
+          if (deleteHistoryPushed) {
+              deleteHistoryPushed = false;
+              history.back();
+          } else {
+              history.replaceState(null, '', quizIndexUrl);
+          }
       }
   }
 
@@ -613,21 +765,85 @@
   document.querySelectorAll('.js-delete-form').forEach((form)=>{
       form.addEventListener('submit', (e)=>{
           e.preventDefault();
-          openDelete(form);
+          closeQuizActionMenus();
+          openDelete(form.dataset.quizId || '', form.dataset.quizName || '');
       });
   });
 
-  @if (!empty($autoOpenQuiz))
+  document.querySelectorAll('[data-quiz-menu-trigger]').forEach((trigger)=>{
+      trigger.addEventListener('click', (e)=>{
+          e.stopPropagation();
+          const menu = trigger.closest('.quiz-action-menu');
+          const willOpen = !menu.classList.contains('is-open');
+          closeQuizActionMenus(menu);
+          menu.classList.toggle('is-open', willOpen);
+          trigger.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
+      });
+  });
+
+  document.querySelectorAll('[data-quiz-edit]').forEach((button)=>{
+      button.addEventListener('click', ()=>{
+          const quiz = quizItemsById[button.dataset.quizEdit];
+          closeQuizActionMenus();
+          if (quiz) openEdit(quiz);
+      });
+  });
+
+  document.querySelectorAll('[data-quiz-menu-item]').forEach((item)=>{
+      if (item.hasAttribute('data-quiz-edit')) return;
+      item.addEventListener('click', ()=>closeQuizActionMenus());
+  });
+
+  document.addEventListener('click', (e)=>{
+      if (!e.target.closest('.quiz-action-menu')) closeQuizActionMenus();
+  });
+
   document.addEventListener('DOMContentLoaded', ()=>{
-      const t = @json($autoOpenQuiz);
-      if (t && t.quiz_id) {
-          openEdit(t);
+      if (autoOpenQuiz && autoOpenQuiz.quiz_id) {
+          const modalUrl = window.location.href;
+          history.replaceState({ quizList: true }, '', quizIndexUrl);
+
+          if (autoOpenQuizMode === 'delete') {
+              history.pushState({ quizDeleteId: autoOpenQuiz.quiz_id }, '', modalUrl);
+              deleteHistoryPushed = true;
+              openDelete(autoOpenQuiz.quiz_id, autoOpenQuiz.question || '', false);
+          } else if (autoOpenQuizMode === 'edit') {
+              history.pushState({ quizEditId: autoOpenQuiz.quiz_id }, '', modalUrl);
+              editHistoryPushed = true;
+              openEdit(autoOpenQuiz, false);
+          }
       }
   });
-  @endif
+
+  window.addEventListener('popstate', ()=>{
+      const modalRoute = quizModalRouteFromPath();
+      const quiz = modalRoute ? quizItemsById[modalRoute.quizId] : null;
+
+      if (modalRoute && quiz && modalRoute.mode === 'edit') {
+          editHistoryPushed = false;
+          deleteHistoryPushed = false;
+          closeDelete(false);
+          openEdit(quiz, false);
+          return;
+      }
+
+      if (modalRoute && quiz && modalRoute.mode === 'delete') {
+          editHistoryPushed = false;
+          deleteHistoryPushed = false;
+          closeEdit(false);
+          openDelete(quiz.quiz_id, quiz.question || '', false);
+          return;
+      }
+
+      editHistoryPushed = false;
+      deleteHistoryPushed = false;
+      closeEdit(false);
+      closeDelete(false);
+  });
 
   window.addEventListener('keydown', (e)=>{
       if(e.key === 'Escape'){
+          closeQuizActionMenus();
           closeAdd();
           closeEdit();
           closeDelete();

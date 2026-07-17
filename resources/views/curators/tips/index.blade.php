@@ -66,9 +66,6 @@
                             <div style="font-weight:700; color:#111827; font-size:1.02rem;">
                                 {{ $tip['landmark_name'] !== '' ? $tip['landmark_name'] : 'General Tip' }}
                             </div>
-                            <div style="color:#6b7280; font-size:.88rem; margin-top:.15rem;">
-                                Site ID: {{ $tip['landmark_id'] !== '' ? $tip['landmark_id'] : '-' }}
-                            </div>
                         </div>
                         <span style="background:{{ $badgeBg }}; color:{{ $badgeColor }}; font-size:.82rem; font-weight:700; padding:.28rem .62rem; border-radius:999px;">
                             {{ $statusLabel }}

@@ -7,8 +7,7 @@
 
     $latOut = $data['latitude'] ?? $data['lati'] ?? null;
     $lngOut = $data['longitude'] ?? $data['longti'] ?? null;
-    $latDisplay = ($latOut !== null && $latOut !== '') ? $latOut : 'N/A';
-    $lngDisplay = ($lngOut !== null && $lngOut !== '') ? $lngOut : 'N/A';
+    $locationDisplay = trim((string) ($data['location'] ?? $data['address'] ?? $data['location_name'] ?? ''));
     $hasCoords = is_numeric($latOut) && is_numeric($lngOut);
     $mapContainerId = $landmarkId !== ''
         ? 'lm-detail-map-' . preg_replace('/[^a-zA-Z0-9_-]/', '_', $landmarkId)
@@ -114,7 +113,6 @@
             letter-spacing: .06em;
         }
         .lm-detail-chip__v {
-            font-family: ui-monospace, monospace;
             font-size: .76rem;
             word-break: break-all;
         }
@@ -240,7 +238,7 @@
                 <div class="lm-detail-card__chips" aria-label="Landmark metadata">
                     <span class="lm-detail-chip lm-detail-chip--coord">
                         <span class="lm-detail-chip__k">Location</span>
-                        <span class="lm-detail-chip__v">{{ $latDisplay }}, {{ $lngDisplay }}</span>
+                        <span class="lm-detail-chip__v">{{ $locationDisplay !== '' ? $locationDisplay : 'N/A' }}</span>
                     </span>
                     <span class="lm-detail-status lm-detail-status--{{ $activationStatus === 'pending' || $activationStatus === 'rejected' ? $activationStatus : 'active' }}">
                         {{ LandmarkActivation::label($activationStatus) }}

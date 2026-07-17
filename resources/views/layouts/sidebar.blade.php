@@ -13,6 +13,12 @@
     $pageTitle = 'Site Managers';
   } elseif (request()->routeIs('sitemanager.curators')) {
     $pageTitle = 'Curators';
+  } elseif (request()->routeIs('sitemanager.exhibit-categories.*')) {
+    $pageTitle = 'Exhibit Categories';
+  } elseif (request()->routeIs('sitemanager.exhibits.*')) {
+    $pageTitle = 'Exhibits';
+  } elseif (request()->routeIs('admin.map')) {
+    $pageTitle = 'Map';
   } elseif (request()->routeIs('sitemanager.map')) {
     $pageTitle = 'Map';
   } elseif (request()->routeIs('sitemanager.landmarks.create')) {
@@ -21,16 +27,16 @@
     $pageTitle = request('status', 'pending') === 'pending' ? 'Landmark Approvals' : 'Landmarks';
   } elseif (request()->routeIs('sitemanager.landmarks') || request()->routeIs('sitemanager.landmarks.show')) {
     $pageTitle = 'Landmarks';
-  } elseif (request()->routeIs('admin.logs')) {
-    $pageTitle = 'Admin Logs';
-  } elseif (request()->routeIs('admin.reports')) {
-    $pageTitle = 'Admin Reports';
   } elseif (request()->routeIs('curators.dashboard')) {
     $pageTitle = 'Curator Dashboard';
   } elseif (request()->routeIs('curators.pending-assignment')) {
     $pageTitle = 'Assignment pending';
   } elseif (request()->routeIs('curators.tips.*')) {
     $pageTitle = 'Curator Tips Review';
+  } elseif (request()->routeIs('curators.exhibits.*')) {
+    $pageTitle = 'Exhibits';
+  } elseif (request()->routeIs('curators.exhibit-categories.*')) {
+    $pageTitle = 'Exhibit Categories';
   } elseif (request()->routeIs('curators.quiz.*')) {
     $pageTitle = 'Quiz Bank';
   } elseif (request()->routeIs('landmarks.*')) {
@@ -179,6 +185,8 @@
           @if($curatorHasLandmark)
             <a href="{{ route('curators.dashboard') }}"><span class="nav-label">Dashboard</span></a>
             <a href="{{ route('landmarks.show', session('assigned_landmark_id')) }}"><span class="nav-label">Landmark</span></a>
+            <a href="{{ route('curators.exhibit-categories.index') }}"><span class="nav-label">Exhibit Categories</span></a>
+            <a href="{{ route('curators.exhibits.index') }}"><span class="nav-label">Exhibits</span></a>
             <a href="{{ route('curators.quiz.all') }}"><span class="nav-label">Quiz Bank</span></a>
             <a href="{{ route('curators.tips.index') }}"><span class="nav-label">Tips Review</span></a>
           @else
@@ -187,15 +195,15 @@
         @elseif(session('role') === 'admin')
           <a href="{{ route('admin.dashboard') }}"><span class="nav-label">Dashboard</span></a>
           <a href="{{ route('admin.users') }}"><span class="nav-label">Users</span></a>
-          <a href="{{ route('admin.landmarks', ['status' => 'all']) }}"><span class="nav-label">Landmarks</span></a>
-          <a href="{{ route('admin.logs') }}"><span class="nav-label">Logs</span></a>
-          <a href="{{ route('admin.reports') }}"><span class="nav-label">Reports</span></a>
+          <a href="{{ route('admin.landmarks', ['status' => 'all']) }}"><span class="nav-label">Landmark</span></a>
+          <a href="{{ route('admin.map') }}"><span class="nav-label">Map</span></a>
             {{-- Landmark Approvals removed as requested --}}
         @elseif(session('role') === 'site_manager')
           <a href="{{ route('sitemanager.dashboard') }}"><span class="nav-label">Dashboard</span></a>
           <a href="{{ route('sitemanager.landmarks') }}"><span class="nav-label">Landmarks</span></a>
+          <a href="{{ route('sitemanager.exhibit-categories.index') }}"><span class="nav-label">Exhibit Categories</span></a>
+          <a href="{{ route('sitemanager.exhibits.index') }}"><span class="nav-label">Exhibits</span></a>
           <a href="{{ route('sitemanager.curators') }}"><span class="nav-label">Curators</span></a>
-          <a href="{{ route('sitemanager.map') }}"><span class="nav-label">Map</span></a>
         @endif
       </nav>
     </div>

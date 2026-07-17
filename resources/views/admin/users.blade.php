@@ -12,8 +12,23 @@
         $usersIsPaginated = $users instanceof \Illuminate\Contracts\Pagination\LengthAwarePaginator;
         $usersTotal = $usersIsPaginated ? $users->total() : count($users);
         $usersIsEmpty = $usersTotal === 0;
+        $adminUsersIndex = request()->routeIs('admin.users') && ! $curatorsOnly && ! $siteManagersOnly;
     @endphp
     <style>
+        @if ($adminUsersIndex)
+        @media (min-width: 769px) {
+            html,
+            body {
+                height: 100%;
+                min-height: 0;
+                overflow-y: hidden;
+            }
+            .main-content {
+                height: 100vh;
+                overflow-y: hidden;
+            }
+        }
+        @endif
         .users-wrap { max-width: 2000px; margin: 0 auto; }
         .users-title { font-size: 1.9rem; font-weight: 800; margin: 0 0 .25rem 0; color: #7A2E1F; }
         .users-sub { margin: 0 0 1rem 0; color: #6b7280; font-size: .95rem; }
@@ -22,11 +37,15 @@
             gap: .6rem;
             flex-wrap: wrap;
             margin-bottom: 1rem;
-            background: #fff;
-            border: 1px solid #eceff3;
             border-radius: 12px;
             padding: .8rem;
-            box-shadow: 0 4px 14px rgba(15, 23, 42, 0.05);
+        }
+        .users-filter.curators-filter {
+            display: inline-flex;
+            width: auto;
+            max-width: 100%;
+            align-items: center;
+            flex-grow: 0;
         }
         .users-input, .users-select {
             padding: .6rem .72rem;
@@ -66,6 +85,7 @@
             overflow-x: auto;
         }
         .users-table { width: 100%; border-collapse: separate; border-spacing: 0; min-width: 980px; }
+        .users-table.admin-users-table { min-width: 620px; }
         .users-table.curators-table { min-width: 780px; }
         .users-table th {
             text-align: left;
@@ -96,7 +116,6 @@
         .role-curator { background: #ecfdf5; color: #166534; border-color: #bbf7d0; }
         .role-visitor { background: #eff6ff; color: #1d4ed8; border-color: #bfdbfe; }
         .role-site_manager { background: #fef3c7; color: #92400e; border-color: #fde68a; }
-        .uid-text { color: #6b7280; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .84rem; }
         .status-pill {
             display: inline-flex;
             align-items: center;
@@ -160,6 +179,7 @@
         }
         .curator-delete-modal.is-open { display: flex; }
         .curator-delete-modal__panel {
+            position: relative;
             width: min(100%, 430px);
             background: #fff;
             border-radius: 12px;
@@ -221,6 +241,80 @@
             border-color: #991b1b;
         }
         .curator-delete-modal__btn--danger:hover { background: #7f1d1d; }
+        #curatorDeleteModal .curator-delete-modal__actions,
+        #curatorDeactivateModal .curator-delete-modal__actions,
+        #curatorActivateModal .curator-delete-modal__actions,
+        #siteManagerApproveModal .curator-delete-modal__actions,
+        #siteManagerRejectModal .curator-delete-modal__actions { flex-direction: row; }
+        #curatorDeleteModal .curator-delete-modal__btn,
+        #curatorDeactivateModal .curator-delete-modal__btn,
+        #curatorActivateModal .curator-delete-modal__btn,
+        #siteManagerApproveModal .curator-delete-modal__btn,
+        #siteManagerRejectModal .curator-delete-modal__btn {
+            width: auto;
+            padding: .45rem .8rem;
+            border-radius: 8px;
+            font-size: .85rem;
+            line-height: 1;
+            font-weight: 700;
+        }
+        #curatorDeleteModal .curator-delete-modal__btn--secondary,
+        #curatorDeactivateModal .curator-delete-modal__btn--secondary,
+        #curatorActivateModal .curator-delete-modal__btn--secondary,
+        #siteManagerApproveModal .curator-delete-modal__btn--secondary,
+        #siteManagerRejectModal .curator-delete-modal__btn--secondary {
+            background: #f3f4f6;
+            border-color: #e5e7eb;
+            color: #374151;
+        }
+        #curatorDeleteModal .curator-delete-modal__btn--danger,
+        #curatorDeactivateModal .curator-delete-modal__btn--danger,
+        #curatorActivateModal .curator-delete-modal__btn--danger,
+        #siteManagerRejectModal .curator-delete-modal__btn--danger {
+            background: #ef4444;
+            border-color: #ef4444;
+            color: #fff;
+        }
+        #curatorDeleteModal .curator-delete-modal__btn--danger:hover,
+        #curatorDeactivateModal .curator-delete-modal__btn--danger:hover,
+        #curatorActivateModal .curator-delete-modal__btn--danger:hover,
+        #siteManagerRejectModal .curator-delete-modal__btn--danger:hover {
+            background: #dc2626;
+            border-color: #dc2626;
+        }
+        #siteManagerApproveModal .curator-delete-modal__btn--approve {
+            background: #166534;
+            border-color: #166534;
+            color: #fff;
+        }
+        #siteManagerApproveModal .curator-delete-modal__btn--approve:hover {
+            background: #14532d;
+            border-color: #14532d;
+        }
+        .site-manager-reject-modal__close {
+            position: absolute;
+            top: .65rem;
+            right: .7rem;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 30px;
+            height: 30px;
+            padding: 0;
+            border: 0;
+            border-radius: 7px;
+            background: transparent;
+            color: #6b7280;
+            font-size: 1.35rem;
+            line-height: 1;
+            cursor: pointer;
+        }
+        .site-manager-reject-modal__close:hover { background: #f3f4f6; }
+        .site-manager-reject-modal__note {
+            margin: .35rem 0 0;
+            color: #6b7280;
+            font-size: .82rem;
+        }
         .flash-ok {
             padding: .75rem 1rem;
             border-radius: 10px;
@@ -229,6 +323,17 @@
             border: 1px solid #bbf7d0;
             margin-bottom: 1rem;
             font-weight: 600;
+        }
+        .flash-ok.curators-flash-ok {
+            width: fit-content;
+            max-width: 100%;
+            box-sizing: border-box;
+            padding: .55rem 1rem;
+        }
+        .flash-ok.admin-users-flash-ok {
+            width: fit-content;
+            max-width: 100%;
+            box-sizing: border-box;
         }
         .flash-err {
             padding: .75rem 1rem;
@@ -342,18 +447,18 @@
     </div>
 
     @if (session('status'))
-        <p class="flash-ok">{{ session('status') }}</p>
+        <p class="flash-ok{{ $curatorsOnly && $panelRoutePrefix === 'sitemanager' ? ' curators-flash-ok' : '' }}{{ $adminUsersIndex ? ' admin-users-flash-ok' : '' }}">{{ session('status') }}</p>
     @endif
     @if (session('status_err'))
         <p class="flash-err">{{ session('status_err') }}</p>
     @endif
 
-    <form method="GET" action="{{ route($usersListRouteName) }}" class="users-filter">
+    <form method="GET" action="{{ route($usersListRouteName) }}" class="users-filter{{ $curatorsOnly && $panelRoutePrefix === 'sitemanager' ? ' curators-filter' : '' }}">
         <input
             type="text"
             name="search"
             value="{{ request('search') }}"
-            placeholder="Search by email or UID..."
+            placeholder="{{ $curatorsOnly ? 'Search by email, landmark, or status...' : 'Search by email...' }}"
             class="users-input">
 
         @if (! $curatorsOnly && ! $siteManagersOnly)
@@ -362,12 +467,11 @@
             <option value="admin" {{ request('role') === 'admin' ? 'selected' : '' }}>Admin</option>
             <option value="curator" {{ request('role') === 'curator' ? 'selected' : '' }}>Curator</option>
             <option value="site_manager" {{ request('role') === 'site_manager' ? 'selected' : '' }}>Site Manager</option>
-            <option value="visitor" {{ request('role') === 'visitor' ? 'selected' : '' }}>Visitor</option>
         </select>
         @endif
 
         <button type="submit" class="users-btn apply">
-            Apply
+            {{ ($curatorsOnly && $panelRoutePrefix === 'sitemanager') || $adminUsersIndex ? 'Search' : 'Apply' }}
         </button>
 
         <a href="{{ route($usersListRouteName) }}" class="users-btn clear">
@@ -387,19 +491,23 @@
         </p>
     @else
         <div class="users-table-card">
-            <table class="users-table{{ $curatorsOnly ? ' curators-table' : '' }}">
+            <table class="users-table{{ $curatorsOnly ? ' curators-table' : '' }}{{ $adminUsersIndex ? ' admin-users-table' : '' }}">
                 <thead>
                     <tr>
                         <th>Email</th>
                         @if (! $curatorsOnly)
                             <th>Role</th>
                         @endif
-                        <th>Approval</th>
+                        @if ($curatorsOnly && $panelRoutePrefix === 'sitemanager')
+                            <th>Landmark</th>
+                        @endif
+                        @if (! $adminUsersIndex && ! ($curatorsOnly && $panelRoutePrefix === 'sitemanager'))
+                            <th>Approval</th>
+                        @endif
                         @if ($curatorsOnly)
                             <th>Status</th>
                         @endif
-                        <th>UID</th>
-                        <th>Actions</th>
+                        <th>Action</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -422,6 +530,10 @@
                                     </span>
                                 </td>
                             @endif
+                            @if ($curatorsOnly && $panelRoutePrefix === 'sitemanager')
+                                <td>{{ $user->assigned_landmark_name ?? 'Unassigned' }}</td>
+                            @endif
+                            @if (! $adminUsersIndex && ! ($curatorsOnly && $panelRoutePrefix === 'sitemanager'))
                             <td>
                                 @if ($user->role === 'visitor')
                                     <span style="color: #9ca3af; font-size: .82rem;">—</span>
@@ -429,22 +541,17 @@
                                     <span class="status-pill status-{{ $user->approval_status }}">{{ $approvalLabel }}</span>
                                 @endif
                             </td>
+                            @endif
                             @if ($curatorsOnly)
                                 <td>
                                     <span class="status-pill status-{{ $accountStatus }}">{{ $accountStatusLabel }}</span>
                                 </td>
                             @endif
-                            <td class="uid-text">{{ $user->uid }}</td>
                             <td>
                                 @if ($curatorsOnly && $panelRoutePrefix === 'sitemanager')
                                     <div class="user-actions">
                                         <a href="{{ route('sitemanager.curators', array_filter(['search' => request('search'), 'page' => request('page'), 'edit' => $user->uid])) }}" class="btn-edit">Edit</a>
-                                        <form method="POST" action="{{ route('sitemanager.curators.deactivate', ['uid' => $user->uid]) }}" class="curator-deactivate-form">
-                                            @csrf
-                                            <button type="button" class="btn-reject js-curator-deactivate-action" @disabled($accountStatus === 'inactive')>
-                                                Deactivate
-                                            </button>
-                                        </form>
+
                                         <form method="POST" action="{{ route('sitemanager.curators.destroy', ['uid' => $user->uid]) }}" class="curator-delete-form">
                                             @csrf
                                             @method('DELETE')
@@ -456,26 +563,64 @@
                                                 Delete
                                             </button>
                                         </form>
+
+                                        @if ($accountStatus === 'inactive')
+                                            <form method="POST" action="{{ route('sitemanager.curators.activate', ['uid' => $user->uid]) }}">
+                                                @csrf
+                                                <input type="hidden" name="search" value="{{ request('search') }}">
+                                                <input type="hidden" name="page" value="{{ request('page') }}">
+                                                <button type="button" class="btn-reject js-curator-activate-action">Activate</button>
+                                            </form>
+                                        @else
+                                            <form method="POST" action="{{ route('sitemanager.curators.deactivate', ['uid' => $user->uid]) }}" class="curator-deactivate-form">
+                                                @csrf
+                                                <input type="hidden" name="search" value="{{ request('search') }}">
+                                                <input type="hidden" name="page" value="{{ request('page') }}">
+                                                <button type="button" class="btn-reject js-curator-deactivate-action">Deactivate</button>
+                                            </form>
+                                        @endif
                                     </div>
                                 @elseif ($showPendingActions)
                                     <div class="user-actions">
-                                        <form method="POST" action="{{ route($userActionsRoutePrefix.'.approve', ['uid' => $user->uid]) }}">
+                                        <form
+                                            method="POST"
+                                            action="{{ route($userActionsRoutePrefix.'.approve', ['uid' => $user->uid]) }}"
+                                            @if ($user->role === 'site_manager')
+                                                class="site-manager-approve-form"
+                                            @endif>
                                             @csrf
                                             <input type="hidden" name="search" value="{{ request('search') }}">
                                             <input type="hidden" name="role" value="{{ $curatorsOnly ? 'curator' : request('role') }}">
                                             @if ($siteManagersOnly)
                                                 <input type="hidden" name="return_to" value="site-managers">
                                             @endif
-                                            <button type="submit" class="btn-approve">Approve</button>
+                                            <button
+                                                type="{{ $user->role === 'site_manager' ? 'button' : 'submit' }}"
+                                                class="btn-approve{{ $user->role === 'site_manager' ? ' js-site-manager-approve-action' : '' }}"
+                                                data-user-email="{{ $user->email }}">
+                                                Approve
+                                            </button>
                                         </form>
-                                        <form method="POST" action="{{ route($userActionsRoutePrefix.'.reject', ['uid' => $user->uid]) }}" onsubmit="return confirm('Reject this registration?');">
+                                        <form
+                                            method="POST"
+                                            action="{{ route($userActionsRoutePrefix.'.reject', ['uid' => $user->uid]) }}"
+                                            @if ($user->role === 'site_manager')
+                                                class="site-manager-reject-form"
+                                            @else
+                                                onsubmit="return confirm('Reject this registration?');"
+                                            @endif>
                                             @csrf
                                             <input type="hidden" name="search" value="{{ request('search') }}">
                                             <input type="hidden" name="role" value="{{ $curatorsOnly ? 'curator' : request('role') }}">
                                             @if ($siteManagersOnly)
                                                 <input type="hidden" name="return_to" value="site-managers">
                                             @endif
-                                            <button type="submit" class="btn-reject">Reject</button>
+                                            <button
+                                                type="{{ $user->role === 'site_manager' ? 'button' : 'submit' }}"
+                                                class="btn-reject{{ $user->role === 'site_manager' ? ' js-site-manager-reject-action' : '' }}"
+                                                data-user-email="{{ $user->email }}">
+                                                Reject
+                                            </button>
                                         </form>
                                     </div>
                                 @else
@@ -532,6 +677,208 @@
     @endif
     </div>
 
+    @if ($panelRoutePrefix === 'admin' && ! $curatorsOnly)
+        <div
+            id="siteManagerApproveModal"
+            class="curator-delete-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-hidden="true"
+            aria-labelledby="siteManagerApproveModalTitle">
+            <div class="curator-delete-modal__panel" tabindex="-1">
+                <button
+                    type="button"
+                    id="siteManagerApproveClose"
+                    class="site-manager-reject-modal__close"
+                    aria-label="Close approve registration confirmation">&times;</button>
+                <h2 id="siteManagerApproveModalTitle" class="curator-delete-modal__title">Approve Registration</h2>
+                <p class="curator-delete-modal__message">Are you sure you want to approve this Site Manager registration?</p>
+                <p class="curator-delete-modal__detail">
+                    Selected account:<br>
+                    <strong id="siteManagerApproveEmail" class="curator-delete-modal__email"></strong>
+                </p>
+
+                <div class="curator-delete-modal__actions">
+                    <button type="button" id="siteManagerApproveCancel" class="curator-delete-modal__btn curator-delete-modal__btn--secondary">Cancel</button>
+                    <button type="button" id="siteManagerApproveConfirm" class="curator-delete-modal__btn curator-delete-modal__btn--approve">Approve</button>
+                </div>
+            </div>
+        </div>
+
+        <div
+            id="siteManagerRejectModal"
+            class="curator-delete-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-hidden="true"
+            aria-labelledby="siteManagerRejectModalTitle">
+            <div class="curator-delete-modal__panel" tabindex="-1">
+                <button
+                    type="button"
+                    id="siteManagerRejectClose"
+                    class="site-manager-reject-modal__close"
+                    aria-label="Close reject registration confirmation">&times;</button>
+                <h2 id="siteManagerRejectModalTitle" class="curator-delete-modal__title">Reject Registration</h2>
+                <p class="curator-delete-modal__message">Are you sure you want to reject this Site Manager registration?</p>
+                <p class="curator-delete-modal__detail">
+                    Selected account:<br>
+                    <strong id="siteManagerRejectEmail" class="curator-delete-modal__email"></strong>
+                </p>
+
+                <div class="curator-delete-modal__actions">
+                    <button type="button" id="siteManagerRejectCancel" class="curator-delete-modal__btn curator-delete-modal__btn--secondary">Cancel</button>
+                    <button type="button" id="siteManagerRejectConfirm" class="curator-delete-modal__btn curator-delete-modal__btn--danger">Reject</button>
+                </div>
+            </div>
+        </div>
+
+        <script>
+            (function () {
+                var modal = document.getElementById('siteManagerApproveModal');
+                var panel = modal ? modal.querySelector('.curator-delete-modal__panel') : null;
+                var cancelButton = document.getElementById('siteManagerApproveCancel');
+                var closeButton = document.getElementById('siteManagerApproveClose');
+                var confirmButton = document.getElementById('siteManagerApproveConfirm');
+                var selectedEmail = document.getElementById('siteManagerApproveEmail');
+                var selectedForm = null;
+                var activeTrigger = null;
+
+                if (! modal || ! cancelButton || ! closeButton || ! confirmButton || ! selectedEmail) {
+                    return;
+                }
+
+                function openModal(trigger) {
+                    selectedForm = trigger.closest('form');
+                    activeTrigger = trigger;
+                    selectedEmail.textContent = trigger.dataset.userEmail || '';
+                    modal.classList.add('is-open');
+                    modal.setAttribute('aria-hidden', 'false');
+                    document.body.style.overflow = 'hidden';
+                    if (panel) {
+                        panel.focus();
+                    }
+                }
+
+                function closeModal() {
+                    modal.classList.remove('is-open');
+                    modal.setAttribute('aria-hidden', 'true');
+                    selectedForm = null;
+                    selectedEmail.textContent = '';
+                    document.body.style.overflow = '';
+                    if (activeTrigger) {
+                        activeTrigger.focus();
+                    }
+                    activeTrigger = null;
+                }
+
+                document.querySelectorAll('.js-site-manager-approve-action').forEach(function (button) {
+                    button.addEventListener('click', function () {
+                        openModal(button);
+                    });
+                });
+
+                cancelButton.addEventListener('click', closeModal);
+                closeButton.addEventListener('click', closeModal);
+                confirmButton.addEventListener('click', function () {
+                    var form = selectedForm;
+                    if (! form) {
+                        return;
+                    }
+
+                    modal.classList.remove('is-open');
+                    modal.setAttribute('aria-hidden', 'true');
+                    document.body.style.overflow = '';
+                    window.HTMLFormElement.prototype.submit.call(form);
+                });
+
+                modal.addEventListener('click', function (event) {
+                    if (event.target === modal) {
+                        closeModal();
+                    }
+                });
+
+                document.addEventListener('keydown', function (event) {
+                    if (event.key === 'Escape' && modal.classList.contains('is-open')) {
+                        closeModal();
+                    }
+                });
+            })();
+        </script>
+
+        <script>
+            (function () {
+                var modal = document.getElementById('siteManagerRejectModal');
+                var panel = modal ? modal.querySelector('.curator-delete-modal__panel') : null;
+                var cancelButton = document.getElementById('siteManagerRejectCancel');
+                var closeButton = document.getElementById('siteManagerRejectClose');
+                var confirmButton = document.getElementById('siteManagerRejectConfirm');
+                var selectedEmail = document.getElementById('siteManagerRejectEmail');
+                var selectedForm = null;
+                var activeTrigger = null;
+
+                if (! modal || ! cancelButton || ! closeButton || ! confirmButton || ! selectedEmail) {
+                    return;
+                }
+
+                function openModal(trigger) {
+                    selectedForm = trigger.closest('form');
+                    activeTrigger = trigger;
+                    selectedEmail.textContent = trigger.dataset.userEmail || '';
+                    modal.classList.add('is-open');
+                    modal.setAttribute('aria-hidden', 'false');
+                    document.body.style.overflow = 'hidden';
+                    if (panel) {
+                        panel.focus();
+                    }
+                }
+
+                function closeModal() {
+                    modal.classList.remove('is-open');
+                    modal.setAttribute('aria-hidden', 'true');
+                    selectedForm = null;
+                    selectedEmail.textContent = '';
+                    document.body.style.overflow = '';
+                    if (activeTrigger) {
+                        activeTrigger.focus();
+                    }
+                    activeTrigger = null;
+                }
+
+                document.querySelectorAll('.js-site-manager-reject-action').forEach(function (button) {
+                    button.addEventListener('click', function () {
+                        openModal(button);
+                    });
+                });
+
+                cancelButton.addEventListener('click', closeModal);
+                closeButton.addEventListener('click', closeModal);
+                confirmButton.addEventListener('click', function () {
+                    var form = selectedForm;
+                    if (! form) {
+                        return;
+                    }
+
+                    modal.classList.remove('is-open');
+                    modal.setAttribute('aria-hidden', 'true');
+                    document.body.style.overflow = '';
+                    window.HTMLFormElement.prototype.submit.call(form);
+                });
+
+                modal.addEventListener('click', function (event) {
+                    if (event.target === modal) {
+                        closeModal();
+                    }
+                });
+
+                document.addEventListener('keydown', function (event) {
+                    if (event.key === 'Escape' && modal.classList.contains('is-open')) {
+                        closeModal();
+                    }
+                });
+            })();
+        </script>
+    @endif
+
     @if ($curatorsOnly && $panelRoutePrefix === 'sitemanager')
         <div
             id="curatorDeactivateModal"
@@ -546,6 +893,23 @@
                 <div class="curator-delete-modal__actions">
                     <button type="button" id="curatorDeactivateCancel" class="curator-delete-modal__btn curator-delete-modal__btn--secondary">Cancel</button>
                     <button type="button" id="curatorDeactivateConfirm" class="curator-delete-modal__btn curator-delete-modal__btn--danger">Deactivate</button>
+                </div>
+            </div>
+        </div>
+
+        <div
+            id="curatorActivateModal"
+            class="curator-delete-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-hidden="true"
+            aria-labelledby="curatorActivateModalTitle">
+            <div class="curator-delete-modal__panel" tabindex="-1">
+                <h2 id="curatorActivateModalTitle" class="curator-delete-modal__title">Activate this curator account?</h2>
+                <p class="curator-delete-modal__detail">The curator will be able to sign in again.</p>
+                <div class="curator-delete-modal__actions">
+                    <button type="button" id="curatorActivateCancel" class="curator-delete-modal__btn curator-delete-modal__btn--secondary">Cancel</button>
+                    <button type="button" id="curatorActivateConfirm" class="curator-delete-modal__btn curator-delete-modal__btn--danger">Activate</button>
                 </div>
             </div>
         </div>
@@ -585,6 +949,10 @@
                 var deactivateCancel = document.getElementById('curatorDeactivateCancel');
                 var deactivateConfirm = document.getElementById('curatorDeactivateConfirm');
                 var deactivateForm = null;
+                var activateModal = document.getElementById('curatorActivateModal');
+                var activateCancel = document.getElementById('curatorActivateCancel');
+                var activateConfirm = document.getElementById('curatorActivateConfirm');
+                var activateForm = null;
                 var modal = document.getElementById('curatorDeleteModal');
                 var cancelButton = document.getElementById('curatorDeleteCancel');
                 var confirmButton = document.getElementById('curatorDeleteConfirm');
@@ -592,7 +960,6 @@
                 var deleteLandmark = document.getElementById('curatorDeleteLandmark');
                 var panel = modal ? modal.querySelector('.curator-delete-modal__panel') : null;
                 var selectedForm = null;
-
                 if (! modal || ! cancelButton || ! confirmButton) {
                     return;
                 }
@@ -616,6 +983,28 @@
                 deactivateConfirm.addEventListener('click', function () {
                     if (deactivateForm) {
                         deactivateForm.submit();
+                    }
+                });
+
+                document.querySelectorAll('.js-curator-activate-action').forEach(function (button) {
+                    button.addEventListener('click', function () {
+                        activateForm = button.closest('form');
+                        activateModal.classList.add('is-open');
+                        activateModal.setAttribute('aria-hidden', 'false');
+                        document.body.style.overflow = 'hidden';
+                    });
+                });
+
+                activateCancel.addEventListener('click', function () {
+                    activateModal.classList.remove('is-open');
+                    activateModal.setAttribute('aria-hidden', 'true');
+                    activateForm = null;
+                    document.body.style.overflow = '';
+                });
+
+                activateConfirm.addEventListener('click', function () {
+                    if (activateForm) {
+                        activateForm.submit();
                     }
                 });
 

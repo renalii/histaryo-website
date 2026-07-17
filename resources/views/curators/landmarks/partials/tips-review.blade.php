@@ -58,16 +58,6 @@
                         @endif
                         <br>{{ $tip['created_at'] }}
                     </p>
-
-                    @if ($status === 'pending')
-                        <form method="POST" action="{{ route('curators.tips.review', $tip['id']) }}" class="lm-tip__actions">
-                            @csrf
-                            <input type="hidden" name="source_collection" value="{{ $tip['source_collection'] }}">
-                            <input type="hidden" name="return_to_landmark" value="1">
-                            <button type="submit" name="decision" value="accepted" class="lm-tip__action lm-tip__action--accept">Accept</button>
-                            <button type="submit" name="decision" value="rejected" class="lm-tip__action lm-tip__action--reject">Reject</button>
-                        </form>
-                    @endif
                 </article>
             @endforeach
         </div>

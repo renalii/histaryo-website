@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>About Histaryo</title>
+    <title>About HistARyo</title>
     <link rel="icon" type="image/svg+xml" href="{{ asset('favicon.svg') }}">
     <style>
         body {
@@ -39,7 +39,7 @@
             gap: 200px;
             max-width: 2250px;
             margin: 0 auto;
-            padding: 74px 60px 42px;
+            padding: 52px 60px 24px;
             flex-wrap: wrap;
         }
 
@@ -50,18 +50,18 @@
 
         .about-text h2 {
             font-size: 32px;
-            margin-bottom: 20px;
+            margin: 0 0 16px;
         }
 
         .about-text p {
             font-size: 16px;
             line-height: 1.6;
             color: #333;
-            margin-bottom: 20px;
+            margin: 0 0 16px;
         }
 
         .about-image {
-            width: min(100%, 480px);
+            width: min(100%, 432px);
             margin-top: 0;
         }
 
@@ -116,7 +116,7 @@
 
         .cta-section {
             max-width: 2250px;
-            margin: 10px auto 44px;
+            margin: 0 auto 20px;
             padding: 0 60px;
         }
 
@@ -124,7 +124,7 @@
             background: linear-gradient(130deg, #6e4b3a 0%, #8d779b 100%);
             color: #ffffff;
             border-radius: 18px;
-            padding: 28px 30px;
+            padding: 22px 28px;
             display: flex;
             align-items: center;
             justify-content: space-between;
@@ -136,15 +136,15 @@
         }
 
         .cta-card h2 {
-            margin: 0 0 8px;
-            font-size: 30px;
+            margin: 0 0 6px;
+            font-size: 28px;
             line-height: 1.2;
         }
 
         .cta-card p {
             margin: 0;
             font-size: 15px;
-            line-height: 1.55;
+            line-height: 1.45;
             opacity: 0.94;
             max-width: 620px;
         }
@@ -185,7 +185,7 @@
 <body>
 
 <header>
-    <div class="logo">Histaryo</div>
+    <div class="logo">HistARyo</div>
     <nav>
         <a href="{{ route('home') }}">Home</a>
         <a href="{{ route('about') }}">About</a>
@@ -196,14 +196,14 @@
 
 <div class="about-section">
     <div class="about-text">
-        <h2>What is Histaryo?</h2>
+        <h2>What is HistARyo?</h2>
         <p>
-            Histaryo is an AR-powered platform that transforms how locals and visitors explore Cebu’s rich cultural heritage.
-            With just a mobile device, users can scan QR codes or GPS-based markers to unlock immersive AR experiences —
+            HistARyo is an AR-powered platform that transforms how locals and visitors explore Cebu’s rich cultural heritage.
+            With just a mobile device, users can scan QR codes or GPS-based markers to unlock immersive AR experiences
             including historical overlays, old photographs, quiz challenges, and gamified tours.
         </p>
         <p>
-            Built to educate, entertain, and inspire, Histaryo bridges culture and technology to make history come alive like never before.
+            Built to educate, entertain, and inspire, HistARyo bridges culture and technology to make history come alive like never before.
         </p>
     </div>
 
@@ -219,7 +219,7 @@
     <div class="cta-card">
         <div>
             <h2>Ready to Start Exploring?</h2>
-            <p>Join Histaryo and discover Cebu through AR tours, rich historical stories, and interactive landmark experiences from your phone.</p>
+            <p>Join HistARyo and discover Cebu through AR tours, rich historical stories, and interactive landmark experiences from your phone.</p>
         </div>
         <div class="cta-actions">
             <a href="{{ route('register') }}" class="btn">Start Exploring</a>

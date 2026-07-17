@@ -152,7 +152,7 @@
                         <tr>
                             <td><span class="rank">{{ $loop->iteration }}</span></td>
                             <td>{{ $entry['visitor_name'] }}</td>
-                            <td><span class="score">{{ $entry['score'] }}</span></td>
+                            <td><span class="score">{{ ($entry['total_score'] ?? '') !== '' ? $entry['total_score'] : '0' }}</span></td>
                             <td>{{ $entry['completed_at_label'] }}</td>
                         </tr>
                     @empty

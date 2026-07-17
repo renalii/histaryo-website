@@ -328,7 +328,7 @@
     <div class="land-wrap">
         <div class="land-header">
             <div class="land-header-main">
-                <h1 class="land-title">Landmarks</h1>
+                <h1 class="land-title">Landmark</h1>
             </div>
         </div>
 
@@ -347,6 +347,7 @@
                     'headerActionsView' => 'curators.landmarks.partials.detail-actions',
                     'headerActionsData' => [
                         'qrBase64' => $qrPreview['base64'] ?? '',
+                        'qrUrl' => $qrPreview['url'] ?? '',
                         'qrFilename' => $qrPreview['filename'] ?? 'landmark-code-qr.png',
                     ],
                     'mapboxToken' => $mapboxToken ?? config('services.mapbox.token'),
@@ -363,11 +364,11 @@
                 <button id="cu-qr-preview-close" type="button" class="cu-qr-modal__close" aria-label="Close QR image preview">&times;</button>
             </div>
             <div class="cu-qr-modal__body">
-                @if (! empty($qrPreview['base64'] ?? ''))
-                    <img id="cu-qr-preview-image" class="cu-qr-modal__image" src="data:image/png;base64,{{ $qrPreview['base64'] }}" alt="QR code image" hidden>
+                @if (! empty($qrPreview['url'] ?? ''))
+                    <img id="cu-qr-preview-image" class="cu-qr-modal__image" src="{{ $qrPreview['url'] }}" alt="QR code image" hidden>
                     <a id="cu-qr-preview-download"
                        class="cu-lm-add-btn cu-qr-modal__download"
-                       href="data:image/png;base64,{{ $qrPreview['base64'] }}"
+                       href="{{ $qrPreview['url'] }}"
                        download="{{ $qrPreview['filename'] ?? 'landmark-code-qr.png' }}"
                        hidden>
                         Download QR Image
@@ -393,7 +394,7 @@
             modal.classList.add('is-open');
             document.body.style.overflow = 'hidden';
 
-            if (image && download && image.getAttribute('src').startsWith('data:image/png;base64,')) {
+            if (image && download && image.getAttribute('src') !== '') {
                 image.hidden = false;
                 unavailable.hidden = true;
                 download.hidden = false;

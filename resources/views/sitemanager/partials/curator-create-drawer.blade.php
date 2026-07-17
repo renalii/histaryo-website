@@ -5,7 +5,7 @@
     $openDrawer = request()->boolean('create')
         || $isEditMode
         || session('open_curator_drawer')
-        || ($errors->any() && ($errors->has('first_name') || $errors->has('email') || $errors->has('password') || $errors->has('assigned_landmark_id')));
+        || ($errors->any() && ($errors->has('first_name') || $errors->has('email') || $errors->has('assigned_landmark_id')));
     $selectedLandmarkId = old('assigned_landmark_id', $isEditMode ? ($editCurator->assigned_landmark_id ?? '') : '');
     $firstNameValue = old('first_name', $isEditMode ? ($editCurator->first_name ?? '') : '');
     $lastNameValue = old('last_name', $isEditMode ? ($editCurator->last_name ?? '') : '');
@@ -30,11 +30,17 @@
         position: fixed;
         inset: 0;
         z-index: 1100;
-        background: rgba(15, 23, 42, 0.45);
+        background: rgba(15, 23, 42, 0.58);
+        backdrop-filter: blur(3px);
         opacity: 0;
         visibility: hidden;
         pointer-events: none;
-        transition: opacity 0.25s ease, visibility 0.25s ease;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 1.25rem;
+        overflow-y: auto;
+        transition: opacity 0.24s ease, visibility 0.24s ease;
     }
     .curator-drawer-backdrop.is-open {
         opacity: 1;
@@ -42,25 +48,27 @@
         pointer-events: auto;
     }
     .curator-drawer {
-        position: fixed;
-        top: 0;
-        right: 0;
+        position: relative;
         z-index: 1101;
-        width: min(520px, 100vw);
-        height: 100vh;
+        width: min(680px, calc(100vw - 2.5rem));
+        max-height: none;
         background: #fff;
-        box-shadow: -12px 0 40px rgba(15, 23, 42, 0.12);
+        border-radius: 16px;
+        box-shadow: 0 24px 70px rgba(15, 23, 42, 0.28);
         display: flex;
         flex-direction: column;
-        transform: translateX(100%);
-        transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+        overflow: hidden;
+        opacity: 0;
+        transform: scale(0.96);
+        transition: opacity 0.24s ease, transform 0.24s cubic-bezier(0.4, 0, 0.2, 1);
     }
     .curator-drawer-backdrop.is-open .curator-drawer {
-        transform: translateX(0);
+        opacity: 1;
+        transform: scale(1);
     }
     .curator-drawer__head {
         flex-shrink: 0;
-        padding: 1.25rem 1.5rem 1rem;
+        padding: 1rem 1.35rem .85rem;
         border-bottom: 1px solid #f1f5f9;
         display: flex;
         align-items: flex-start;
@@ -99,10 +107,10 @@
     .curator-drawer__close:hover { background: #f9fafb; color: #111827; }
     .curator-drawer__body {
         flex: 1;
-        overflow-y: auto;
-        padding: 1.25rem 1.5rem 1.5rem;
+        overflow-y: visible;
+        padding: 1rem 1.35rem 1rem;
     }
-    .cd-section { margin-bottom: 1.35rem; }
+    .cd-section { margin-bottom: .95rem; }
     .cd-section:last-of-type { margin-bottom: 0; }
     .cd-section-title {
         font-size: .78rem;
@@ -110,11 +118,11 @@
         text-transform: uppercase;
         letter-spacing: .06em;
         color: #7A2E1F;
-        margin: 0 0 .85rem 0;
-        padding-bottom: .45rem;
+        margin: 0 0 .65rem 0;
+        padding-bottom: .35rem;
         border-bottom: 1px solid #f1f5f9;
     }
-    .cd-field { margin-bottom: 1rem; }
+    .cd-field { margin-bottom: .75rem; }
     .cd-field label {
         display: block;
         font-weight: 600;
@@ -182,36 +190,72 @@
     @media (min-width: 400px) { .cd-grid-2 { grid-template-columns: 1fr 1fr; } }
     .cd-hint { font-size: .78rem; color: #9ca3af; margin: .3rem 0 0; }
     .cd-combobox { position: relative; }
-    .cd-combobox__list {
+    .cd-combobox::after {
+        content: '';
         position: absolute;
-        z-index: 20;
-        left: 0;
-        right: 0;
-        top: calc(100% + 4px);
-        max-height: 220px;
+        top: 23px;
+        right: .8rem;
+        width: .45rem;
+        height: .45rem;
+        border-right: 2px solid #374151;
+        border-bottom: 2px solid #374151;
+        transform: translateY(-70%) rotate(45deg);
+        pointer-events: none;
+    }
+    .cd-combobox .cd-input {
+        height: 46px;
+        padding: .62rem 2rem .62rem .72rem;
+        border: 1px solid #d1d5db;
+        border-radius: 8px;
+        background: #fff;
+        font-size: .9rem;
+        font-weight: 600;
+    }
+    .cd-combobox .cd-input:focus,
+    .cd-combobox .cd-input:focus-visible {
+        border-color: #d1d5db;
+        outline: none;
+        box-shadow: none;
+    }
+    .cd-combobox__list {
+        position: fixed;
+        z-index: 1200;
+        box-sizing: border-box;
+        max-height: 322px;
+        overflow-x: hidden;
         overflow-y: auto;
         margin: 0;
-        padding: .35rem 0;
+        padding: 0;
         list-style: none;
         background: #fff;
-        border: 1px solid #e5e7eb;
-        border-radius: 10px;
-        box-shadow: 0 10px 28px rgba(15, 23, 42, 0.12);
+        border: 1px solid #d1d5db;
+        border-radius: 6px;
+        box-shadow: 0 8px 20px rgba(0, 0, 0, .15);
+        scrollbar-width: thin;
+        scrollbar-color: #c7c7c7 transparent;
         display: none;
     }
     .cd-combobox__list.is-open { display: block; }
+    .cd-combobox__list::-webkit-scrollbar { width: 6px; }
+    .cd-combobox__list::-webkit-scrollbar-thumb { background: #c7c7c7; border-radius: 999px; }
+    .cd-combobox__list::-webkit-scrollbar-track { background: transparent; }
     .cd-combobox__option {
-        padding: .55rem .8rem;
+        display: block;
+        width: 100%;
+        height: 40px;
+        padding: 0 .72rem;
         font-size: .9rem;
+        font-weight: 400;
+        line-height: 40px;
         color: #111827;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
         cursor: pointer;
     }
     .cd-combobox__option:hover,
-    .cd-combobox__option.is-highlighted {
-        background: #fef9ee;
-        color: #7A2E1F;
-    }
-    .cd-combobox__option.is-selected { font-weight: 600; }
+    .cd-combobox__option.is-highlighted,
+    .cd-combobox__option.is-selected { background: #f3f4f6; outline: none; }
     .cd-combobox__empty {
         padding: .65rem .8rem;
         font-size: .85rem;
@@ -220,12 +264,47 @@
     .cd-actions {
         display: flex;
         flex-direction: column;
-        gap: .55rem;
-        margin-top: 1.25rem;
-        padding-top: 1.15rem;
+        gap: .5rem;
+        margin-top: .85rem;
+        padding-top: .85rem;
         border-top: 1px solid #f1f5f9;
     }
     .cd-section + .cd-actions { margin-top: 0; }
+    .cd-actions--create {
+        flex-direction: row;
+        justify-content: flex-end;
+        align-items: center;
+        gap: 10px;
+    }
+    .cd-actions--create .cd-btn-primary,
+    .cd-actions--create .cd-btn-secondary {
+        width: auto;
+        min-width: 110px;
+        height: 40px;
+        padding: 0 18px;
+    }
+    .cd-actions__edit-row {
+        display: flex;
+        justify-content: flex-end;
+        align-items: center;
+        gap: 10px;
+    }
+    .cd-actions__edit-wrapper {
+        display: flex;
+        flex-direction: column;
+        gap: .5rem;
+        width: max-content;
+        max-width: 100%;
+        margin-left: auto;
+    }
+    .cd-actions__edit-row .cd-btn-primary,
+    .cd-actions__edit-row .cd-btn-secondary {
+        width: auto;
+        min-width: 110px;
+        height: 40px;
+        padding: 0 18px;
+    }
+    .cd-actions__edit-wrapper .cd-btn-reset { width: 100%; }
     .cd-btn-primary {
         width: 100%;
         padding: .75rem 1.2rem;
@@ -248,15 +327,36 @@
         font-size: .9rem;
         cursor: pointer;
     }
+    .cd-btn-reset {
+        width: 100%;
+        padding: .72rem 1.2rem;
+        border-radius: 12px;
+        border: 1px solid #efb4ac;
+        background: #fff;
+        color: #7A2E1F;
+        font-weight: 600;
+        font-size: .9rem;
+        cursor: pointer;
+    }
     .cd-flash-err {
-        padding: .75rem .95rem;
+        padding: .65rem .9rem;
         border-radius: 10px;
-        margin-bottom: 1rem;
+        margin-bottom: .75rem;
         font-weight: 600;
         font-size: .88rem;
         background: #fef2f2;
         color: #991b1b;
         border: 1px solid #fecaca;
+    }
+    .cd-flash-ok {
+        padding: .65rem .9rem;
+        border-radius: 10px;
+        margin-bottom: .75rem;
+        font-weight: 600;
+        font-size: .88rem;
+        background: #ecfdf5;
+        color: #166534;
+        border: 1px solid #bbf7d0;
     }
     .cd-empty {
         background: #f9fafb;
@@ -288,6 +388,12 @@
         </header>
 
         <div class="curator-drawer__body">
+            @if (session('status'))
+                <p class="cd-flash-ok" role="status">{{ session('status') }}</p>
+            @endif
+            @if (session('status_err'))
+                <p class="cd-flash-err" role="alert">{{ session('status_err') }}</p>
+            @endif
             @if ($errors->has('error'))
                 <p class="cd-flash-err" role="alert">{{ $errors->first('error') }}</p>
             @endif
@@ -336,36 +442,6 @@
                             <input class="cd-input" id="drawer_email" name="email" type="email"
                                    autocomplete="email" value="{{ $emailValue }}" required>
                         </div>
-                        @if ($isEditMode)
-                            <div class="cd-field">
-                                <label for="drawer_password">Password</label>
-                                <div class="cd-password">
-                                    <input class="cd-input" id="drawer_password" name="password" type="password"
-                                           autocomplete="new-password" minlength="8" placeholder="••••••••">
-                                    <button type="button"
-                                            class="cd-password__toggle"
-                                            id="toggleCuratorPassword"
-                                            aria-label="Show password"
-                                            aria-pressed="false"
-                                            title="Show password">
-                                        <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                             stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                            <g data-password-visible-icon>
-                                                <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"></path>
-                                                <circle cx="12" cy="12" r="3"></circle>
-                                            </g>
-                                            <g data-password-hidden-icon hidden>
-                                                <path d="M3 3l18 18"></path>
-                                                <path d="M10.6 10.6a2 2 0 0 0 2.8 2.8"></path>
-                                                <path d="M9.9 4.2A10.6 10.6 0 0 1 12 4c6.5 0 10 8 10 8a18 18 0 0 1-2.1 3.2"></path>
-                                                <path d="M6.2 6.2C3.5 8.1 2 12 2 12s3.5 8 10 8a9.8 9.8 0 0 0 4.1-.9"></path>
-                                            </g>
-                                        </svg>
-                                    </button>
-                                </div>
-                                <p class="cd-hint">Leave blank to keep the current password unchanged.</p>
-                            </div>
-                        @endif
                     </div>
 
                     <div class="cd-section">
@@ -396,11 +472,34 @@
                         </div>
                     </div>
 
-                    <div class="cd-actions">
-                        <button type="submit" class="cd-btn-primary">{{ $isEditMode ? 'Save changes' : 'Create curator' }}</button>
-                        <button type="button" class="cd-btn-secondary" id="cancelCuratorDrawer">Cancel</button>
+                    <div class="cd-actions{{ $isEditMode ? '' : ' cd-actions--create' }}" id="curatorDrawerActions">
+                        @if ($isEditMode)
+                            <div class="cd-actions__edit-wrapper">
+                                <div class="cd-actions__edit-row">
+                                    <button type="submit" class="cd-btn-primary" id="curatorSubmitButton">Save changes</button>
+                                    <button type="button" class="cd-btn-secondary" id="cancelCuratorDrawer">Cancel</button>
+                                </div>
+                                <button type="submit" class="cd-btn-reset" id="curatorResetPasswordButton" form="curatorPasswordResetForm">Reset password</button>
+                            </div>
+                        @else
+                            <button type="submit" class="cd-btn-primary" id="curatorSubmitButton">Create curator</button>
+                            <button type="button" class="cd-btn-secondary" id="cancelCuratorDrawer">Cancel</button>
+                        @endif
                     </div>
                 </form>
+                @if ($isEditMode)
+                    <form method="POST" action="{{ route('sitemanager.curators.reset-password', ['uid' => $editCurator->uid]) }}" id="curatorPasswordResetForm">
+                        @csrf
+                    </form>
+                    @if (($editCurator->account_status ?? 'active') === 'inactive')
+                        <div class="cd-actions" style="margin-top:.75rem;">
+                            <form method="POST" action="{{ route('sitemanager.curators.activate', ['uid' => $editCurator->uid]) }}">
+                                @csrf
+                                <button type="button" class="cd-btn-secondary js-curator-activate-action">Activate</button>
+                            </form>
+                        </div>
+                    @endif
+                @endif
             @endif
         </div>
     </aside>
@@ -412,30 +511,89 @@
     var openBtn = document.getElementById('openCuratorDrawer');
     var closeBtn = document.getElementById('closeCuratorDrawer');
     var cancelBtn = document.getElementById('cancelCuratorDrawer');
+    var form = document.getElementById('curatorCreateForm');
+    var title = document.getElementById('curatorDrawerTitle');
+    var submitButton = document.getElementById('curatorSubmitButton');
+    var drawerActions = document.getElementById('curatorDrawerActions');
+    var resetPasswordButton = document.getElementById('curatorResetPasswordButton');
+    var initialEditMode = @json($isEditMode);
+    var hasSelectedCurator = @json($isEditMode && ! empty($editCurator?->uid));
+    var modalMode = initialEditMode && hasSelectedCurator ? 'edit' : 'create';
+    var firstNameInput = document.getElementById('drawer_first_name');
+    var lastNameInput = document.getElementById('drawer_last_name');
+    var emailInput = document.getElementById('drawer_email');
+    var assignedLandmarkInput = document.getElementById('drawer_assigned_landmark_id');
+    var landmarkSearchInput = document.getElementById('drawer_landmark_search');
     if (!backdrop) return;
+    if (backdrop.classList.contains('is-open')) {
+        document.body.style.overflow = 'hidden';
+    }
 
     function curatorsBaseUrl() {
         return @json(route('sitemanager.curators'));
     }
 
-    function openCuratorDrawer() {
+    function curatorsUrlWithoutDrawerParams() {
+        var url = new URL(window.location.href);
+        url.searchParams.delete('edit');
+        url.searchParams.delete('create');
+
+        var query = url.searchParams.toString();
+        return curatorsBaseUrl() + (query ? '?' + query : '');
+    }
+
+    function setCreateMode() {
+        modalMode = 'create';
+        backdrop.dataset.modalMode = modalMode;
+        if (title) title.textContent = 'Create curator account';
+        if (submitButton) submitButton.textContent = 'Create curator';
+        if (drawerActions) drawerActions.classList.add('cd-actions--create');
+        if (resetPasswordButton) resetPasswordButton.hidden = true;
+        if (form) {
+            form.setAttribute('action', @json(route('sitemanager.curators.store')));
+            form.querySelectorAll('input[name="_method"]').forEach(function (input) {
+                input.remove();
+            });
+        }
+        if (firstNameInput) firstNameInput.value = '';
+        if (lastNameInput) lastNameInput.value = '';
+        if (emailInput) emailInput.value = '';
+        if (assignedLandmarkInput) assignedLandmarkInput.value = '';
+        if (landmarkSearchInput) {
+            landmarkSearchInput.value = '';
+            landmarkSearchInput.setCustomValidity('');
+        }
+    }
+
+    function setEditMode() {
+        modalMode = hasSelectedCurator ? 'edit' : 'create';
+        backdrop.dataset.modalMode = modalMode;
+        if (drawerActions) drawerActions.classList.toggle('cd-actions--create', modalMode !== 'edit');
+        if (resetPasswordButton) resetPasswordButton.hidden = modalMode !== 'edit' || !hasSelectedCurator;
+    }
+
+    function showCuratorDrawer() {
         backdrop.classList.add('is-open');
         backdrop.setAttribute('aria-hidden', 'false');
         document.body.style.overflow = 'hidden';
-        if (window.location.search.indexOf('create=1') === -1 && window.location.search.indexOf('edit=') === -1) {
-            try {
-                history.replaceState(null, '', curatorsBaseUrl() + '?create=1');
-            } catch (e) { /* ignore */ }
-        }
+    }
+
+    function openCuratorDrawer() {
+        setCreateMode();
+        showCuratorDrawer();
+        try {
+            history.replaceState(null, '', curatorsBaseUrl() + '?create=1');
+        } catch (e) { /* ignore */ }
     }
 
     function closeCuratorDrawer() {
         backdrop.classList.remove('is-open');
         backdrop.setAttribute('aria-hidden', 'true');
         document.body.style.overflow = '';
+        setCreateMode();
         try {
             if (window.location.search.indexOf('create=1') !== -1 || window.location.search.indexOf('edit=') !== -1) {
-                history.replaceState(null, '', curatorsBaseUrl());
+                history.replaceState(null, '', curatorsUrlWithoutDrawerParams());
             }
         } catch (e) { /* ignore */ }
     }
@@ -449,19 +607,6 @@
     if (cancelBtn) {
         cancelBtn.addEventListener('click', closeCuratorDrawer);
     }
-    var passwordInput = document.getElementById('drawer_password');
-    var passwordToggle = document.getElementById('toggleCuratorPassword');
-    if (passwordInput && passwordToggle) {
-        passwordToggle.addEventListener('click', function () {
-            var show = passwordInput.type === 'password';
-            passwordInput.type = show ? 'text' : 'password';
-            passwordToggle.setAttribute('aria-label', show ? 'Hide password' : 'Show password');
-            passwordToggle.setAttribute('aria-pressed', show ? 'true' : 'false');
-            passwordToggle.setAttribute('title', show ? 'Hide password' : 'Show password');
-            passwordToggle.querySelector('[data-password-visible-icon]').hidden = show;
-            passwordToggle.querySelector('[data-password-hidden-icon]').hidden = !show;
-        });
-    }
     backdrop.addEventListener('click', function (e) {
         if (e.target === backdrop) {
             closeCuratorDrawer();
@@ -472,6 +617,12 @@
             closeCuratorDrawer();
         }
     });
+
+    if (modalMode === 'edit') {
+        setEditMode();
+    } else if (resetPasswordButton) {
+        resetPasswordButton.hidden = true;
+    }
 
     (function initLandmarkCombobox() {
         var root = document.getElementById('landmarkCombobox');
@@ -484,6 +635,8 @@
         var options = @json($landmarkOptions);
         var highlighted = -1;
         var listOpen = false;
+
+        document.body.appendChild(list);
 
         function normalize(text) {
             return (text || '').toLowerCase().trim();
@@ -501,6 +654,39 @@
             listOpen = open;
             search.setAttribute('aria-expanded', open ? 'true' : 'false');
             list.classList.toggle('is-open', open);
+            if (open) positionList();
+        }
+
+        function positionList() {
+            var viewport = window.visualViewport;
+            var viewportTop = viewport ? viewport.offsetTop : 0;
+            var viewportLeft = viewport ? viewport.offsetLeft : 0;
+            var viewportHeight = viewport ? viewport.height : window.innerHeight;
+            var viewportWidth = viewport ? viewport.width : document.documentElement.clientWidth;
+            var viewportBottom = viewportTop + viewportHeight;
+            var viewportRight = viewportLeft + viewportWidth;
+            var padding = 8;
+            var gap = 4;
+            var maxMenuHeight = 322;
+            var triggerRect = search.getBoundingClientRect();
+            var spaceBelow = Math.max(0, viewportBottom - padding - triggerRect.bottom - gap);
+            var spaceAbove = Math.max(0, triggerRect.top - viewportTop - padding - gap);
+
+            list.style.width = Math.min(triggerRect.width, viewportWidth - (padding * 2)) + 'px';
+            list.style.maxHeight = maxMenuHeight + 'px';
+            var desiredHeight = Math.min(list.scrollHeight + 2, maxMenuHeight);
+            var opensUp = spaceBelow < desiredHeight && spaceAbove > spaceBelow;
+            var availableSpace = opensUp ? spaceAbove : spaceBelow;
+            list.style.maxHeight = Math.max(0, Math.min(maxMenuHeight, availableSpace)) + 'px';
+
+            var menuHeight = list.getBoundingClientRect().height;
+            var top = opensUp ? triggerRect.top - gap - menuHeight : triggerRect.bottom + gap;
+            var left = Math.max(
+                viewportLeft + padding,
+                Math.min(triggerRect.left, viewportRight - padding - list.getBoundingClientRect().width)
+            );
+            list.style.top = Math.max(viewportTop + padding, top) + 'px';
+            list.style.left = left + 'px';
         }
 
         function clearSelection() {
@@ -597,9 +783,20 @@
                     if (opt) selectOption(opt);
                 }
             } else if (e.key === 'Escape') {
+                if (listOpen) e.stopPropagation();
                 setExpanded(false);
             }
         });
+
+        document.addEventListener('mousedown', function (e) {
+            if (listOpen && !root.contains(e.target) && !list.contains(e.target)) {
+                setExpanded(false);
+            }
+        });
+        window.addEventListener('resize', function () { setExpanded(false); });
+        window.addEventListener('scroll', function (e) {
+            if (!list.contains(e.target)) setExpanded(false);
+        }, true);
 
         search.addEventListener('blur', function () {
             window.setTimeout(function () {
@@ -643,7 +840,7 @@
     })();
 
     @if ($openDrawer)
-    openCuratorDrawer();
+    showCuratorDrawer();
     @endif
 })();
 </script>

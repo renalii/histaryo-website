@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Histaryo - Home</title>
+    <title>HistARyo - Home</title>
     <link rel="icon" type="image/svg+xml" href="{{ asset('favicon.svg') }}">
     <style>
         * {
@@ -250,7 +250,7 @@
 <body>
 
 <header>
-    <div class="logo">Histaryo</div>
+    <div class="logo">HistARyo</div>
     <nav>
         <a href="{{ route('home') }}">Home</a>
         <a href="{{ route('about') }}">About</a>
@@ -265,8 +265,8 @@
         <h1>Discover Cebu Like Never Before</h1>
 
         <p>
-            Histaryo is an augmented reality-powered platform that brings Cebu’s rich cultural heritage to life.
-            Whether you're a tourist, student, or local, explore landmarks through interactive AR, historical overlays, and gamified tours — all from your mobile device.
+            HistARyo is an augmented reality-powered platform that brings Cebu’s rich cultural heritage to life.
+            Whether you're a tourist, student, or local, explore landmarks through interactive AR, historical overlays, and gamified tours all from your mobile device.
         </p>
         <div class="hero-cta">
             <h3>Start Exploring</h3>

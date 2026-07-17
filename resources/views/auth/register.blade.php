@@ -179,12 +179,50 @@
             color: #9f938a;
         }
 
+        .field-input-wrap {
+            position: relative;
+            width: 100%;
+        }
+
+        .field-input-wrap > input {
+            padding-left: 2.35rem;
+            border-color: #d7e2e8;
+            outline: none;
+            box-shadow: 0 2px 8px rgba(148, 163, 184, 0.12);
+        }
+
+        .field-input-wrap > input:focus,
+        .field-input-wrap > input:focus-visible {
+            outline: none !important;
+            border-color: #c7d3da;
+            box-shadow: 0 2px 8px rgba(148, 163, 184, 0.12);
+        }
+
+        .field-input-icon {
+            position: absolute;
+            left: 0.72rem;
+            top: 50%;
+            z-index: 1;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            color: #7c8798;
+            pointer-events: none;
+            transform: translateY(-50%);
+        }
+
+        .field-input-icon svg {
+            width: 1rem;
+            height: 1rem;
+        }
+
         .password-wrap {
             position: relative;
             width: 100%;
         }
 
         .password-wrap > input {
+            padding-left: 2.35rem;
             padding-right: 2.55rem;
         }
 
@@ -506,7 +544,7 @@
 <body>
 
 <header>
-    <div class="logo">Histaryo</div>
+    <div class="logo">HistARyo</div>
     <nav>
         <a href="{{ route('home') }}">Home</a>
         <a href="{{ route('about') }}">About</a>
@@ -519,7 +557,7 @@
     <div class="register-box">
         <div class="form-side">
             <h1>Site Manager</h1>
-            <p class="eyebrow">Join Histaryo</p>
+            <p class="eyebrow">Join HistARyo</p>
             <h2>Create Account</h2>
             
 
@@ -538,21 +576,39 @@
                 <div class="name-row">
                     <div class="field">
                         <label for="first_name">First name</label>
-                        <input id="first_name" type="text" name="first_name" placeholder="First name" value="{{ old('first_name') }}" autocomplete="given-name" required autofocus>
+                        <div class="field-input-wrap">
+                            <span class="field-input-icon" aria-hidden="true">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6.75a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.5 20.1a7.5 7.5 0 0 1 15 0"/></svg>
+                            </span>
+                            <input id="first_name" type="text" name="first_name" placeholder="First name" value="{{ old('first_name') }}" autocomplete="given-name" required autofocus>
+                        </div>
                     </div>
                     <div class="field">
                         <label for="last_name">Last name</label>
-                        <input id="last_name" type="text" name="last_name" placeholder="Last name" value="{{ old('last_name') }}" autocomplete="family-name" required>
+                        <div class="field-input-wrap">
+                            <span class="field-input-icon" aria-hidden="true">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 6.75a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.5 20.1a7.5 7.5 0 0 1 15 0"/></svg>
+                            </span>
+                            <input id="last_name" type="text" name="last_name" placeholder="Last name" value="{{ old('last_name') }}" autocomplete="family-name" required>
+                        </div>
                     </div>
                 </div>
                 <div class="field">
                     <label for="email">Email</label>
-                    <input id="email" type="email" name="email" placeholder="Enter your email address" value="{{ old('email') }}" autocomplete="email" required>
+                    <div class="field-input-wrap">
+                        <span class="field-input-icon" aria-hidden="true">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5v10.5H3.75V6.75Z"/><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 7.5 7.5 5.25 7.5-5.25"/></svg>
+                        </span>
+                        <input id="email" type="email" name="email" placeholder="Enter your email address" value="{{ old('email') }}" autocomplete="email" required>
+                    </div>
                 </div>
                 <div class="field">
                     <label for="password">Password</label>
-                    <div class="password-wrap">
-                        <input id="password" type="password" name="password" placeholder="Choose a secure password" autocomplete="new-password" required>
+                    <div class="password-wrap field-input-wrap">
+                        <span class="field-input-icon" aria-hidden="true">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M6 10.5h12v9H6v-9Z"/><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 10.5V7.75a3.75 3.75 0 0 1 7.5 0v2.75"/></svg>
+                        </span>
+                        <input id="password" type="password" name="password" placeholder="Create a strong password" autocomplete="new-password" required>
                         <button type="button" class="password-toggle" aria-label="Show password" aria-pressed="false" data-label-show="Show password" data-label-hide="Hide password">
                             <svg class="pw-icon pw-icon-show" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.75" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 5 12 5c4.638 0 8.573 2.51 9.964 6.322.053.158.053.33 0 .488C20.577 16.49 16.64 19 12 19c-4.638 0-8.573-2.51-9.964-6.322z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
                             <svg class="pw-icon pw-icon-hide" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.75" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M3.98 8.223A10.477 10.477 0 001.934 12C3.226 16.338 7.244 19 12 19c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.45 10.45 0 0112 5c4.756 0 8.773 2.663 10.065 7.022a10.522 10.522 0 01-4.293 5.774M6.228 6.228L3 3m3.228 3.228l3.65 3.65m7.894 7.894L21 21m-3.228-3.228l-3.65-3.65m0 0a3 3 0 10-4.243-4.243m4.242 4.242L9.88 9.88"/></svg>
@@ -561,8 +617,11 @@
                 </div>
                 <div class="field">
                     <label for="password_confirmation">Confirm password</label>
-                    <div class="password-wrap">
-                        <input id="password_confirmation" type="password" name="password_confirmation" placeholder="Re-enter your password" autocomplete="new-password" required aria-describedby="password-confirm-hint">
+                    <div class="password-wrap field-input-wrap">
+                        <span class="field-input-icon" aria-hidden="true">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M6 10.5h12v9H6v-9Z"/><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 10.5V7.75a3.75 3.75 0 0 1 7.5 0v2.75"/></svg>
+                        </span>
+                        <input id="password_confirmation" type="password" name="password_confirmation" placeholder="Confirm your password" autocomplete="new-password" required aria-describedby="password-confirm-hint">
                         <button type="button" class="password-toggle" aria-label="Show confirm password" aria-pressed="false" data-label-show="Show confirm password" data-label-hide="Hide confirm password">
                             <svg class="pw-icon pw-icon-show" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.75" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 5 12 5c4.638 0 8.573 2.51 9.964 6.322.053.158.053.33 0 .488C20.577 16.49 16.64 19 12 19c-4.638 0-8.573-2.51-9.964-6.322z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
                             <svg class="pw-icon pw-icon-hide" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.75" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M3.98 8.223A10.477 10.477 0 001.934 12C3.226 16.338 7.244 19 12 19c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.45 10.45 0 0112 5c4.756 0 8.773 2.663 10.065 7.022a10.522 10.522 0 01-4.293 5.774M6.228 6.228L3 3m3.228 3.228l3.65 3.65m7.894 7.894L21 21m-3.228-3.228l-3.65-3.65m0 0a3 3 0 10-4.243-4.243m4.242 4.242L9.88 9.88"/></svg>
@@ -582,7 +641,7 @@
             <!-- <div class="image-overlay">
                 <div class="overlay-card">
                     <h3>Explore Local Heritage</h3>
-                    <p>Get access to curated landmarks and engaging stories powered by Histaryo.</p>
+                    <p>Get access to curated landmarks and engaging stories powered by HistARyo.</p>
                 </div>
             </div> -->
         </div>
