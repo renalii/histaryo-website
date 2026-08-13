@@ -9,7 +9,6 @@ use App\Services\FirebaseService;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Session;
 
 class QuizController extends Controller
 {
@@ -218,15 +217,6 @@ class QuizController extends Controller
             'correct_answer' => (string) $request->correct_answer,
         ]);
         $this->forgetQuizCache($assigned);
-        $this->firebase->firestore()->collection('logs')->add([
-            'email' => Session::get('email'),
-            'role' => 'curator',
-            'action' => 'Curator added quiz question: '.str($request->question)->limit(80),
-            'landmark_id' => $assigned,
-            'quiz_question' => (string) $request->question,
-            'timestamp' => now()->toISOString(),
-        ]);
-
         return back()->with('success', 'Quiz added successfully');
     }
 
@@ -257,15 +247,6 @@ class QuizController extends Controller
             'correct_answer' => (string) $request->correct_answer,
         ]);
         $this->forgetQuizCache((string) ($snap['landmark_id'] ?? ''));
-        $this->firebase->firestore()->collection('logs')->add([
-            'email' => Session::get('email'),
-            'role' => 'curator',
-            'action' => 'Curator updated quiz question: '.str($request->question)->limit(80),
-            'landmark_id' => (string) ($snap['landmark_id'] ?? ''),
-            'quiz_id' => $id,
-            'quiz_question' => (string) $request->question,
-            'timestamp' => now()->toISOString(),
-        ]);
 
         return redirect()
             ->route('curators.quiz.all')
@@ -279,19 +260,8 @@ class QuizController extends Controller
             abort(404);
         }
         CuratorAssignedLandmark::assertMatches((string) ($snap['landmark_id'] ?? ''));
-        $question = (string) ($snap['question'] ?? '');
-
         $this->firebase->deleteQuiz($id);
         $this->forgetQuizCache((string) ($snap['landmark_id'] ?? ''));
-        $this->firebase->firestore()->collection('logs')->add([
-            'email' => Session::get('email'),
-            'role' => 'curator',
-            'action' => 'Curator deleted quiz question: '.($question !== '' ? str($question)->limit(80) : $id),
-            'landmark_id' => (string) ($snap['landmark_id'] ?? ''),
-            'quiz_id' => $id,
-            'quiz_question' => $question,
-            'timestamp' => now()->toISOString(),
-        ]);
 
         return redirect()
             ->route('curators.quiz.all')

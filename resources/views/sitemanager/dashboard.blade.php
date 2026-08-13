@@ -45,20 +45,46 @@
     .leaderboard-landmark-select { position: relative; width: 255px; }
     .leaderboard-landmark-select > select { display: none; }
     .leaderboard-landmark-select__toggle {
+        position: relative;
+        box-sizing: border-box;
         width: 100%;
-        border: 1px solid #d9dee7;
-        border-radius: 9px;
-        background: #fffdf7;
-        color: #3f261f;
-        padding: .55rem 2rem .55rem .7rem;
+        height: 46px;
+        border: 1px solid #d1d5db;
+        border-radius: 8px;
+        background: #fff;
+        color: #111827;
+        padding: .62rem 2rem .62rem .72rem;
         font: inherit;
-        font-size: .88rem;
+        font-size: .9rem;
         font-weight: 700;
         cursor: pointer;
         text-align: left;
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
+    }
+    .leaderboard-landmark-select__toggle:focus,
+    .leaderboard-landmark-select__toggle:focus-visible {
+        border-color: #d1d5db;
+        outline: none;
+        box-shadow: none;
+    }
+    .leaderboard-landmark-select--searchable,
+    .leaderboard-landmark-select--searchable:focus-within,
+    .leaderboard-landmark-select--searchable .leaderboard-landmark-select__toggle,
+    .leaderboard-landmark-select--searchable .leaderboard-landmark-select__toggle:focus,
+    .leaderboard-landmark-select--searchable .leaderboard-landmark-select__toggle:focus-visible {
+        border-color: #d1d5db;
+        outline: none;
+        box-shadow: none;
+    }
+    .leaderboard-landmark-select--searchable .leaderboard-landmark-select__toggle::selection {
+        background: transparent;
+        color: inherit;
+    }
+    .leaderboard-landmark-select--searchable .leaderboard-landmark-select__toggle::-moz-selection {
+        background: transparent;
+        color: inherit;
     }
     .leaderboard-landmark-select__toggle::after {
         content: '';
@@ -72,6 +98,47 @@
         transform: translateY(-70%) rotate(45deg);
         pointer-events: none;
     }
+    .leaderboard-landmark-select__arrow {
+        position: absolute;
+        top: 1px;
+        right: 1px;
+        z-index: 1;
+        width: 2.5rem;
+        height: 44px;
+        padding: 0;
+        border: 0;
+        border-radius: 0 7px 7px 0;
+        background: transparent;
+        color: #374151;
+        cursor: pointer;
+    }
+    .leaderboard-landmark-select__arrow::after {
+        content: '';
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        width: .45rem;
+        height: .45rem;
+        border-right: 2px solid currentColor;
+        border-bottom: 2px solid currentColor;
+        transform: translate(-50%, -70%) rotate(45deg);
+    }
+    .leaderboard-landmark-select.is-open .leaderboard-landmark-select__arrow::after {
+        transform: translate(-50%, -30%) rotate(225deg);
+    }
+    .leaderboard-landmark-select__arrow:focus-visible {
+        outline: 2px solid #9ca3af;
+        outline-offset: -3px;
+    }
+    .leaderboard-landmark-select--searchable .leaderboard-landmark-select__toggle::after { display: none; }
+    .period-select { width: 110px; }
+    .period-select .leaderboard-landmark-select__toggle { height: 40px; }
+    .period-select .leaderboard-landmark-select__toggle::after { display: none; }
+    .period-select .leaderboard-landmark-select__arrow { height: 38px; }
+    .visitor-filter-select { width: 150px; }
+    .visitor-filter-select .leaderboard-landmark-select__toggle { height: 40px; }
+    .visitor-filter-select .leaderboard-landmark-select__toggle::after { display: none; }
+    .visitor-filter-select .leaderboard-landmark-select__arrow { height: 38px; }
     .leaderboard-landmark-select__options {
         position: fixed;
         z-index: 9999;
@@ -79,6 +146,7 @@
         max-height: 322px;
         margin: 0;
         padding: 0;
+        overflow-x: hidden;
         overflow-y: auto;
         border: 1px solid #d1d5db;
         border-radius: 6px;
@@ -92,21 +160,31 @@
     .leaderboard-landmark-select__option {
         display: block;
         width: 100%;
-        height: 32px;
-        padding: 0 .7rem;
+        height: 40px;
+        padding: 0 .72rem;
         border: 0;
         background: transparent;
-        color: #3f261f;
+        color: #111827;
         font: inherit;
-        font-size: .88rem;
-        line-height: 32px;
+        font-size: .9rem;
+        line-height: 40px;
         text-align: left;
         white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
         cursor: pointer;
     }
     .leaderboard-landmark-select__option:hover,
     .leaderboard-landmark-select__option:focus,
     .leaderboard-landmark-select__option[aria-selected="true"] { background: #f3f4f6; outline: none; }
+    .leaderboard-landmark-select__empty {
+        height: 40px;
+        padding: 0 .72rem;
+        color: #6b7280;
+        font-size: .9rem;
+        line-height: 40px;
+        white-space: nowrap;
+    }
     .analytics-controls { display: flex; align-items: center; gap: .75rem; flex-wrap: wrap; }
     .chart-wrap { position: relative; height: 330px; }
     .visitor-landmark-chart { margin-top: .85rem; }
@@ -183,6 +261,7 @@
         .analytics-controls { align-items: stretch; flex-direction: column; }
         .analytics-filter { justify-content: space-between; }
         .analytics-filter select { flex: 1; }
+        .visitor-filter-select { width: 100%; }
         .chart-wrap { height: 250px; }
         .visitor-chart-controls { align-items: stretch; flex-direction: column; }
         .visitor-chart-canvas-wrap { height: 220px; }
@@ -222,25 +301,55 @@
             <div class="analytics-controls">
                 <div class="analytics-filter">
                     <label for="visitorAnalyticsLandmark">Landmark</label>
-                    <div class="leaderboard-landmark-select">
+                    <div class="leaderboard-landmark-select leaderboard-landmark-select--searchable">
                         <select id="visitorAnalyticsLandmark">
                             @foreach (($statistics['landmark_options'] ?? [['id' => 'all', 'name' => 'All managed landmarks']]) as $option)
                                 <option value="{{ $option['id'] }}">{{ $option['name'] }}</option>
                             @endforeach
                         </select>
-                        <button type="button" id="visitorAnalyticsLandmarkToggle" class="leaderboard-landmark-select__toggle" aria-haspopup="listbox" aria-controls="visitorAnalyticsLandmarkOptions" aria-expanded="false">All managed landmarks</button>
+                        <input type="text"
+                               id="visitorAnalyticsLandmarkToggle"
+                               class="leaderboard-landmark-select__toggle"
+                               value="All managed landmarks"
+                               placeholder="Type or select landmark..."
+                               autocomplete="off"
+                               role="combobox"
+                               aria-autocomplete="list"
+                               aria-haspopup="listbox"
+                               aria-controls="visitorAnalyticsLandmarkOptions"
+                               aria-expanded="false">
+                        <button type="button"
+                                id="visitorAnalyticsLandmarkArrow"
+                                class="leaderboard-landmark-select__arrow"
+                                aria-label="Toggle landmark options"
+                                aria-controls="visitorAnalyticsLandmarkOptions"
+                                aria-expanded="false"></button>
                         <ul id="visitorAnalyticsLandmarkOptions" class="leaderboard-landmark-select__options" role="listbox" hidden></ul>
                     </div>
                 </div>
                 <div class="analytics-filter">
                     <label for="visitorAnalyticsPeriod">Period</label>
-                    <select id="visitorAnalyticsPeriod">
-                        <option value="daily">Daily</option>
-                        <option value="weekly">Weekly</option>
-                        <option value="monthly">Monthly</option>
-                        <option value="yearly">Yearly</option>
-                        
-                    </select>
+                    <div class="leaderboard-landmark-select period-select">
+                        <select id="visitorAnalyticsPeriod">
+                            <option value="daily">Daily</option>
+                            <option value="weekly">Weekly</option>
+                            <option value="monthly">Monthly</option>
+                            <option value="yearly">Yearly</option>
+                        </select>
+                        <button type="button"
+                                id="visitorAnalyticsPeriodToggle"
+                                class="leaderboard-landmark-select__toggle"
+                                aria-haspopup="listbox"
+                                aria-controls="visitorAnalyticsPeriodOptions"
+                                aria-expanded="false">Daily</button>
+                        <button type="button"
+                                id="visitorAnalyticsPeriodArrow"
+                                class="leaderboard-landmark-select__arrow"
+                                aria-label="Toggle period options"
+                                aria-controls="visitorAnalyticsPeriodOptions"
+                                aria-expanded="false"></button>
+                        <ul id="visitorAnalyticsPeriodOptions" class="leaderboard-landmark-select__options" role="listbox" hidden></ul>
+                    </div>
                 </div>
             </div>
         </div>
@@ -254,21 +363,51 @@
         <div class="visitor-chart-controls">
             <div class="analytics-filter">
                 <label for="visitsPerLandmarkPeriod">Time Period</label>
-                <select id="visitsPerLandmarkPeriod">
-                    <option value="7" selected>Last 7 Days</option>
-                    <option value="30">Last 30 Days</option>
-                    <option value="90">Last 90 Days</option>
-                    <option value="all">All Time</option>
-                </select>
+                <div class="leaderboard-landmark-select visitor-filter-select">
+                    <select id="visitsPerLandmarkPeriod">
+                        <option value="7" selected>Last 7 Days</option>
+                        <option value="30">Last 30 Days</option>
+                        <option value="90">Last 90 Days</option>
+                        <option value="all">All Time</option>
+                    </select>
+                    <button type="button"
+                            id="visitsPerLandmarkPeriodToggle"
+                            class="leaderboard-landmark-select__toggle"
+                            aria-haspopup="listbox"
+                            aria-controls="visitsPerLandmarkPeriodOptions"
+                            aria-expanded="false">Last 7 Days</button>
+                    <button type="button"
+                            id="visitsPerLandmarkPeriodArrow"
+                            class="leaderboard-landmark-select__arrow custom-select-arrow"
+                            aria-label="Toggle options"
+                            aria-controls="visitsPerLandmarkPeriodOptions"
+                            aria-expanded="false"></button>
+                    <ul id="visitsPerLandmarkPeriodOptions" class="leaderboard-landmark-select__options" role="listbox" hidden></ul>
+                </div>
             </div>
             <div class="analytics-filter">
                 <label for="visitsPerLandmarkDisplay">Display</label>
-                <select id="visitsPerLandmarkDisplay">
-                    <option value="5">Top 5</option>
-                    <option value="10" selected>Top 10</option>
-                    <option value="20">Top 20</option>
-                    <option value="all">All Landmarks</option>
-                </select>
+                <div class="leaderboard-landmark-select visitor-filter-select">
+                    <select id="visitsPerLandmarkDisplay">
+                        <option value="5">Top 5</option>
+                        <option value="10" selected>Top 10</option>
+                        <option value="20">Top 20</option>
+                        <option value="all">All Landmarks</option>
+                    </select>
+                    <button type="button"
+                            id="visitsPerLandmarkDisplayToggle"
+                            class="leaderboard-landmark-select__toggle"
+                            aria-haspopup="listbox"
+                            aria-controls="visitsPerLandmarkDisplayOptions"
+                            aria-expanded="false">Top 10</button>
+                    <button type="button"
+                            id="visitsPerLandmarkDisplayArrow"
+                            class="leaderboard-landmark-select__arrow custom-select-arrow"
+                            aria-label="Toggle options"
+                            aria-controls="visitsPerLandmarkDisplayOptions"
+                            aria-expanded="false"></button>
+                    <ul id="visitsPerLandmarkDisplayOptions" class="leaderboard-landmark-select__options" role="listbox" hidden></ul>
+                </div>
             </div>
         </div>
         <div class="visitor-landmark-chart">
@@ -290,13 +429,29 @@
             </div>
             <div class="analytics-filter">
                 <label for="leaderboardLandmark">Landmark</label>
-                <div class="leaderboard-landmark-select">
+                <div class="leaderboard-landmark-select leaderboard-landmark-select--searchable">
                     <select id="leaderboardLandmark">
                         @foreach (($statistics['landmark_options'] ?? [['id' => 'all', 'name' => 'All managed landmarks']]) as $option)
                             <option value="{{ $option['id'] }}">{{ $option['name'] }}</option>
                         @endforeach
                     </select>
-                    <button type="button" id="leaderboardLandmarkToggle" class="leaderboard-landmark-select__toggle" aria-haspopup="listbox" aria-controls="leaderboardLandmarkOptions" aria-expanded="false">All managed landmarks</button>
+                    <input type="text"
+                           id="leaderboardLandmarkToggle"
+                           class="leaderboard-landmark-select__toggle"
+                           value="All managed landmarks"
+                           placeholder="Type or select landmark..."
+                           autocomplete="off"
+                           role="combobox"
+                           aria-autocomplete="list"
+                           aria-haspopup="listbox"
+                           aria-controls="leaderboardLandmarkOptions"
+                           aria-expanded="false">
+                    <button type="button"
+                            id="leaderboardLandmarkArrow"
+                            class="leaderboard-landmark-select__arrow"
+                            aria-label="Toggle landmark options"
+                            aria-controls="leaderboardLandmarkOptions"
+                            aria-expanded="false"></button>
                     <ul id="leaderboardLandmarkOptions" class="leaderboard-landmark-select__options" role="listbox" hidden></ul>
                 </div>
             </div>
@@ -517,18 +672,62 @@
             next.disabled = leaderboardPage >= totalPages;
         }
 
-        function setupLandmarkDropdown(selectId, toggleId, menuId) {
+        function setupLandmarkDropdown(selectId, toggleId, arrowId, menuId) {
             const select = document.getElementById(selectId);
             const toggle = document.getElementById(toggleId);
+            const arrow = document.getElementById(arrowId);
             const menu = document.getElementById(menuId);
+            const root = toggle.parentElement;
+            const searchable = toggle.tagName === 'INPUT';
+            let isOpen = false;
+            const emptyItem = document.createElement('li');
+            emptyItem.className = 'leaderboard-landmark-select__empty';
+            emptyItem.textContent = 'No landmarks found.';
 
-            function closeDropdown() {
+            function setToggleLabel(label) {
+                if (searchable) {
+                    toggle.value = label;
+                } else {
+                    toggle.textContent = label;
+                }
+            }
+
+            function selectedLabel() {
+                return select.options[select.selectedIndex]?.textContent || 'All managed landmarks';
+            }
+
+            function closeDropdown(restoreSelection) {
+                isOpen = false;
                 menu.hidden = true;
                 menu.classList.remove('down', 'up');
+                root.classList.remove('is-open');
                 toggle.setAttribute('aria-expanded', 'false');
+                arrow.setAttribute('aria-expanded', 'false');
+                if (searchable && restoreSelection) {
+                    setToggleLabel(selectedLabel());
+                }
+            }
+
+            function filterOptions(query) {
+                const normalizedQuery = query.trim().toLocaleLowerCase();
+                let matches = 0;
+                menu.querySelectorAll('[role="option"]').forEach(function (entry) {
+                    const isAllOption = entry.dataset.value === 'all';
+                    const matchesQuery = normalizedQuery === ''
+                        ? true
+                        : !isAllOption && entry.textContent.toLocaleLowerCase().includes(normalizedQuery);
+                    entry.parentElement.hidden = !matchesQuery;
+                    if (matchesQuery) matches++;
+                });
+                emptyItem.remove();
+                if (matches === 0) {
+                    menu.appendChild(emptyItem);
+                }
             }
 
             function openDropdown() {
+                document.dispatchEvent(new CustomEvent('custom-select:open', { detail: root }));
+                isOpen = true;
                 const viewport = window.visualViewport;
                 const viewportTop = viewport ? viewport.offsetTop : 0;
                 const viewportLeft = viewport ? viewport.offsetLeft : 0;
@@ -536,7 +735,7 @@
                 const viewportRight = viewportLeft + (viewport ? viewport.width : document.documentElement.clientWidth);
                 const viewportPadding = 8;
                 const menuGap = 4;
-                const maxMenuHeight = 322; // Ten 32px options plus the 1px top and bottom borders.
+                const maxMenuHeight = 322; // Eight 40px options plus the 1px top and bottom borders.
                 const toggleRect = toggle.getBoundingClientRect();
                 const spaceBelow = Math.max(0, viewportBottom - toggleRect.bottom - menuGap - viewportPadding);
                 const spaceAbove = Math.max(0, toggleRect.top - viewportTop - menuGap - viewportPadding);
@@ -560,7 +759,9 @@
                 const maxLeft = viewportRight - viewportPadding - toggleRect.width;
                 menu.style.top = Math.max(viewportTop + viewportPadding, menuTop) + 'px';
                 menu.style.left = Math.max(viewportLeft + viewportPadding, Math.min(toggleRect.left, maxLeft)) + 'px';
+                root.classList.add('is-open');
                 toggle.setAttribute('aria-expanded', 'true');
+                arrow.setAttribute('aria-expanded', 'true');
 
                 const selected = menu.querySelector('[aria-selected="true"]');
                 if (selected) {
@@ -581,10 +782,11 @@
                 button.className = 'leaderboard-landmark-select__option';
                 button.setAttribute('role', 'option');
                 button.setAttribute('aria-selected', option.selected ? 'true' : 'false');
+                button.dataset.value = option.value;
                 button.textContent = option.textContent;
                 button.addEventListener('click', function () {
                     select.value = option.value;
-                    toggle.textContent = option.textContent;
+                    setToggleLabel(option.textContent);
                     menu.querySelectorAll('[role="option"]').forEach(function (entry) {
                         entry.setAttribute('aria-selected', entry === button ? 'true' : 'false');
                     });
@@ -597,29 +799,81 @@
             });
             document.body.appendChild(menu);
 
-            toggle.addEventListener('click', function () {
-                menu.hidden ? openDropdown() : closeDropdown();
+            arrow.addEventListener('mousedown', function (event) {
+                event.preventDefault();
+                event.stopPropagation();
             });
-            document.addEventListener('click', function (event) {
-                if (!toggle.parentElement.contains(event.target) && !menu.contains(event.target)) {
+            arrow.addEventListener('click', function (event) {
+                event.preventDefault();
+                event.stopPropagation();
+
+                if (isOpen) {
                     closeDropdown();
+                    return;
                 }
+
+                if (searchable) {
+                    filterOptions(toggle.value === selectedLabel() ? '' : toggle.value);
+                }
+                openDropdown();
+                toggle.focus({ preventScroll: true });
+                if (searchable) {
+                    const length = toggle.value.length;
+                    toggle.setSelectionRange(length, length);
+                }
+            });
+            toggle.addEventListener('click', function (event) {
+                event.stopPropagation();
+                if (!isOpen) {
+                    if (searchable) {
+                        filterOptions(toggle.value === selectedLabel() ? '' : toggle.value);
+                    }
+                    openDropdown();
+                }
+            });
+            if (searchable) {
+                toggle.addEventListener('input', function () {
+                    filterOptions(toggle.value);
+                    if (!isOpen) openDropdown();
+                });
+            }
+            document.addEventListener('click', function (event) {
+                if (!root.contains(event.target) && !menu.contains(event.target)) {
+                    closeDropdown(true);
+                }
+            });
+            document.addEventListener('custom-select:open', function (event) {
+                if (event.detail !== root) {
+                    closeDropdown(true);
+                }
+            });
+            menu.addEventListener('click', function (event) {
+                event.stopPropagation();
             });
             toggle.addEventListener('keydown', function (event) {
                 if (event.key === 'Escape') {
-                    closeDropdown();
+                    closeDropdown(true);
                 } else if (event.key === 'ArrowDown' || event.key === 'Enter' || event.key === ' ') {
+                    if (searchable && event.key === ' ') return;
                     event.preventDefault();
+                    if (searchable) filterOptions(toggle.value === selectedLabel() ? '' : toggle.value);
                     openDropdown();
-                    const selected = menu.querySelector('[aria-selected="true"]');
-                    (selected || menu.querySelector('[role="option"]'))?.focus({ preventScroll: true });
+                    const visibleOptions = Array.from(menu.querySelectorAll('[role="option"]')).filter(function (entry) {
+                        return !entry.parentElement.hidden;
+                    });
+                    const selected = visibleOptions.find(function (entry) {
+                        return entry.getAttribute('aria-selected') === 'true';
+                    });
+                    (selected || visibleOptions[0])?.focus({ preventScroll: true });
                 }
             });
             menu.addEventListener('keydown', function (event) {
-                const options = Array.from(menu.querySelectorAll('[role="option"]'));
+                const options = Array.from(menu.querySelectorAll('[role="option"]')).filter(function (entry) {
+                    return !entry.parentElement.hidden;
+                });
                 const currentIndex = options.indexOf(document.activeElement);
                 if (event.key === 'Escape') {
-                    closeDropdown();
+                    closeDropdown(true);
                     toggle.focus();
                 } else if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
                     event.preventDefault();
@@ -638,8 +892,36 @@
             }, true);
         }
 
-        setupLandmarkDropdown('visitorAnalyticsLandmark', 'visitorAnalyticsLandmarkToggle', 'visitorAnalyticsLandmarkOptions');
-        setupLandmarkDropdown('leaderboardLandmark', 'leaderboardLandmarkToggle', 'leaderboardLandmarkOptions');
+        setupLandmarkDropdown(
+            'visitorAnalyticsLandmark',
+            'visitorAnalyticsLandmarkToggle',
+            'visitorAnalyticsLandmarkArrow',
+            'visitorAnalyticsLandmarkOptions'
+        );
+        setupLandmarkDropdown(
+            'leaderboardLandmark',
+            'leaderboardLandmarkToggle',
+            'leaderboardLandmarkArrow',
+            'leaderboardLandmarkOptions'
+        );
+        setupLandmarkDropdown(
+            'visitorAnalyticsPeriod',
+            'visitorAnalyticsPeriodToggle',
+            'visitorAnalyticsPeriodArrow',
+            'visitorAnalyticsPeriodOptions'
+        );
+        setupLandmarkDropdown(
+            'visitsPerLandmarkPeriod',
+            'visitsPerLandmarkPeriodToggle',
+            'visitsPerLandmarkPeriodArrow',
+            'visitsPerLandmarkPeriodOptions'
+        );
+        setupLandmarkDropdown(
+            'visitsPerLandmarkDisplay',
+            'visitsPerLandmarkDisplayToggle',
+            'visitsPerLandmarkDisplayArrow',
+            'visitsPerLandmarkDisplayOptions'
+        );
 
         document.getElementById('visitorAnalyticsPeriod').addEventListener('change', updateVisitorAnalytics);
         document.getElementById('visitorAnalyticsLandmark').addEventListener('change', updateVisitorAnalytics);

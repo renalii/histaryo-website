@@ -175,12 +175,6 @@ class PasswordController extends Controller
                     : []
             );
 
-            $this->firebase->firestore()->collection('logs')->add([
-                'email' => $email,
-                'action' => 'Curator set password via invite link',
-                'timestamp' => now()->toISOString(),
-            ]);
-
             $destination = $assignedTrimmed === ''
                 ? route('curators.pending-assignment')
                 : route('curators.dashboard');
@@ -225,8 +219,6 @@ class PasswordController extends Controller
         ]);
 
         $uid = (string) Session::get('uid');
-        $email = (string) Session::get('email');
-
         try {
             $this->firebase->getAuth()->changeUserPassword($uid, $validated['password']);
 
@@ -238,12 +230,6 @@ class PasswordController extends Controller
             ], ['merge' => true]);
 
             Session::forget('must_change_password');
-
-            $this->firebase->firestore()->collection('logs')->add([
-                'email' => $email,
-                'action' => 'Curator changed password after invite',
-                'timestamp' => now()->toISOString(),
-            ]);
 
             return redirect()
                 ->to($this->curatorDestinationAfterGate())

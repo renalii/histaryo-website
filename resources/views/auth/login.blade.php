@@ -36,32 +36,6 @@
             flex-direction: column;
         }
 
-        header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 30px 60px;
-        }
-
-        .logo {
-            font-size: 1.6rem;
-            font-weight: 700;
-            color: var(--brand-dark);
-            letter-spacing: 0.3px;
-        }
-
-        nav a {
-            text-decoration: none;
-            color: #9a6f50;
-            margin-left: 25px;
-            font-weight: 500;
-            transition: color 0.2s ease;
-        }
-
-        nav a:hover {
-            color: var(--brand-dark);
-        }
-
         .container {
             flex: 1;
             min-height: 0;
@@ -368,15 +342,6 @@
         }
 
         @media (max-width: 850px) {
-            header {
-                padding: 20px 18px;
-            }
-
-            nav a {
-                margin-left: 12px;
-                font-size: 0.92rem;
-            }
-
             .login-box {
                 flex-direction: column;
                 width: 95%;
@@ -415,10 +380,6 @@
         }
 
         @media (max-height: 760px) and (min-width: 851px) {
-            header {
-                padding: 18px 40px;
-            }
-
             .login-box {
                 height: min(420px, calc(100vh - 100px));
             }
@@ -445,19 +406,7 @@
 <body>
 @php($isAdminPanel = ($panel ?? null) === 'admin')
 
-<header>
-    <div class="logo">{{ $isAdminPanel ? 'HistARyo Admin' : 'HistARyo' }}</div>
-    <nav>
-        <a href="{{ route('home') }}">Home</a>
-        <a href="{{ route('about') }}">About</a>
-        @if ($isAdminPanel)
-            <a href="{{ route('admin.landing') }}">Admin home</a>
-        @else
-            <a href="{{ route('login') }}">Login</a>
-            <a href="{{ route('register') }}">Register</a>
-        @endif
-    </nav>
-</header>
+@include('partials.public-header')
 
 <div class="container">
     <div class="login-box">

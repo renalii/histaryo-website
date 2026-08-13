@@ -229,14 +229,6 @@ class TipReviewController extends Controller
             'updatedAt' => now()->toISOString(),
         ], ['merge' => true]);
 
-        $this->firestore()->collection('logs')->add([
-            'email' => Session::get('email'),
-            'role' => 'curator',
-            'action' => 'Curator ' . ($decision === 'accepted' ? 'accepted' : 'rejected') . ' visitor tip: ' . $tipId,
-            'tip_id' => $tipId,
-            'landmark_id' => $tipLm,
-            'timestamp' => now()->toISOString(),
-        ]);
         foreach (['all', 'pending', 'accepted', 'rejected'] as $status) {
             Cache::forget('curator:tips:'.$tipLm.':'.$status);
         }

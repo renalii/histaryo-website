@@ -60,6 +60,89 @@
     .analytics-filter label { color: #6b7280; font-size: .85rem; font-weight: 700; }
     .analytics-filter select { border: 1px solid #d9dee7; border-radius: 9px; background: #fffdf7; color: #3f261f; padding: .55rem 2rem .55rem .7rem; font: inherit; font-size: .88rem; font-weight: 700; cursor: pointer; }
     .analytics-filter select:focus { outline: none; border-color: #d1d5db; box-shadow: none; }
+    .curator-period-select { position: relative; width: 110px; height: 40px; }
+    .curator-period-select > select { display: none; }
+    .curator-period-select__field {
+        box-sizing: border-box;
+        width: 100%;
+        height: 40px;
+        padding: 0 2.25rem 0 .7rem;
+        border: 1px solid #d9dee7;
+        border-radius: 9px;
+        background: #fffdf7;
+        color: #3f261f;
+        font: inherit;
+        font-size: .88rem;
+        font-weight: 700;
+        text-align: left;
+        cursor: pointer;
+    }
+    .curator-period-select__field:focus,
+    .curator-period-select__field:focus-visible { outline: none; border-color: #d1d5db; box-shadow: none; }
+    .curator-period-select__arrow {
+        position: absolute;
+        z-index: 1;
+        top: 1px;
+        right: 1px;
+        width: 2.5rem;
+        height: 38px;
+        padding: 0;
+        border: 0;
+        border-radius: 0 8px 8px 0;
+        background: transparent;
+        color: #3f261f;
+        cursor: pointer;
+    }
+    .curator-period-select__arrow::after {
+        content: '';
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        width: .45rem;
+        height: .45rem;
+        border-right: 2px solid currentColor;
+        border-bottom: 2px solid currentColor;
+        transform: translate(-50%, -70%) rotate(45deg);
+    }
+    .curator-period-select.is-open .curator-period-select__arrow::after {
+        transform: translate(-50%, -30%) rotate(225deg);
+    }
+    .curator-period-select__arrow:focus-visible { outline: 2px solid #9ca3af; outline-offset: -3px; }
+    .curator-period-select__menu {
+        position: fixed;
+        z-index: 10000;
+        box-sizing: border-box;
+        max-height: 280px;
+        margin: 0;
+        padding: 0;
+        overflow-x: hidden;
+        overflow-y: auto;
+        border: 1px solid #cbd5e1;
+        border-radius: 8px;
+        background: #fff;
+        box-shadow: 0 8px 18px rgba(0, 0, 0, .14);
+        list-style: none;
+    }
+    .curator-period-select__menu[hidden] { display: none; }
+    .curator-period-select__option {
+        display: flex;
+        align-items: center;
+        box-sizing: border-box;
+        width: 100%;
+        height: 40px;
+        padding: 0 12px;
+        border: 0;
+        background: #fff;
+        color: #111827;
+        font: inherit;
+        font-size: 14px;
+        text-align: left;
+        white-space: nowrap;
+        cursor: pointer;
+    }
+    .curator-period-select__option:hover,
+    .curator-period-select__option:focus,
+    .curator-period-select__option[aria-selected="true"] { background: #f8fafc; outline: none; }
     .chart-wrap { position: relative; height: 330px; }
     .leaderboard-card { margin-bottom: 2rem; overflow: hidden; }
     .table-wrap { margin-top: .9rem; overflow-x: auto; }
@@ -120,12 +203,25 @@
             </div>
             <div class="analytics-filter">
                 <label for="visitorAnalyticsPeriod">Period</label>
-                <select id="visitorAnalyticsPeriod">
-                    <option value="daily">Daily</option>
-                    <option value="weekly">Weekly</option>
-                    <option value="monthly">Monthly</option>
-                    <option value="yearly">Yearly</option>
-                </select>
+                <div class="curator-period-select">
+                    <select id="visitorAnalyticsPeriod">
+                        <option value="daily">Daily</option>
+                        <option value="weekly">Weekly</option>
+                        <option value="monthly">Monthly</option>
+                        <option value="yearly">Yearly</option>
+                    </select>
+                    <button type="button"
+                            class="curator-period-select__field"
+                            aria-haspopup="listbox"
+                            aria-controls="visitorAnalyticsPeriodOptions"
+                            aria-expanded="false">Daily</button>
+                    <button type="button"
+                            class="curator-period-select__arrow"
+                            aria-label="Toggle period options"
+                            aria-controls="visitorAnalyticsPeriodOptions"
+                            aria-expanded="false"></button>
+                    <ul id="visitorAnalyticsPeriodOptions" class="curator-period-select__menu" role="listbox" hidden></ul>
+                </div>
             </div>
         </div>
         <div class="chart-wrap">
@@ -174,6 +270,88 @@
     });
 
     document.addEventListener('DOMContentLoaded', function () {
+        const periodSelect = document.getElementById('visitorAnalyticsPeriod');
+        const periodRoot = periodSelect.closest('.curator-period-select');
+        const periodField = periodRoot.querySelector('.curator-period-select__field');
+        const periodArrow = periodRoot.querySelector('.curator-period-select__arrow');
+        const periodMenu = periodRoot.querySelector('.curator-period-select__menu');
+        let periodOpen = false;
+
+        function closePeriodDropdown() {
+            periodOpen = false;
+            periodMenu.hidden = true;
+            periodRoot.classList.remove('is-open');
+            periodField.setAttribute('aria-expanded', 'false');
+            periodArrow.setAttribute('aria-expanded', 'false');
+        }
+
+        function openPeriodDropdown() {
+            document.dispatchEvent(new CustomEvent('curator-dropdown:open', { detail: periodRoot }));
+            periodOpen = true;
+            const rect = periodField.getBoundingClientRect();
+            const gap = 4;
+            const padding = 8;
+            periodMenu.style.width = rect.width + 'px';
+            periodMenu.style.left = Math.max(padding, Math.min(rect.left, window.innerWidth - padding - rect.width)) + 'px';
+            periodMenu.style.top = rect.bottom + gap + 'px';
+            periodMenu.hidden = false;
+            periodRoot.classList.add('is-open');
+            periodField.setAttribute('aria-expanded', 'true');
+            periodArrow.setAttribute('aria-expanded', 'true');
+        }
+
+        Array.from(periodSelect.options).forEach(function (nativeOption) {
+            const item = document.createElement('li');
+            const option = document.createElement('button');
+            option.type = 'button';
+            option.className = 'curator-period-select__option';
+            option.setAttribute('role', 'option');
+            option.setAttribute('aria-selected', nativeOption.selected ? 'true' : 'false');
+            option.textContent = nativeOption.textContent;
+            option.addEventListener('click', function () {
+                periodSelect.value = nativeOption.value;
+                periodField.textContent = nativeOption.textContent;
+                periodMenu.querySelectorAll('[role="option"]').forEach(function (entry) {
+                    entry.setAttribute('aria-selected', entry === option ? 'true' : 'false');
+                });
+                closePeriodDropdown();
+                periodSelect.dispatchEvent(new Event('change', { bubbles: true }));
+                periodField.focus();
+            });
+            item.appendChild(option);
+            periodMenu.appendChild(item);
+        });
+        document.body.appendChild(periodMenu);
+
+        periodField.addEventListener('click', function (event) {
+            event.preventDefault();
+            event.stopPropagation();
+            if (!periodOpen) openPeriodDropdown();
+        });
+        periodArrow.addEventListener('mousedown', function (event) {
+            event.preventDefault();
+            event.stopPropagation();
+        });
+        periodArrow.addEventListener('click', function (event) {
+            event.preventDefault();
+            event.stopPropagation();
+            periodOpen ? closePeriodDropdown() : openPeriodDropdown();
+        });
+        periodMenu.addEventListener('click', function (event) { event.stopPropagation(); });
+        document.addEventListener('curator-dropdown:open', function (event) {
+            if (event.detail !== periodRoot) closePeriodDropdown();
+        });
+        document.addEventListener('click', function (event) {
+            if (!periodRoot.contains(event.target) && !periodMenu.contains(event.target)) closePeriodDropdown();
+        });
+        document.addEventListener('keydown', function (event) {
+            if (event.key === 'Escape') closePeriodDropdown();
+        });
+        window.addEventListener('resize', closePeriodDropdown);
+        window.addEventListener('scroll', function (event) {
+            if (!periodMenu.contains(event.target)) closePeriodDropdown();
+        }, true);
+
         const charts = @json($statistics['charts'] ?? []);
         const periods = {
             daily: { description: 'Visits during the last 7 days', color: '#7A2E1F' },
@@ -209,7 +387,7 @@
             }
         });
 
-        document.getElementById('visitorAnalyticsPeriod').addEventListener('change', function () {
+        periodSelect.addEventListener('change', function () {
             const period = periods[this.value] || periods.daily;
             const data = charts[this.value] || { labels: [], values: [] };
             document.getElementById('visitorAnalyticsDescription').textContent = period.description;

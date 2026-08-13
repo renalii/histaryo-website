@@ -4,7 +4,9 @@
 @php
     $openCreate = old('_form') === 'create' || request('create') === '1';
     $openEditId = old('_edit_id', request('edit'));
+    $openViewId = $openViewId ?? null;
     $routePrefix = $routePrefix ?? (session('role') === 'curator' ? 'curators' : 'sitemanager');
+    $categoryIndexUrl = route($routePrefix.'.exhibit-categories.index');
 @endphp
 
 <style>
@@ -89,6 +91,121 @@
     .ec-form label { display:grid; gap:.35rem; color:#374151; font-weight:700; font-size:.9rem; }
     .ec-form input[type="text"], .ec-form select { width:100%; min-height:46px; border:1px solid #d1d5db; border-radius:8px; background:#fff; color:#111827; padding:.62rem .72rem; font:inherit; outline:none; box-shadow:none; }
     .ec-form input[type="text"]:focus, .ec-form select:focus { border-color:#d1d5db; outline:none; box-shadow:none; }
+    .ec-form .exhibits-status-select {
+        box-sizing: border-box;
+        width: 100%;
+        height: 40px;
+        min-height: 40px;
+        margin: 0;
+        padding: 0 2rem 0 .75rem;
+        border: 1px solid #cbd5e1;
+        border-radius: 8px;
+        outline: none;
+        background-color: #fff;
+        background-image:
+            linear-gradient(45deg, transparent 50%, #374151 50%),
+            linear-gradient(135deg, #374151 50%, transparent 50%);
+        background-position:
+            calc(100% - .98rem) calc(50% - 1px),
+            calc(100% - .7rem) calc(50% - 1px);
+        background-repeat: no-repeat;
+        background-size: .3rem .3rem, .3rem .3rem;
+        color: #111827;
+        box-shadow: none;
+        font: inherit;
+        font-size: 14px;
+        font-weight: 700;
+        appearance: none;
+        -webkit-appearance: none;
+        -moz-appearance: none;
+    }
+    .ec-form .exhibits-status-select:focus,
+    .ec-form .exhibits-status-select:focus-visible {
+        border-color: #cbd5e1;
+        outline: none;
+        box-shadow: none;
+    }
+    .ec-custom-select { position:relative; display:block; width:100%; height:40px; }
+    .ec-custom-select__native { position:absolute; inset:0; opacity:0; pointer-events:none; }
+    .ec-custom-select__field {
+        box-sizing:border-box;
+        width:100%;
+        height:40px;
+        padding:0 2rem 0 .75rem;
+        border:1px solid #cbd5e1;
+        border-radius:8px;
+        background:#fff;
+        color:#111827;
+        font:inherit;
+        font-size:14px;
+        font-weight:700;
+        text-align:left;
+        cursor:pointer;
+    }
+    .ec-custom-select__field:focus,
+    .ec-custom-select__field:focus-visible { border-color:#cbd5e1; outline:none; box-shadow:none; }
+    .custom-select-arrow {
+        position:absolute;
+        z-index:1;
+        top:1px;
+        right:1px;
+        width:2.5rem;
+        height:38px;
+        padding:0;
+        border:0;
+        border-radius:0 7px 7px 0;
+        background:transparent;
+        color:#374151;
+        cursor:pointer;
+    }
+    .custom-select-arrow::after {
+        content:'';
+        position:absolute;
+        top:50%;
+        left:50%;
+        width:.45rem;
+        height:.45rem;
+        border-right:2px solid currentColor;
+        border-bottom:2px solid currentColor;
+        transform:translate(-50%, -70%) rotate(45deg);
+    }
+    .ec-custom-select.is-open .custom-select-arrow::after {
+        transform:translate(-50%, -30%) rotate(225deg);
+    }
+    .custom-select-arrow:focus-visible { outline:2px solid #9ca3af; outline-offset:-3px; }
+    .ec-custom-select__menu {
+        position:fixed;
+        z-index:9999;
+        box-sizing:border-box;
+        max-height:322px;
+        margin:0;
+        padding:0;
+        overflow-x:hidden;
+        overflow-y:auto;
+        scrollbar-width:thin;
+        border:1px solid #d1d5db;
+        border-radius:6px;
+        background:#fff;
+        box-shadow:0 8px 20px rgba(0,0,0,.15);
+        list-style:none;
+    }
+    .ec-custom-select__menu[hidden] { display:none; }
+    .ec-custom-select__option {
+        display:block;
+        width:100%;
+        height:40px;
+        padding:0 .72rem;
+        border:0;
+        background:transparent;
+        color:#111827;
+        font:inherit;
+        line-height:40px;
+        text-align:left;
+        cursor:pointer;
+    }
+    .ec-custom-select__option:hover,
+    .ec-custom-select__option:focus,
+    .ec-custom-select__option[aria-selected="true"] { background:#f3f4f6; outline:none; }
     .ec-pager { display:flex; justify-content:flex-end; align-items:center; gap:.6rem; padding-top:1rem; }
     @media (max-width:700px) { .ec-header { flex-direction:column; } .ec-btn { width:100%; } .ec-pager { justify-content:flex-start; flex-wrap:wrap; } }
 </style>
@@ -131,7 +248,12 @@
                             <td><strong style="color:#7A2E1F;">{{ $category['name'] }}</strong></td>
                             <td>
                                 <div class="ec-actions">
-                                    <button type="button" class="ec-btn ec-btn--soft" data-open-modal="category-view-{{ $category['id'] }}">View</button>
+                                    <button type="button"
+                                            class="ec-btn ec-btn--soft"
+                                            data-open-modal="category-view-{{ $category['id'] }}"
+                                            @if ($routePrefix === 'sitemanager')
+                                                data-category-id="{{ $category['id'] }}"
+                                            @endif>View</button>
                                 </div>
                             </td>
                         </tr>
@@ -175,7 +297,11 @@
 </div>
 
 @foreach ($categories as $category)
-    <div id="category-view-{{ $category['id'] }}" class="ec-modal" aria-hidden="true">
+    <div id="category-view-{{ $category['id'] }}"
+         class="ec-modal{{ (string) $openViewId === (string) $category['id'] ? ' is-open' : '' }}"
+         aria-hidden="{{ (string) $openViewId === (string) $category['id'] ? 'false' : 'true' }}"
+         data-category-view-modal
+         data-index-url="{{ $categoryIndexUrl }}">
         <div class="ec-panel">
             <button type="button" class="ec-close" data-close-modal aria-label="Close">&times;</button>
             <h2 class="ec-modal-title">{{ $category['name'] }}</h2>
@@ -215,11 +341,16 @@
                 </label>
                 <label for="edit-category-status-{{ $category['id'] }}">
                     Status
-                    <select id="edit-category-status-{{ $category['id'] }}" name="status" required>
-                        @php $selectedStatus = (string) $openEditId === (string) $category['id'] ? old('status', $category['status']) : $category['status']; @endphp
-                        <option value="active" @selected($selectedStatus === 'active')>Active</option>
-                        <option value="inactive" @selected($selectedStatus === 'inactive')>Inactive</option>
-                    </select>
+                    <span class="ec-custom-select">
+                        <select id="edit-category-status-{{ $category['id'] }}" class="ec-custom-select__native" name="status" required>
+                            @php $selectedStatus = (string) $openEditId === (string) $category['id'] ? old('status', $category['status']) : $category['status']; @endphp
+                            <option value="active" @selected($selectedStatus === 'active')>Active</option>
+                            <option value="inactive" @selected($selectedStatus === 'inactive')>Inactive</option>
+                        </select>
+                        <button type="button" class="ec-custom-select__field" aria-haspopup="listbox" aria-expanded="false"></button>
+                        <button type="button" class="custom-select-arrow" aria-label="Toggle status options" aria-expanded="false"></button>
+                        <ul class="ec-custom-select__menu" role="listbox" hidden></ul>
+                    </span>
                 </label>
                 <div class="ec-delete-actions">
                     <button class="ec-btn ec-btn--soft" type="button" data-close-modal>Cancel</button>
@@ -247,30 +378,185 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', function () {
+    var customSelects = [];
+
+    function closeEcCustomSelects(exceptMenu) {
+        var closedAny = false;
+        customSelects.forEach(function (dropdown) {
+            if (dropdown.menu === exceptMenu) return;
+            if (dropdown.isOpen()) closedAny = true;
+            dropdown.close();
+        });
+        return closedAny;
+    }
+
+    document.querySelectorAll('.ec-custom-select').forEach(function (root) {
+        var select = root.querySelector('.ec-custom-select__native');
+        var field = root.querySelector('.ec-custom-select__field');
+        var arrow = root.querySelector('.custom-select-arrow');
+        var menu = root.querySelector('.ec-custom-select__menu');
+        var panel = root.closest('.ec-panel');
+        var isOpen = false;
+        if (!select || !field || !arrow || !menu) return;
+
+        function syncSelect() {
+            var selected = select.options[select.selectedIndex] || select.options[0];
+            field.textContent = selected ? selected.textContent : '';
+            menu.querySelectorAll('[role="option"]').forEach(function (option) {
+                option.setAttribute('aria-selected', option.dataset.value === select.value ? 'true' : 'false');
+            });
+        }
+
+        function closeSelect() {
+            isOpen = false;
+            menu.hidden = true;
+            root.classList.remove('is-open');
+            field.setAttribute('aria-expanded', 'false');
+            arrow.setAttribute('aria-expanded', 'false');
+        }
+
+        function openSelect() {
+            closeEcCustomSelects(menu);
+            isOpen = true;
+            var viewport = window.visualViewport;
+            var viewportTop = viewport ? viewport.offsetTop : 0;
+            var viewportLeft = viewport ? viewport.offsetLeft : 0;
+            var viewportBottom = viewportTop + (viewport ? viewport.height : window.innerHeight);
+            var viewportRight = viewportLeft + (viewport ? viewport.width : document.documentElement.clientWidth);
+            var panelRect = panel ? panel.getBoundingClientRect() : null;
+            var padding = 8;
+            var gap = 4;
+            var maxHeight = 322;
+            var boundaryTop = Math.max(viewportTop + padding, panelRect ? panelRect.top + padding : viewportTop + padding);
+            var boundaryBottom = Math.min(viewportBottom - padding, panelRect ? panelRect.bottom - padding : viewportBottom - padding);
+            var fieldRect = field.getBoundingClientRect();
+            var below = Math.max(0, boundaryBottom - fieldRect.bottom - gap);
+            var above = Math.max(0, fieldRect.top - boundaryTop - gap);
+
+            menu.style.width = fieldRect.width + 'px';
+            menu.style.maxHeight = maxHeight + 'px';
+            menu.hidden = false;
+            var desiredHeight = Math.min(menu.scrollHeight + 2, maxHeight);
+            var opensUp = below < desiredHeight && above > below;
+            menu.style.maxHeight = Math.min(maxHeight, opensUp ? above : below) + 'px';
+            var menuHeight = menu.getBoundingClientRect().height;
+            var top = opensUp ? fieldRect.top - gap - menuHeight : fieldRect.bottom + gap;
+            var maxLeft = viewportRight - padding - fieldRect.width;
+            menu.style.top = Math.max(boundaryTop, top) + 'px';
+            menu.style.left = Math.max(viewportLeft + padding, Math.min(fieldRect.left, maxLeft)) + 'px';
+            root.classList.add('is-open');
+            field.setAttribute('aria-expanded', 'true');
+            arrow.setAttribute('aria-expanded', 'true');
+
+            var selected = menu.querySelector('[aria-selected="true"]');
+            if (selected) selected.scrollIntoView({ block: 'nearest' });
+        }
+
+        Array.from(select.options).forEach(function (nativeOption) {
+            var item = document.createElement('li');
+            var option = document.createElement('button');
+            option.type = 'button';
+            option.className = 'ec-custom-select__option';
+            option.setAttribute('role', 'option');
+            option.dataset.value = nativeOption.value;
+            option.textContent = nativeOption.textContent;
+            option.addEventListener('click', function () {
+                select.value = nativeOption.value;
+                select.dispatchEvent(new Event('change', { bubbles: true }));
+                syncSelect();
+                closeSelect();
+                field.focus();
+            });
+            item.appendChild(option);
+            menu.appendChild(item);
+        });
+        document.body.appendChild(menu);
+        customSelects.push({ menu: menu, close: closeSelect, isOpen: function () { return isOpen; } });
+        syncSelect();
+
+        field.addEventListener('click', function (event) {
+            event.preventDefault();
+            event.stopPropagation();
+            if (!isOpen) openSelect();
+        });
+        arrow.addEventListener('mousedown', function (event) {
+            event.preventDefault();
+            event.stopPropagation();
+        });
+        arrow.addEventListener('click', function (event) {
+            event.preventDefault();
+            event.stopPropagation();
+            if (isOpen) {
+                closeSelect();
+            } else {
+                openSelect();
+                field.focus({ preventScroll: true });
+            }
+        });
+        menu.addEventListener('click', function (event) {
+            event.stopPropagation();
+        });
+    });
+
+    document.addEventListener('click', function (event) {
+        if (!event.target.closest('.ec-custom-select') && !event.target.closest('.ec-custom-select__menu')) {
+            closeEcCustomSelects();
+        }
+    });
+    window.addEventListener('resize', function () { closeEcCustomSelects(); });
+    window.addEventListener('scroll', function (event) {
+        if (!event.target.closest || !event.target.closest('.ec-custom-select__menu')) closeEcCustomSelects();
+    }, true);
+
     function syncScrollLock() {
         document.body.style.overflow = document.querySelector('.ec-modal.is-open') ? 'hidden' : '';
     }
 
-    function openModal(id) {
+    function categoryIndexHistoryUrl(modal) {
+        var configuredUrl = modal && modal.dataset.indexUrl
+            ? modal.dataset.indexUrl
+            : '/sitemanager/exhibit-categories';
+        try {
+            return new URL(configuredUrl, window.location.origin).pathname + window.location.search;
+        } catch (error) {
+            return '/sitemanager/exhibit-categories' + window.location.search;
+        }
+    }
+
+    function openModal(id, categoryId) {
         var modal = document.getElementById(id);
         if (!modal) return;
         modal.classList.add('is-open');
         modal.setAttribute('aria-hidden', 'false');
         syncScrollLock();
+        if (modal.hasAttribute('data-category-view-modal') && categoryId) {
+            try {
+                var detailUrl = categoryIndexHistoryUrl(modal).split('?')[0]
+                    + '/' + encodeURIComponent(categoryId)
+                    + window.location.search;
+                window.history.replaceState({ categoryId: categoryId }, '', detailUrl);
+            } catch (error) {}
+        }
     }
 
     function closeModal(modal) {
         if (!modal) return;
+        var isCategoryView = modal.hasAttribute('data-category-view-modal');
         var form = modal.querySelector('form');
         if (form && !modal.classList.contains('is-open-after-validation')) form.reset();
         modal.classList.remove('is-open');
         modal.setAttribute('aria-hidden', 'true');
         syncScrollLock();
+        if (isCategoryView && window.location.pathname !== categoryIndexHistoryUrl(modal).split('?')[0]) {
+            try {
+                window.history.replaceState({}, '', categoryIndexHistoryUrl(modal));
+            } catch (error) {}
+        }
     }
 
     document.querySelectorAll('[data-open-modal]').forEach(function (button) {
         button.addEventListener('click', function () {
-            openModal(button.dataset.openModal);
+            openModal(button.dataset.openModal, button.dataset.categoryId);
         });
     });
 
@@ -299,7 +585,9 @@ document.addEventListener('DOMContentLoaded', function () {
 
     document.addEventListener('keydown', function (event) {
         if (event.key !== 'Escape') return;
-        closeModal(document.querySelector('.ec-modal.is-open'));
+        if (closeEcCustomSelects()) return;
+        var openModals = document.querySelectorAll('.ec-modal.is-open');
+        closeModal(openModals.length ? openModals[openModals.length - 1] : null);
     });
 
     syncScrollLock();

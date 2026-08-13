@@ -4,10 +4,12 @@
 @php
     $openCreate = old('_form') === 'create' || request('create') === '1';
     $openEditId = old('_edit_id', request('edit'));
+    $openViewId = $openViewId ?? null;
     $categoryOptions = $categoryOptions ?? [];
     $landmarkOptions = $landmarkOptions ?? [$landmark];
     $canSelectLandmark = (bool) ($canSelectLandmark ?? false);
     $routePrefix = $routePrefix ?? (session('role') === 'site_manager' ? 'sitemanager' : 'curators');
+    $exhibitsIndexUrl = route($routePrefix.'.exhibits.index');
 @endphp
 
 <style>
@@ -40,15 +42,13 @@
         flex-wrap: wrap;
         align-items: center;
         padding: .8rem;
-        border: 1px solid #eceff3;
-        border-radius: 12px;
-        background: #fff;
-        box-shadow: 0 4px 14px rgba(15, 23, 42, .05);
         margin-bottom: 1rem;
     }
     .exhibits-toolbar--compact {
-        width: fit-content;
+        width: 100%;
         max-width: 100%;
+        flex-wrap: nowrap;
+        padding-top: 0;
         border-color: transparent;
         background: transparent;
         box-shadow: none;
@@ -101,9 +101,37 @@
         min-width: 150px;
         flex: 0 0 150px;
     }
+    .exhibits-toolbar--compact .exhibits-input {
+        width: 220px;
+        min-width: 220px;
+        max-width: 220px;
+        flex: 0 0 220px;
+    }
+    .exhibits-toolbar .category-filter {
+        width: 210px;
+        min-width: 210px;
+        flex-basis: 210px;
+    }
+    .exhibits-toolbar .landmark-filter {
+        width: 250px;
+        min-width: 250px;
+        flex-basis: 250px;
+    }
+    .exhibits-toolbar .status-filter {
+        width: 150px;
+        min-width: 150px;
+        flex-basis: 150px;
+    }
+    .exhibits-toolbar--compact .exhibits-btn { flex: 0 0 auto; }
     .exhibits-toolbar .category-dropdown__toggle {
         font-size: .9rem;
         font-weight: 700;
+    }
+    .exhibits-toolbar .category-filter .category-dropdown__toggle,
+    .exhibits-toolbar .landmark-filter .category-dropdown__toggle {
+        overflow: visible;
+        white-space: nowrap;
+        text-overflow: clip;
     }
     .exhibits-btn {
         display: inline-flex;
@@ -214,12 +242,18 @@
         color: #6b7280;
     }
     .exhibits-flash {
-        border-radius: 10px;
-        padding: .8rem 1rem;
+        display: inline-flex;
+        align-items: center;
+        gap: .5rem;
+        width: fit-content;
+        max-width: 500px;
+        border-radius: 12px;
+        padding: 12px 18px;
         margin-bottom: 1rem;
         font-weight: 700;
     }
-    .exhibits-flash--ok { background: #ecfdf5; color: #166534; border: 1px solid #bbf7d0; }
+    .exhibits-flash--ok { background: #e8f7ee; color: #166534; border: 1px solid #b7e4c7; }
+    .exhibits-flash--ok .exhibits-flash-icon { flex: 0 0 auto; font-size: 1.05rem; line-height: 1; }
     .exhibits-flash--err { background: #fef2f2; color: #991b1b; border: 1px solid #fecaca; }
     .exhibits-pager {
         display: flex;
@@ -292,6 +326,52 @@
         width: 100%;
         max-width: 100%;
     }
+    .exhibits-form input[type="file"].landmark-form-control {
+        box-sizing: border-box;
+        width: 100%;
+        max-width: 100%;
+        height: 40px;
+        min-height: 40px;
+        padding: 0 12px 0 0;
+        border: 1px solid #cbd5e1;
+        border-radius: 8px;
+        outline: none;
+        background: #fff;
+        color: #111827;
+        box-shadow: none;
+        font-family: inherit;
+        font-size: 14px;
+        line-height: 38px;
+    }
+    .exhibits-form input[type="file"].landmark-form-control:hover,
+    .exhibits-form input[type="file"].landmark-form-control:focus,
+    .exhibits-form input[type="file"].landmark-form-control:focus-visible {
+        border-color: #cbd5e1;
+        outline: none;
+        box-shadow: none;
+    }
+    .exhibits-form input[type="file"].landmark-form-control::file-selector-button {
+        height: 38px;
+        margin: 0 12px 0 0;
+        padding: 0 12px;
+        border: 0;
+        border-right: 1px solid #cbd5e1;
+        background: #f3f4f6;
+        color: #111827;
+        font: inherit;
+        cursor: pointer;
+    }
+    .exhibits-form input[type="file"].landmark-form-control::-webkit-file-upload-button {
+        height: 38px;
+        margin: 0 12px 0 0;
+        padding: 0 12px;
+        border: 0;
+        border-right: 1px solid #cbd5e1;
+        background: #f3f4f6;
+        color: #111827;
+        font: inherit;
+        cursor: pointer;
+    }
     .exhibits-form-note {
         border: 1px solid #f3dba7;
         border-radius: 10px;
@@ -322,6 +402,9 @@
     }
     .category-dropdown__toggle {
         position: relative;
+        display: block;
+        box-sizing: border-box;
+        min-width: 0;
         width: 100%;
         height: 46px;
         padding: .62rem 2rem .62rem .72rem;
@@ -333,28 +416,106 @@
         font-weight: inherit;
         text-align: left;
         cursor: pointer;
+        overflow: hidden;
+        line-height: 1;
+        white-space: nowrap;
+        text-overflow: ellipsis;
     }
-    .category-dropdown__toggle::after {
+    .custom-select-arrow {
+        position: absolute;
+        z-index: 1;
+        top: 1px;
+        right: 1px;
+        width: 2.5rem;
+        height: calc(100% - 2px);
+        padding: 0;
+        border: 0;
+        border-radius: 0 7px 7px 0;
+        background: transparent;
+        color: #374151;
+        cursor: pointer;
+    }
+    .custom-select-arrow::after {
         content: '';
         position: absolute;
         top: 50%;
-        right: .8rem;
+        left: 50%;
         width: .45rem;
         height: .45rem;
-        border-right: 2px solid #374151;
-        border-bottom: 2px solid #374151;
-        transform: translateY(-70%) rotate(45deg);
-        pointer-events: none;
+        border-right: 2px solid currentColor;
+        border-bottom: 2px solid currentColor;
+        transform: translate(-50%, -70%) rotate(45deg);
+    }
+    .category-dropdown.is-open .custom-select-arrow::after {
+        transform: translate(-50%, -30%) rotate(225deg);
+    }
+    .custom-select-arrow:focus-visible {
+        outline: 2px solid #9ca3af;
+        outline-offset: -3px;
     }
     .category-dropdown__toggle:disabled { cursor: default; }
+    .custom-select-arrow:disabled { cursor: default; }
+    .exhibits-toolbar .exhibits-input,
+    .exhibits-toolbar .exhibits-select,
+    .exhibits-toolbar .category-dropdown,
+    .exhibits-toolbar .category-dropdown__toggle,
+    .exhibits-toolbar .exhibits-btn {
+        box-sizing: border-box;
+        height: 40px;
+        min-height: 40px;
+        max-height: 40px;
+    }
+    .exhibits-toolbar .exhibits-input,
+    .exhibits-toolbar .exhibits-select,
+    .exhibits-toolbar .category-dropdown__toggle {
+        border-color: #cbd5e1;
+        border-width: 1px;
+        border-radius: 8px;
+        background-color: #fff;
+        color: #111827;
+        font-size: 14px;
+    }
+    .exhibits-toolbar .exhibits-input {
+        padding: 0 12px;
+    }
+    .exhibits-toolbar .category-filter .category-dropdown__toggle {
+        display: flex;
+        align-items: center;
+        padding: 0 2rem 0 12px;
+        line-height: 1;
+    }
+    .exhibits-toolbar .exhibits-select[name="category"] {
+        padding: 0 2rem 0 12px;
+        background-image:
+            linear-gradient(45deg, transparent 50%, #374151 50%),
+            linear-gradient(135deg, #374151 50%, transparent 50%);
+        background-position:
+            calc(100% - .98rem) calc(50% - 1px),
+            calc(100% - .7rem) calc(50% - 1px);
+        background-repeat: no-repeat;
+        background-size: .3rem .3rem, .3rem .3rem;
+        appearance: none;
+        -webkit-appearance: none;
+        -moz-appearance: none;
+    }
+    .exhibits-toolbar .category-filter .category-dropdown__toggle:hover,
+    .exhibits-toolbar .category-filter .category-dropdown__toggle:focus,
+    .exhibits-toolbar .category-filter .category-dropdown__toggle:focus-visible,
+    .exhibits-toolbar .exhibits-select[name="category"]:hover,
+    .exhibits-toolbar .exhibits-select[name="category"]:focus,
+    .exhibits-toolbar .exhibits-select[name="category"]:focus-visible {
+        border-color: #cbd5e1;
+        outline: none;
+        box-shadow: none;
+    }
     .exhibits-form .exhibits-status-select {
         box-sizing: border-box;
         width: 100%;
-        height: 46px;
-        min-height: 46px;
+        height: 40px;
+        min-height: 40px;
         margin: 0;
-        padding: .62rem 2rem .62rem .72rem;
-        border: 1px solid #d1d5db;
+        padding: 0 2rem 0 .75rem;
+        border: 1px solid #cbd5e1;
         border-radius: 8px;
         outline: none;
         background-color: #fff;
@@ -369,16 +530,61 @@
         color: #111827;
         box-shadow: none;
         font: inherit;
-        font-size: inherit;
+        font-size: 14px;
         font-weight: inherit;
         appearance: none;
         -webkit-appearance: none;
     }
     .exhibits-form .exhibits-status-select:focus,
     .exhibits-form .exhibits-status-select:focus-visible {
-        border-color: #d1d5db;
+        border-color: #cbd5e1;
         outline: none;
         box-shadow: none;
+    }
+    .add-exhibit-modal .exhibits-form .images-upload-control,
+    .add-exhibit-modal .exhibits-form .status-select-control {
+        width: 100%;
+        height: 42px;
+        min-height: 42px;
+        max-height: 42px;
+        box-sizing: border-box;
+        background: #ffffff;
+        border: 1px solid #cbd5e1;
+        border-radius: 8px;
+    }
+    .add-exhibit-modal .add-exhibit-status-dropdown,
+    .add-exhibit-modal .add-exhibit-status-dropdown .category-dropdown__native {
+        height: 42px;
+        min-height: 42px;
+        max-height: 42px;
+        box-sizing: border-box;
+    }
+    .add-exhibit-modal .images-upload-control::file-selector-button,
+    .add-exhibit-modal .images-upload-control::-webkit-file-upload-button {
+        height: 40px;
+    }
+    .edit-exhibit-modal .exhibits-form .equal-control {
+        width: 100%;
+        height: 42px;
+        min-height: 42px;
+        max-height: 42px;
+        box-sizing: border-box;
+        border: 1px solid #cbd5e1;
+        border-radius: 8px;
+        background: #ffffff;
+        margin: 0;
+    }
+    .edit-exhibit-modal .edit-exhibit-status-dropdown,
+    .edit-exhibit-modal .edit-exhibit-status-dropdown .category-dropdown__native {
+        height: 42px;
+        min-height: 42px;
+        max-height: 42px;
+        box-sizing: border-box;
+        margin: 0;
+    }
+    .edit-exhibit-modal .equal-control::file-selector-button,
+    .edit-exhibit-modal .equal-control::-webkit-file-upload-button {
+        height: 40px;
     }
     .category-dropdown-menu {
         position: fixed;
@@ -421,6 +627,43 @@
     .category-dropdown-menu__option:hover,
     .category-dropdown-menu__option:focus,
     .category-dropdown-menu__option[aria-selected="true"] { background: #f3f4f6; outline: none; }
+    .curator-custom-select-menu {
+        max-height: 280px;
+        overflow-x: hidden;
+        overflow-y: auto;
+        border-color: #cbd5e1;
+        border-radius: 8px;
+        background: #ffffff;
+        box-shadow: 0 8px 18px rgba(0, 0, 0, .14);
+        z-index: 10000;
+    }
+    .curator-custom-select-option {
+        display: flex;
+        align-items: center;
+        box-sizing: border-box;
+        width: 100%;
+        height: 40px;
+        min-height: 40px;
+        padding: 0 12px;
+        background: #ffffff;
+        color: #111827;
+        font-size: 14px;
+        line-height: 1;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    .curator-custom-select-option:hover { background: #f8fafc; }
+    .curator-exhibits-page .exhibits-toolbar .category-filter {
+        width: 220px;
+        min-width: 220px;
+        flex-basis: 220px;
+    }
+    .curator-exhibits-page .exhibits-toolbar .category-dropdown__toggle {
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
     .exhibits-form-alert {
         border: 1px solid #fde68a;
         border-radius: 8px;
@@ -569,6 +812,7 @@
         .exhibits-gallery { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     }
     @media (max-width: 700px) {
+        .exhibits-flash { max-width: 100%; }
         .exhibits-header { flex-direction: column; }
         .exhibits-grid-2 { grid-template-columns: 1fr; }
         .exhibits-view-header { flex-direction: column; }
@@ -585,7 +829,7 @@
     }
 </style>
 
-<div class="exhibits-wrap">
+<div class="exhibits-wrap{{ $routePrefix === 'curators' ? ' curator-exhibits-page' : '' }}">
     <div class="exhibits-header">
         <div>
             <h2 class="exhibits-title">Exhibits</h2>
@@ -598,15 +842,53 @@
     </div>
 
     @if (session('success'))
-        <div class="exhibits-flash exhibits-flash--ok">{{ session('success') }}</div>
+        <div class="exhibits-flash exhibits-flash--ok" role="status">
+            <span class="exhibits-flash-icon" aria-hidden="true">✓</span>
+            <span>{{ session('success') }}</span>
+        </div>
     @endif
     @if ($errors->any())
         <div class="exhibits-flash exhibits-flash--err">{{ $errors->first() }}</div>
     @endif
 
     <form method="GET" action="{{ route($routePrefix.'.exhibits.index') }}" class="exhibits-toolbar{{ $canSelectLandmark ? ' exhibits-toolbar--compact' : '' }}">
-        <input class="exhibits-input" type="search" name="search" value="{{ request('search') }}" placeholder="Search exhibits..." aria-label="Search exhibits">
-        @if (! $canSelectLandmark)
+        <input class="exhibits-input" type="search" name="search" value="{{ $search ?? request('search') }}" placeholder="Search exhibits..." aria-label="Search exhibits">
+        @if ($canSelectLandmark)
+            <span class="category-dropdown category-filter">
+                <select class="category-dropdown__native" name="category" aria-label="Filter by category">
+                    <option value="all" @selected(($categoryFilter ?? 'all') === 'all')>All categories</option>
+                    @foreach ($categoryOptions as $categoryOption)
+                        <option value="{{ $categoryOption }}" @selected(($categoryFilter ?? 'all') === $categoryOption)>{{ $categoryOption }}</option>
+                    @endforeach
+                </select>
+                <button class="category-dropdown__toggle" type="button" aria-haspopup="listbox" aria-expanded="false" aria-label="Filter by category"></button>
+                <button type="button" class="custom-select-arrow" aria-label="Toggle category options" aria-expanded="false"></button>
+                <ul class="category-dropdown-menu" role="listbox" aria-label="Category options" hidden></ul>
+            </span>
+            <span class="category-dropdown landmark-filter">
+                <select class="category-dropdown__native" name="landmark" aria-label="Filter by landmark">
+                    <option value="all" @selected(($selectedLandmarkId ?? 'all') === 'all')>All landmarks</option>
+                    @foreach ($landmarkOptions as $landmarkOption)
+                        <option value="{{ $landmarkOption['id'] }}" @selected(($selectedLandmarkId ?? 'all') === $landmarkOption['id'])>{{ $landmarkOption['name'] }}</option>
+                    @endforeach
+                </select>
+                <button class="category-dropdown__toggle" type="button" aria-haspopup="listbox" aria-expanded="false" aria-label="Filter by landmark"></button>
+                <button type="button" class="custom-select-arrow" aria-label="Toggle landmark options" aria-expanded="false"></button>
+                <ul class="category-dropdown-menu" role="listbox" aria-label="Landmark options" hidden></ul>
+            </span>
+        @elseif ($routePrefix === 'curators')
+            <span class="category-dropdown category-filter curator-custom-select">
+                <select class="category-dropdown__native" name="category" aria-label="Filter by category">
+                    <option value="all" @selected(($categoryFilter ?? 'all') === 'all')>All categories</option>
+                    @foreach ($categoryOptions as $categoryOption)
+                        <option value="{{ $categoryOption }}" @selected(($categoryFilter ?? 'all') === $categoryOption)>{{ $categoryOption }}</option>
+                    @endforeach
+                </select>
+                <button class="category-dropdown__toggle" type="button" aria-haspopup="listbox" aria-expanded="false" aria-label="Filter by category"></button>
+                <button type="button" class="custom-select-arrow" aria-label="Toggle category options" aria-expanded="false"></button>
+                <ul class="category-dropdown-menu" role="listbox" aria-label="Category options" hidden></ul>
+            </span>
+        @else
             <select class="exhibits-select" name="category" aria-label="Filter by category">
                 <option value="all" @selected(($categoryFilter ?? 'all') === 'all')>All categories</option>
                 @foreach ($categoryOptions as $categoryOption)
@@ -614,17 +896,18 @@
                 @endforeach
             </select>
         @endif
-        <span class="category-dropdown">
+        <span class="category-dropdown status-filter{{ $routePrefix === 'curators' ? ' curator-custom-select' : '' }}">
             <select class="category-dropdown__native" name="status" aria-label="Filter by status">
                 <option value="all" @selected($statusFilter === 'all')>All status</option>
                 <option value="active" @selected($statusFilter === 'active')>Active</option>
                 <option value="inactive" @selected($statusFilter === 'inactive')>Inactive</option>
             </select>
             <button class="category-dropdown__toggle" type="button" aria-haspopup="listbox" aria-expanded="false" aria-label="Filter by status"></button>
+            <button type="button" class="custom-select-arrow" aria-label="Toggle status options" aria-expanded="false"></button>
             <ul class="category-dropdown-menu" role="listbox" aria-label="Status options" hidden></ul>
         </span>
         <button class="exhibits-btn exhibits-btn--primary" type="submit">Search</button>
-        <a class="exhibits-btn exhibits-btn--soft" href="{{ route($routePrefix.'.exhibits.index') }}">Clear</a>
+        <button class="exhibits-btn exhibits-btn--soft" type="button" data-clear-filters data-clear-url="{{ route($routePrefix.'.exhibits.index') }}">Clear</button>
     </form>
 
     @if ($exhibits->isEmpty())
@@ -650,7 +933,9 @@
                             <td><span class="exhibits-pill exhibits-pill--{{ $exhibit['status'] }}">{{ ucfirst($exhibit['status']) }}</span></td>
                             <td>
                                 <div class="exhibits-actions">
-                                    <button type="button" class="exhibits-btn exhibits-btn--soft" data-open-modal="exhibit-view-{{ $exhibit['id'] }}">View</button>
+                                    <button type="button"
+                                            class="exhibits-btn exhibits-btn--soft"
+                                            data-open-modal="exhibit-view-{{ $exhibit['id'] }}">View</button>
                                 </div>
                             </td>
                         </tr>
@@ -677,7 +962,7 @@
     @endif
 </div>
 
-<div id="exhibit-create-modal" class="exhibits-modal{{ $openCreate ? ' is-open' : '' }}" aria-hidden="{{ $openCreate ? 'false' : 'true' }}">
+<div id="exhibit-create-modal" class="exhibits-modal add-exhibit-modal{{ $openCreate ? ' is-open' : '' }}" aria-hidden="{{ $openCreate ? 'false' : 'true' }}">
     <div class="exhibits-panel">
         <button type="button" class="exhibits-close" data-close-modal aria-label="Close">&times;</button>
         <h2 class="exhibits-modal-title">Add Exhibit</h2>
@@ -691,7 +976,12 @@
 </div>
 
 @foreach ($exhibits as $exhibit)
-    <div id="exhibit-view-{{ $exhibit['id'] }}" class="exhibits-modal" aria-hidden="true">
+    <div id="exhibit-view-{{ $exhibit['id'] }}"
+         class="exhibits-modal{{ (string) $openViewId === (string) $exhibit['id'] ? ' is-open' : '' }}"
+         aria-hidden="{{ (string) $openViewId === (string) $exhibit['id'] ? 'false' : 'true' }}"
+         data-exhibit-view-modal
+         data-exhibit-id="{{ $exhibit['id'] }}"
+         data-index-url="{{ $exhibitsIndexUrl }}">
         <div class="exhibits-panel exhibits-panel--wide exhibits-panel--view">
             <div class="exhibits-view-header">
                 <h2 class="exhibits-modal-title">{{ $exhibit['name'] }}</h2>
@@ -766,7 +1056,7 @@
         </div>
     </div>
 
-    <div id="exhibit-edit-{{ $exhibit['id'] }}" class="exhibits-modal{{ (string) $openEditId === (string) $exhibit['id'] ? ' is-open' : '' }}" aria-hidden="{{ (string) $openEditId === (string) $exhibit['id'] ? 'false' : 'true' }}">
+    <div id="exhibit-edit-{{ $exhibit['id'] }}" class="exhibits-modal edit-exhibit-modal{{ (string) $openEditId === (string) $exhibit['id'] ? ' is-open' : '' }}" aria-hidden="{{ (string) $openEditId === (string) $exhibit['id'] ? 'false' : 'true' }}">
         <div class="exhibits-panel exhibits-panel--form">
             <button type="button" class="exhibits-close" data-close-modal aria-label="Close">&times;</button>
             <h2 class="exhibits-modal-title">Edit Exhibit</h2>
@@ -812,20 +1102,29 @@
 document.addEventListener('DOMContentLoaded', function () {
     var categoryDropdowns = [];
 
-    function closeCategoryDropdowns(exceptMenu) {
+    document.querySelectorAll('[data-clear-filters]').forEach(function (button) {
+        button.addEventListener('click', function () {
+            window.location.assign(button.dataset.clearUrl);
+        });
+    });
+
+    function closeCategoryDropdowns(exceptMenu, group) {
         categoryDropdowns.forEach(function (dropdown) {
             if (dropdown.menu === exceptMenu) return;
-            dropdown.menu.hidden = true;
-            dropdown.toggle.setAttribute('aria-expanded', 'false');
+            if (group && dropdown.group !== group) return;
+            dropdown.close();
         });
     }
 
     document.querySelectorAll('.category-dropdown').forEach(function (root) {
         var select = root.querySelector('.category-dropdown__native');
         var toggle = root.querySelector('.category-dropdown__toggle');
+        var arrow = root.querySelector('.custom-select-arrow');
         var menu = root.querySelector('.category-dropdown-menu');
         var panel = root.closest('.exhibits-panel');
-        if (!select || !toggle || !menu) return;
+        var group = root.closest('.exhibits-modal') || root.closest('.exhibits-toolbar') || root;
+        var isOpen = false;
+        if (!select || !toggle || !arrow || !menu) return;
 
         function syncCategory() {
             var selectedOption = select.options[select.selectedIndex] || select.options[0];
@@ -836,12 +1135,16 @@ document.addEventListener('DOMContentLoaded', function () {
         }
 
         function closeCategory() {
+            isOpen = false;
             menu.hidden = true;
+            root.classList.remove('is-open');
             toggle.setAttribute('aria-expanded', 'false');
+            arrow.setAttribute('aria-expanded', 'false');
         }
 
         function openCategory() {
-            closeCategoryDropdowns(menu);
+            closeCategoryDropdowns(menu, group);
+            isOpen = true;
             var viewport = window.visualViewport;
             var viewportTop = viewport ? viewport.offsetTop : 0;
             var viewportLeft = viewport ? viewport.offsetLeft : 0;
@@ -850,7 +1153,7 @@ document.addEventListener('DOMContentLoaded', function () {
             var panelRect = panel ? panel.getBoundingClientRect() : null;
             var padding = 8;
             var gap = 4;
-            var maxMenuHeight = 322;
+            var maxMenuHeight = root.classList.contains('curator-custom-select') ? 280 : 322;
             var boundaryTop = Math.max(viewportTop + padding, panelRect ? panelRect.top + padding : viewportTop + padding);
             var boundaryBottom = Math.min(viewportBottom - padding, panelRect ? panelRect.bottom - padding : viewportBottom - padding);
             var toggleRect = toggle.getBoundingClientRect();
@@ -862,17 +1165,26 @@ document.addEventListener('DOMContentLoaded', function () {
             menu.style.top = '0';
             menu.hidden = false;
 
+            var widestOption = Array.from(menu.querySelectorAll('[role="option"]')).reduce(function (width, option) {
+                return Math.max(width, option.scrollWidth + 2);
+            }, toggleRect.width);
+            var maxMenuWidth = Math.max(toggleRect.width, viewportRight - viewportLeft - (padding * 2));
+            var menuWidth = Math.min(Math.max(toggleRect.width, widestOption), maxMenuWidth);
+            menu.style.width = menuWidth + 'px';
+
             var desiredHeight = Math.min(menu.scrollHeight + 2, maxMenuHeight);
             var opensUp = spaceBelow < desiredHeight && spaceAbove > spaceBelow;
             var availableSpace = opensUp ? spaceAbove : spaceBelow;
             menu.style.maxHeight = Math.min(maxMenuHeight, availableSpace) + 'px';
             var menuHeight = menu.getBoundingClientRect().height;
             var menuTop = opensUp ? toggleRect.top - gap - menuHeight : toggleRect.bottom + gap;
-            var maxLeft = Math.min(viewportRight - padding, panelRect ? panelRect.right - padding : viewportRight - padding) - toggleRect.width;
+            var maxLeft = Math.min(viewportRight - padding, panelRect ? panelRect.right - padding : viewportRight - padding) - menuWidth;
             var minLeft = Math.max(viewportLeft + padding, panelRect ? panelRect.left + padding : viewportLeft + padding);
             menu.style.top = Math.max(boundaryTop, menuTop) + 'px';
             menu.style.left = Math.max(minLeft, Math.min(toggleRect.left, maxLeft)) + 'px';
+            root.classList.add('is-open');
             toggle.setAttribute('aria-expanded', 'true');
+            arrow.setAttribute('aria-expanded', 'true');
 
             var selected = menu.querySelector('[aria-selected="true"]');
             if (selected) selected.scrollIntoView({ block: 'nearest' });
@@ -883,6 +1195,9 @@ document.addEventListener('DOMContentLoaded', function () {
             var option = document.createElement('button');
             option.type = 'button';
             option.className = 'category-dropdown-menu__option';
+            if (root.classList.contains('curator-custom-select')) {
+                option.classList.add('curator-custom-select-option');
+            }
             option.setAttribute('role', 'option');
             option.dataset.value = nativeOption.value;
             option.textContent = nativeOption.textContent;
@@ -896,16 +1211,38 @@ document.addEventListener('DOMContentLoaded', function () {
             item.appendChild(option);
             menu.appendChild(item);
         });
+        if (root.classList.contains('curator-custom-select')) {
+            menu.classList.add('curator-custom-select-menu');
+        }
         document.body.appendChild(menu);
-        categoryDropdowns.push({ menu: menu, toggle: toggle });
+        categoryDropdowns.push({ menu: menu, group: group, close: closeCategory });
         syncCategory();
 
         toggle.addEventListener('click', function (event) {
             event.preventDefault();
-            menu.hidden ? openCategory() : closeCategory();
+            event.stopPropagation();
+            if (!isOpen) openCategory();
+        });
+        arrow.addEventListener('mousedown', function (event) {
+            event.preventDefault();
+            event.stopPropagation();
+        });
+        arrow.addEventListener('click', function (event) {
+            event.preventDefault();
+            event.stopPropagation();
+            if (isOpen) {
+                closeCategory();
+            } else {
+                openCategory();
+                toggle.focus({ preventScroll: true });
+            }
         });
         toggle.addEventListener('keydown', function (event) {
-            if (event.key === 'ArrowDown' || event.key === 'Enter' || event.key === ' ') {
+            if (event.key === 'Escape' && isOpen) {
+                event.preventDefault();
+                event.stopPropagation();
+                closeCategory();
+            } else if (event.key === 'ArrowDown' || event.key === 'Enter' || event.key === ' ') {
                 event.preventDefault();
                 openCategory();
                 (menu.querySelector('[aria-selected="true"]') || menu.querySelector('[role="option"]'))?.focus();
@@ -926,6 +1263,9 @@ document.addEventListener('DOMContentLoaded', function () {
                 event.preventDefault();
                 document.activeElement.click();
             }
+        });
+        menu.addEventListener('click', function (event) {
+            event.stopPropagation();
         });
         select.form?.addEventListener('reset', function () {
             setTimeout(function () { syncCategory(); closeCategory(); }, 0);
@@ -949,16 +1289,36 @@ document.addEventListener('DOMContentLoaded', function () {
         document.body.style.overflow = document.querySelector('.exhibits-modal.is-open') ? 'hidden' : '';
     }
 
+    function exhibitIndexHistoryUrl(modal) {
+        var configuredUrl = modal && modal.dataset.indexUrl
+            ? modal.dataset.indexUrl
+            : '/sitemanager/exhibits';
+        try {
+            return new URL(configuredUrl, window.location.origin).pathname + window.location.search;
+        } catch (error) {
+            return '/sitemanager/exhibits' + window.location.search;
+        }
+    }
+
     function openModal(id) {
         var modal = document.getElementById(id);
         if (!modal) return;
         modal.classList.add('is-open');
         modal.setAttribute('aria-hidden', 'false');
         syncScrollLock();
+        if (modal.hasAttribute('data-exhibit-view-modal') && modal.dataset.exhibitId) {
+            try {
+                var detailUrl = exhibitIndexHistoryUrl(modal).split('?')[0]
+                    + '/' + encodeURIComponent(modal.dataset.exhibitId)
+                    + window.location.search;
+                window.history.replaceState({ exhibitId: modal.dataset.exhibitId }, '', detailUrl);
+            } catch (error) {}
+        }
     }
 
-    function closeModal(modal) {
+    function closeModal(modal, updateUrl) {
         if (!modal) return;
+        var isExhibitView = modal.hasAttribute('data-exhibit-view-modal');
         var form = modal.querySelector('form');
         if (form) form.reset();
         var returnModalId = modal.id.indexOf('exhibit-edit-') === 0
@@ -972,6 +1332,12 @@ document.addEventListener('DOMContentLoaded', function () {
         } else {
             syncScrollLock();
         }
+        if (updateUrl !== false && isExhibitView
+            && window.location.pathname !== exhibitIndexHistoryUrl(modal).split('?')[0]) {
+            try {
+                window.history.replaceState({}, '', exhibitIndexHistoryUrl(modal));
+            } catch (error) {}
+        }
     }
 
     document.querySelectorAll('[data-open-modal]').forEach(function (button) {
@@ -980,7 +1346,7 @@ document.addEventListener('DOMContentLoaded', function () {
             if (targetModal && button.dataset.returnModal) {
                 targetModal.dataset.returnModalId = button.dataset.returnModal;
             }
-            closeModal(button.closest('.exhibits-modal'));
+            closeModal(button.closest('.exhibits-modal'), !button.dataset.returnModal);
             openModal(button.dataset.openModal);
         });
     });
@@ -1021,7 +1387,8 @@ document.addEventListener('DOMContentLoaded', function () {
 
     document.addEventListener('keydown', function (event) {
         if (event.key !== 'Escape') return;
-        closeModal(document.querySelector('.exhibits-modal.is-open'));
+        var openModals = document.querySelectorAll('.exhibits-modal.is-open');
+        closeModal(openModals.length ? openModals[openModals.length - 1] : null);
     });
 
     syncScrollLock();

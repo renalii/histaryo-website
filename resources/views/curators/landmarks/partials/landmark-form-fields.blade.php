@@ -32,13 +32,8 @@
     $coordLng = $coordLng ?? '';
 
     $imageSrc = null;
-    if (! empty($d['image_url'])) {
-        $imageSrc = $d['image_url'];
-    } elseif (! empty($d['image_base64'])) {
-        $mime = $d['image_mime'] ?? 'image/jpeg';
-        $imageSrc = str_starts_with($d['image_base64'], 'data:')
-            ? $d['image_base64']
-            : 'data:' . $mime . ';base64,' . $d['image_base64'];
+    if (! empty($d['image_path'])) {
+        $imageSrc = $d['image_path'];
     }
 
     $hasMap = ! empty(trim((string) ($mapboxToken ?? '')));

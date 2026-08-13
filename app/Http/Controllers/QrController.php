@@ -162,15 +162,6 @@ class QrController extends Controller
             $docRef->set(['image_path' => $imagePath], ['merge' => true]);
         }
         $saved = $imagePath !== null;
-        $this->fs()->collection('logs')->add([
-            'email' => (string) Session::get('email', ''),
-            'role' => (string) Session::get('role', ''),
-            'action' => 'Generated QR code: '.$code,
-            'qr_code' => $code,
-            'landmark_id' => $landmarkId,
-            'landmark_name' => (string) ($lm->data()['name'] ?? ''),
-            'timestamp' => now()->toISOString(),
-        ]);
 
         return redirect()->route('curators.qr')
             ->with('success', 'QR mapping created'.($saved ? ' and image generated.' : '.'));
@@ -235,15 +226,6 @@ class QrController extends Controller
             (string) ($data['image_path'] ?? ''),
             $this->fs()->collection('qr_codes')->document($id)
         );
-        $this->fs()->collection('logs')->add([
-            'email' => (string) Session::get('email', ''),
-            'role' => (string) Session::get('role', ''),
-            'action' => 'Downloaded QR code: '.$code,
-            'qr_code' => $code,
-            'landmark_id' => $landmarkId,
-            'timestamp' => now()->toISOString(),
-        ]);
-
         if ($imagePath !== null && QrCodeImageStorage::exists($imagePath)) {
             return response()->download(QrCodeImageStorage::absolutePath($imagePath), basename($imagePath));
         }
@@ -469,24 +451,18 @@ class QrController extends Controller
         }
     }
 
-    public function downloadByLandmark(string $landmarkId)
+    public function downloadByLandmark(Request $request, string $landmarkId)
     {
         $qr = $this->qrPngForLandmark($landmarkId);
         if ($qr === null) {
             abort(404, 'No QR code has been generated for this landmark.');
         }
-        $this->fs()->collection('logs')->add([
-            'email' => (string) Session::get('email', ''),
-            'role' => (string) Session::get('role', ''),
-            'action' => 'Downloaded QR code: '.pathinfo($qr['filename'], PATHINFO_FILENAME),
-            'qr_code' => pathinfo($qr['filename'], PATHINFO_FILENAME),
-            'landmark_id' => $landmarkId,
-            'timestamp' => now()->toISOString(),
-        ]);
+
+        $disposition = $request->boolean('preview') ? 'inline' : 'attachment';
 
         return response($qr['png'], 200, [
             'Content-Type' => 'image/png',
-            'Content-Disposition' => 'attachment; filename="'.$qr['filename'].'"',
+            'Content-Disposition' => $disposition.'; filename="'.$qr['filename'].'"',
             'Content-Length' => (string) strlen($qr['png']),
             'Cache-Control' => 'no-store, max-age=0',
         ]);

@@ -145,14 +145,8 @@ document.addEventListener("DOMContentLoaded", function () {
 
     const landmarks = @json(array_values($landmarks));
 
-    const MARKER_IMAGE_MIMES = new Set(['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif']);
-
     function markerImageDataUri(l) {
-        if (l.image_url) return l.image_url;
-        if (l.image_base64 && String(l.image_base64).startsWith('data:')) return l.image_base64;
-        const mime = (l.image_mime && String(l.image_mime).toLowerCase().trim()) || '';
-        if (l.image_base64 && MARKER_IMAGE_MIMES.has(mime)) return 'data:' + mime + ';base64,' + l.image_base64;
-        return null;
+        return l.image_path || null;
     }
 
     function createMarkerElement(l) {

@@ -26,7 +26,7 @@ class ExhibitController extends Controller
         private SiteManagerReadModel $siteManagerReadModel,
     ) {}
 
-    public function index(Request $request)
+    public function index(Request $request, ?string $id = null)
     {
         $landmarks = $this->availableLandmarks();
         if ($landmarks === []) {
@@ -37,15 +37,14 @@ class ExhibitController extends Controller
         $landmarkById = array_column($landmarks, null, 'id');
         $landmark = $landmarks[0];
         $selectedLandmarkId = trim((string) $request->query('landmark', 'all'));
-        if ($this->isSiteManager()) {
+        if ($this->isCurator()) {
+            $selectedLandmarkId = $landmark['id'];
+        } elseif ($selectedLandmarkId !== 'all' && ! in_array($selectedLandmarkId, $landmarkIds, true)) {
             $selectedLandmarkId = 'all';
-        } elseif ($this->isCurator() || ! in_array($selectedLandmarkId, $landmarkIds, true)) {
-            $selectedLandmarkId = $this->isCurator() ? $landmark['id'] : 'all';
         }
-        $search = strtolower(trim((string) $request->query('search', '')));
-        $category = $this->isSiteManager()
-            ? 'all'
-            : trim((string) $request->query('category', 'all'));
+        $searchValue = trim((string) $request->query('search', ''));
+        $search = strtolower($searchValue);
+        $category = trim((string) $request->query('category', 'all'));
         $status = strtolower(trim((string) $request->query('status', 'all')));
         if (! in_array($status, ['all', 'active', 'inactive'], true)) {
             $status = 'all';
@@ -86,7 +85,7 @@ class ExhibitController extends Controller
             }
 
             if ($search !== '') {
-                $haystack = strtolower(trim((string) ($data['name'] ?? '')).' '.$rowLandmarkName.' '.$rowCategory.' '.trim((string) ($data['description'] ?? '')).' '.trim((string) ($data['historical_info'] ?? '')));
+                $haystack = strtolower(trim((string) ($data['name'] ?? '')).' '.$rowCategory.' '.$rowLandmarkName);
                 if (! str_contains($haystack, $search)) {
                     continue;
                 }
@@ -115,6 +114,16 @@ class ExhibitController extends Controller
 
         $perPage = 5;
         $page = max(1, (int) $request->query('page', 1));
+
+        if ($id !== null) {
+            $selectedIndex = array_search($id, array_column($exhibits, 'id'), true);
+            if ($selectedIndex === false) {
+                return redirect()->route($this->routeName('exhibits.index'))
+                    ->with('error', 'Exhibit not found.');
+            }
+            $page = (int) floor($selectedIndex / $perPage) + 1;
+        }
+
         $lastPage = max(1, (int) ceil(count($exhibits) / $perPage));
         $page = min($page, $lastPage);
 
@@ -125,9 +134,7 @@ class ExhibitController extends Controller
             $page,
             [
                 'path' => route($this->routeName('exhibits.index')),
-                'query' => $this->isSiteManager()
-                    ? $request->only(['search', 'status'])
-                    : $request->except('page'),
+                'query' => $request->only(['search', 'category', 'landmark', 'status']),
             ]
         );
 
@@ -145,10 +152,11 @@ class ExhibitController extends Controller
             'selectedLandmarkId' => $selectedLandmarkId,
             'canSelectLandmark' => $this->isSiteManager(),
             'routePrefix' => $this->routePrefix(),
-            'search' => $search,
+            'search' => $searchValue,
             'categoryFilter' => $category,
             'categoryOptions' => $this->uniqueCategories($categoryOptions),
             'statusFilter' => $status,
+            'openViewId' => $id,
         ]);
     }
 
@@ -175,7 +183,6 @@ class ExhibitController extends Controller
         ];
 
         $this->firebase->firestore()->collection('exhibits')->document($exhibitId)->set($payload);
-        $this->log($this->actorLabel().' created exhibit: '.$payload['name'], $landmark, $exhibitId);
 
         return redirect()->route($this->routeName('exhibits.index'))->with('success', 'Exhibit added successfully.');
     }
@@ -210,7 +217,6 @@ class ExhibitController extends Controller
         ];
 
         $this->firebase->firestore()->collection('exhibits')->document($id)->set($payload, ['merge' => true]);
-        $this->log($this->actorLabel().' updated exhibit: '.$payload['name'], $landmark, $id);
 
         return redirect()->route($this->routeName('exhibits.index'))->with('success', 'Exhibit updated successfully.');
     }
@@ -219,12 +225,10 @@ class ExhibitController extends Controller
     {
         $snapshot = $this->exhibitSnapshot($id);
         $data = $snapshot->data();
-        $landmark = $this->landmarkById(trim((string) ($data['landmark_id'] ?? '')));
 
         $this->mediaStorage->deleteMany(is_array($data['images'] ?? null) ? $data['images'] : []);
 
         $this->firebase->firestore()->collection('exhibits')->document($id)->delete();
-        $this->log($this->actorLabel().' deleted exhibit: '.(string) ($data['name'] ?? $id), $landmark, $id);
 
         return redirect()->route($this->routeName('exhibits.index'))->with('success', 'Exhibit deleted successfully.');
     }
@@ -265,7 +269,7 @@ class ExhibitController extends Controller
         if ($this->isSiteManager()) {
             $managerUid = $this->managerUid();
 
-            return $this->availableLandmarksCache = array_values(array_map(
+            $landmarks = array_values(array_map(
                 fn (array $landmark): array => [
                     'id' => (string) $landmark['id'],
                     'name' => trim((string) ($landmark['name'] ?? '')) ?: 'Managed landmark',
@@ -273,6 +277,9 @@ class ExhibitController extends Controller
                 ],
                 $this->siteManagerReadModel->landmarks($managerUid)
             ));
+            usort($landmarks, fn (array $left, array $right): int => strcasecmp($left['name'], $right['name']));
+
+            return $this->availableLandmarksCache = $landmarks;
         }
 
         return $this->availableLandmarksCache = [$this->assignedLandmark()];
@@ -493,11 +500,6 @@ class ExhibitController extends Controller
         return $this->routePrefix().'.'.$name;
     }
 
-    private function actorLabel(): string
-    {
-        return $this->isSiteManager() ? 'Site Manager' : 'Curator';
-    }
-
     /** @return list<\Illuminate\Http\UploadedFile> */
     private function uploadedFiles(Request $request, string $key): array
     {
@@ -507,19 +509,6 @@ class ExhibitController extends Controller
         }
 
         return is_array($files) ? array_values($files) : [];
-    }
-
-    private function log(string $action, array $landmark, string $exhibitId): void
-    {
-        $this->firebase->firestore()->collection('logs')->add([
-            'email' => (string) Session::get('email', ''),
-            'role' => $this->isSiteManager() ? 'site_manager' : 'curator',
-            'action' => $action,
-            'landmark_id' => $landmark['id'],
-            'landmark_name' => $landmark['name'],
-            'exhibit_id' => $exhibitId,
-            'timestamp' => now()->toIso8601String(),
-        ]);
     }
 
     private function exhibitDocumentsForLandmarks(array $landmarkIds): array

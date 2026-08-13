@@ -67,6 +67,40 @@
         border-color: #7A2E1F;
         box-shadow: 0 0 0 2px rgba(122, 46, 31, .12);
     }
+    .map-custom-select { position:relative; display:block; width:150px; height:2rem; }
+    .map-custom-select__native { position:absolute; inset:0; opacity:0; pointer-events:none; }
+    .map-custom-select__field {
+        box-sizing:border-box; width:100%; height:2rem; padding:0 2rem 0 .65rem;
+        border:1px solid #d1d5db; border-radius:6px; background:#fff; color:#111827;
+        font:500 .78rem Inter,system-ui,sans-serif; text-align:left; cursor:pointer;
+    }
+    .sm-map-search .custom-select-arrow {
+        position:absolute; z-index:1; top:1px; right:1px; width:2.2rem; height:calc(2rem - 2px);
+        padding:0; border:0; border-radius:0 5px 5px 0; background:transparent;
+        color:#374151; cursor:pointer;
+    }
+    .sm-map-search .custom-select-arrow::after {
+        content:''; position:absolute; top:50%; left:50%; width:.4rem; height:.4rem;
+        border-right:2px solid currentColor; border-bottom:2px solid currentColor;
+        transform:translate(-50%,-70%) rotate(45deg);
+    }
+    .sm-map-search .map-custom-select.is-open .custom-select-arrow::after { transform:translate(-50%,-30%) rotate(225deg); }
+    .map-custom-select__menu {
+        position:fixed; z-index:9999; box-sizing:border-box; max-height:322px; margin:0;
+        padding:0; overflow-x:hidden; overflow-y:auto; border:1px solid #d1d5db;
+        border-radius:6px; background:#fff; box-shadow:0 8px 20px rgba(0,0,0,.15);
+        list-style:none;
+    }
+    .map-custom-select__menu[hidden] { display:none; }
+    .map-custom-select__option {
+        display:block; width:100%; height:40px; padding:0 .65rem; border:0;
+        background:transparent; color:#111827; font:500 .78rem Inter,system-ui,sans-serif;
+        line-height:40px; text-align:left; white-space:nowrap; overflow:hidden;
+        text-overflow:ellipsis; cursor:pointer;
+    }
+    .map-custom-select__option:hover,
+    .map-custom-select__option:focus,
+    .map-custom-select__option[aria-selected="true"] { background:#f3f4f6; outline:none; }
     .sm-map-search input.is-missing {
         border-color: #dc2626;
         box-shadow: 0 0 0 2px rgba(220, 38, 38, .14);
@@ -265,18 +299,28 @@
                 placeholder="Search landmarks... e.g., Magellan's Cross"
                 aria-label="Search landmarks">
             @isset($mapCategories, $mapCities)
-                <select id="sm-map-category-filter" aria-label="Filter landmarks by category">
-                    <option value="">All Categories</option>
-                    @foreach ($mapCategories as $category)
-                        <option value="{{ $category }}">{{ $category }}</option>
-                    @endforeach
-                </select>
-                <select id="sm-map-city-filter" aria-label="Filter landmarks by city">
-                    <option value="">All Cities</option>
-                    @foreach ($mapCities as $city)
-                        <option value="{{ $city }}">{{ $city }}</option>
-                    @endforeach
-                </select>
+                <span class="map-custom-select">
+                    <select class="map-custom-select__native" id="sm-map-category-filter" aria-label="Filter landmarks by category">
+                        <option value="">All Categories</option>
+                        @foreach ($mapCategories as $category)
+                            <option value="{{ $category }}">{{ $category }}</option>
+                        @endforeach
+                    </select>
+                    <button type="button" class="map-custom-select__field" aria-haspopup="listbox" aria-expanded="false"></button>
+                    <button type="button" class="custom-select-arrow" aria-label="Toggle options" aria-expanded="false"></button>
+                    <ul class="map-custom-select__menu" role="listbox" hidden></ul>
+                </span>
+                <span class="map-custom-select">
+                    <select class="map-custom-select__native" id="sm-map-city-filter" aria-label="Filter landmarks by city">
+                        <option value="">All Cities</option>
+                        @foreach ($mapCities as $city)
+                            <option value="{{ $city }}">{{ $city }}</option>
+                        @endforeach
+                    </select>
+                    <button type="button" class="map-custom-select__field" aria-haspopup="listbox" aria-expanded="false"></button>
+                    <button type="button" class="custom-select-arrow" aria-label="Toggle options" aria-expanded="false"></button>
+                    <ul class="map-custom-select__menu" role="listbox" hidden></ul>
+                </span>
             @endisset
             <button type="submit">Go</button>
         </form>
@@ -403,6 +447,114 @@ document.addEventListener('DOMContentLoaded', function () {
     var searchInput = document.getElementById('sm-map-search-input');
     var categoryFilter = document.getElementById('sm-map-category-filter');
     var cityFilter = document.getElementById('sm-map-city-filter');
+    var mapDropdowns = [];
+
+    function closeMapDropdowns(exceptMenu) {
+        mapDropdowns.forEach(function (dropdown) {
+            if (dropdown.menu !== exceptMenu) dropdown.close();
+        });
+    }
+
+    document.querySelectorAll('.map-custom-select').forEach(function (root) {
+        var select = root.querySelector('.map-custom-select__native');
+        var field = root.querySelector('.map-custom-select__field');
+        var arrow = root.querySelector('.custom-select-arrow');
+        var menu = root.querySelector('.map-custom-select__menu');
+        var isOpen = false;
+        if (!select || !field || !arrow || !menu) return;
+
+        function sync() {
+            var selected = select.options[select.selectedIndex] || select.options[0];
+            field.textContent = selected ? selected.textContent : '';
+            menu.querySelectorAll('[role="option"]').forEach(function (option) {
+                option.setAttribute('aria-selected', option.dataset.value === select.value ? 'true' : 'false');
+            });
+        }
+        function closeDropdown() {
+            isOpen = false;
+            menu.hidden = true;
+            root.classList.remove('is-open');
+            field.setAttribute('aria-expanded', 'false');
+            arrow.setAttribute('aria-expanded', 'false');
+        }
+        function openDropdown() {
+            closeMapDropdowns(menu);
+            isOpen = true;
+            var rect = field.getBoundingClientRect();
+            var gap = 4;
+            var padding = 8;
+            var maxHeight = 322;
+            var below = Math.max(0, window.innerHeight - rect.bottom - gap - padding);
+            var above = Math.max(0, rect.top - gap - padding);
+            menu.style.width = rect.width + 'px';
+            menu.style.maxHeight = maxHeight + 'px';
+            menu.hidden = false;
+            var desired = Math.min(menu.scrollHeight + 2, maxHeight);
+            var opensUp = below < desired && above > below;
+            menu.style.maxHeight = Math.min(maxHeight, opensUp ? above : below) + 'px';
+            var height = menu.getBoundingClientRect().height;
+            menu.style.top = (opensUp ? rect.top - gap - height : rect.bottom + gap) + 'px';
+            menu.style.left = rect.left + 'px';
+            root.classList.add('is-open');
+            field.setAttribute('aria-expanded', 'true');
+            arrow.setAttribute('aria-expanded', 'true');
+        }
+        Array.from(select.options).forEach(function (nativeOption) {
+            var item = document.createElement('li');
+            var option = document.createElement('button');
+            option.type = 'button';
+            option.className = 'map-custom-select__option';
+            option.setAttribute('role', 'option');
+            option.dataset.value = nativeOption.value;
+            option.textContent = nativeOption.textContent;
+            option.addEventListener('click', function () {
+                select.value = nativeOption.value;
+                select.dispatchEvent(new Event('change', { bubbles: true }));
+                sync();
+                closeDropdown();
+                field.focus();
+            });
+            item.appendChild(option);
+            menu.appendChild(item);
+        });
+        document.body.appendChild(menu);
+        mapDropdowns.push({ menu: menu, close: closeDropdown });
+        sync();
+
+        field.addEventListener('click', function (event) {
+            event.preventDefault();
+            event.stopPropagation();
+            if (!isOpen) openDropdown();
+        });
+        arrow.addEventListener('mousedown', function (event) {
+            event.preventDefault();
+            event.stopPropagation();
+        });
+        arrow.addEventListener('click', function (event) {
+            event.preventDefault();
+            event.stopPropagation();
+            if (isOpen) {
+                closeDropdown();
+            } else {
+                openDropdown();
+                field.focus({ preventScroll: true });
+            }
+        });
+        menu.addEventListener('click', function (event) { event.stopPropagation(); });
+    });
+
+    document.addEventListener('click', function (event) {
+        if (!event.target.closest('.map-custom-select') && !event.target.closest('.map-custom-select__menu')) {
+            closeMapDropdowns();
+        }
+    });
+    document.addEventListener('keydown', function (event) {
+        if (event.key === 'Escape') closeMapDropdowns();
+    });
+    window.addEventListener('resize', function () { closeMapDropdowns(); });
+    window.addEventListener('scroll', function (event) {
+        if (!event.target.closest || !event.target.closest('.map-custom-select__menu')) closeMapDropdowns();
+    }, true);
 
     searchForm.addEventListener('submit', function (event) {
         event.preventDefault();

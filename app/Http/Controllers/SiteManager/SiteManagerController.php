@@ -48,13 +48,8 @@ class SiteManagerController extends Controller
 
             $landmarkId = (string) ($landmark['id'] ?? '');
             $imageSrc = '';
-            if (! empty($landmark['image_url'] ?? null)) {
-                $imageSrc = (string) $landmark['image_url'];
-            } elseif (! empty($landmark['image_base64'] ?? null)) {
-                $imageBase64 = (string) $landmark['image_base64'];
-                $imageSrc = str_starts_with($imageBase64, 'data:')
-                    ? $imageBase64
-                    : 'data:'.($landmark['image_mime'] ?? 'image/jpeg').';base64,'.$imageBase64;
+            if (! empty($landmark['image_path'] ?? null)) {
+                $imageSrc = (string) $landmark['image_path'];
             }
 
             $landmarks[] = [
@@ -86,7 +81,6 @@ class SiteManagerController extends Controller
                 'category' => 'required|string',
                 'description' => 'nullable|string',
                 'location' => 'nullable|string|max:255',
-                'tags' => 'nullable|string|max:500',
                 'latitude' => 'nullable|numeric',
                 'longitude' => 'nullable|numeric',
                 'image' => 'nullable|image|max:512',
@@ -134,23 +128,14 @@ class SiteManagerController extends Controller
 
         $managerUid = (string) Session::get('uid');
         $submittedAt = now()->toDateTimeString();
-        $tags = collect(preg_split('/[,;\r\n]+/', (string) $request->input('tags', ''), -1, PREG_SPLIT_NO_EMPTY))
-            ->map(fn ($tag) => trim((string) $tag))
-            ->filter()
-            ->unique(fn ($tag) => strtolower($tag))
-            ->values()
-            ->all();
-
         $payload = [
             'name' => (string) $request->name,
             'landmarkcode' => $landmarkCode,
             'category' => (string) $request->category,
             'description' => $request->filled('description') ? (string) $request->description : '',
             'location' => $request->filled('location') ? (string) $request->location : '',
-            'tags' => $tags,
-            'image_url' => '',
+            'image_path' => '',
             'image_public_id' => '',
-            'image_base64' => '',
             'image_mime' => '',
             'manager_uid' => $managerUid,
             'activation_status' => 'pending',
@@ -203,14 +188,6 @@ class SiteManagerController extends Controller
                 ->withErrors(['evidence_files' => 'Could not save the landmark. '.$e->getMessage()]);
         }
 
-        $this->firebase->firestore()->collection('logs')->add([
-            'email' => (string) Session::get('email', ''),
-            'role' => 'site_manager',
-            'action' => 'Site Manager submitted landmark for approval: '.(string) $request->name,
-            'landmark_id' => $landmarkId,
-            'landmark_name' => (string) $request->name,
-            'timestamp' => now()->toIso8601String(),
-        ]);
         $this->siteManagerReadModel->forget($managerUid);
 
         return redirect()->route('sitemanager.landmarks')
@@ -327,14 +304,6 @@ class SiteManagerController extends Controller
                 ], ['merge' => true]);
             }
 
-            $this->firebase->firestore()->collection('logs')->add([
-                'email' => (string) Session::get('email', ''),
-                'role' => 'site_manager',
-                'action' => 'Site Manager updated landmark: '.(string) $request->name,
-                'landmark_id' => $id,
-                'landmark_name' => (string) $request->name,
-                'timestamp' => now()->toIso8601String(),
-            ]);
             $this->siteManagerReadModel->forget($managerUid);
         } catch (\Throwable $e) {
             report($e);
@@ -368,20 +337,12 @@ class SiteManagerController extends Controller
             abort(403);
         }
 
-        $landmarkName = trim((string) ($data['name'] ?? ''));
         $landmarkCode = $this->landmarkCode($data);
 
         try {
             $this->deleteStoredQrCodeImage($id, $landmarkCode);
+            $this->cloudinary->deleteLandmark((string) ($data['image_public_id'] ?? ''));
             $landmarkRef->delete();
-            $this->firebase->firestore()->collection('logs')->add([
-                'email' => (string) Session::get('email', ''),
-                'role' => 'site_manager',
-                'action' => 'Site Manager deleted landmark: '.($landmarkName !== '' ? $landmarkName : $id),
-                'landmark_id' => $id,
-                'landmark_name' => $landmarkName,
-                'timestamp' => now()->toISOString(),
-            ]);
             $this->siteManagerReadModel->forget($managerUid);
         } catch (\Throwable $e) {
             report($e);

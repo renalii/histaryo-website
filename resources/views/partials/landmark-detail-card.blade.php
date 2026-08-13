@@ -16,13 +16,8 @@
     $tipsReview = $tipsReview ?? null;
     $imageSrc = null;
 
-    if (! empty($data['image_url'] ?? null)) {
-        $imageSrc = $data['image_url'];
-    } elseif (! empty($data['image_base64'] ?? null)) {
-        $imageMime = $data['image_mime'] ?? 'image/jpeg';
-        $imageSrc = str_starts_with($data['image_base64'], 'data:')
-            ? $data['image_base64']
-            : 'data:' . $imageMime . ';base64,' . $data['image_base64'];
+    if (! empty($data['image_path'] ?? null)) {
+        $imageSrc = $data['image_path'];
     }
 
 @endphp

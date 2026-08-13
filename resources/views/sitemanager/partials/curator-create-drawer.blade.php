@@ -190,17 +190,37 @@
     @media (min-width: 400px) { .cd-grid-2 { grid-template-columns: 1fr 1fr; } }
     .cd-hint { font-size: .78rem; color: #9ca3af; margin: .3rem 0 0; }
     .cd-combobox { position: relative; }
-    .cd-combobox::after {
+    .cd-combobox__toggle {
+        position: absolute;
+        z-index: 1;
+        top: 1px;
+        right: 1px;
+        width: 2.5rem;
+        height: 44px;
+        padding: 0;
+        border: 0;
+        border-radius: 0 7px 7px 0;
+        background: transparent;
+        color: #374151;
+        cursor: pointer;
+    }
+    .cd-combobox__toggle::after {
         content: '';
         position: absolute;
-        top: 23px;
-        right: .8rem;
+        top: 50%;
+        left: 50%;
         width: .45rem;
         height: .45rem;
-        border-right: 2px solid #374151;
-        border-bottom: 2px solid #374151;
-        transform: translateY(-70%) rotate(45deg);
-        pointer-events: none;
+        border-right: 2px solid currentColor;
+        border-bottom: 2px solid currentColor;
+        transform: translate(-50%, -70%) rotate(45deg);
+    }
+    .cd-combobox.is-open .cd-combobox__toggle::after {
+        transform: translate(-50%, -30%) rotate(225deg);
+    }
+    .cd-combobox__toggle:focus-visible {
+        outline: 2px solid #9ca3af;
+        outline-offset: -3px;
     }
     .cd-combobox .cd-input {
         height: 46px;
@@ -291,20 +311,19 @@
     }
     .cd-actions__edit-wrapper {
         display: flex;
-        flex-direction: column;
-        gap: .5rem;
-        width: max-content;
-        max-width: 100%;
-        margin-left: auto;
+        justify-content: space-between;
+        align-items: center;
+        gap: 10px;
+        width: 100%;
     }
-    .cd-actions__edit-row .cd-btn-primary,
-    .cd-actions__edit-row .cd-btn-secondary {
+    .cd-actions__edit-wrapper .cd-btn-primary,
+    .cd-actions__edit-wrapper .cd-btn-secondary,
+    .cd-actions__edit-wrapper .cd-btn-reset {
         width: auto;
         min-width: 110px;
         height: 40px;
         padding: 0 18px;
     }
-    .cd-actions__edit-wrapper .cd-btn-reset { width: 100%; }
     .cd-btn-primary {
         width: 100%;
         padding: .75rem 1.2rem;
@@ -464,6 +483,12 @@
                                        autocomplete="off"
                                        placeholder="Search landmarks…"
                                        value="{{ $selectedLandmarkLabel }}">
+                                <button class="cd-combobox__toggle"
+                                        id="landmarkComboboxToggle"
+                                        type="button"
+                                        aria-label="Toggle landmark options"
+                                        aria-controls="landmarkComboboxList"
+                                        aria-expanded="false"></button>
                                 <ul class="cd-combobox__list"
                                     id="landmarkComboboxList"
                                     role="listbox"
@@ -475,11 +500,11 @@
                     <div class="cd-actions{{ $isEditMode ? '' : ' cd-actions--create' }}" id="curatorDrawerActions">
                         @if ($isEditMode)
                             <div class="cd-actions__edit-wrapper">
+                                <button type="submit" class="cd-btn-reset" id="curatorResetPasswordButton" form="curatorPasswordResetForm">Reset password</button>
                                 <div class="cd-actions__edit-row">
                                     <button type="submit" class="cd-btn-primary" id="curatorSubmitButton">Save changes</button>
                                     <button type="button" class="cd-btn-secondary" id="cancelCuratorDrawer">Cancel</button>
                                 </div>
-                                <button type="submit" class="cd-btn-reset" id="curatorResetPasswordButton" form="curatorPasswordResetForm">Reset password</button>
                             </div>
                         @else
                             <button type="submit" class="cd-btn-primary" id="curatorSubmitButton">Create curator</button>
@@ -628,9 +653,10 @@
         var root = document.getElementById('landmarkCombobox');
         var hidden = document.getElementById('drawer_assigned_landmark_id');
         var search = document.getElementById('drawer_landmark_search');
+        var toggle = document.getElementById('landmarkComboboxToggle');
         var list = document.getElementById('landmarkComboboxList');
         var form = document.getElementById('curatorCreateForm');
-        if (!root || !hidden || !search || !list) return;
+        if (!root || !hidden || !search || !toggle || !list) return;
 
         var options = @json($landmarkOptions);
         var highlighted = -1;
@@ -653,6 +679,8 @@
         function setExpanded(open) {
             listOpen = open;
             search.setAttribute('aria-expanded', open ? 'true' : 'false');
+            toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+            root.classList.toggle('is-open', open);
             list.classList.toggle('is-open', open);
             if (open) positionList();
         }
@@ -743,9 +771,46 @@
             items[highlighted].scrollIntoView({ block: 'nearest' });
         }
 
-        search.addEventListener('focus', function () {
+        toggle.addEventListener('mousedown', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+        });
+
+        toggle.addEventListener('click', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+
+            if (listOpen) {
+                setExpanded(false);
+                return;
+            }
+
             renderList();
             setExpanded(true);
+            search.focus({ preventScroll: true });
+        });
+
+        toggle.addEventListener('keydown', function (e) {
+            if (e.key === 'Escape' && listOpen) {
+                e.preventDefault();
+                e.stopPropagation();
+                setExpanded(false);
+            }
+        });
+
+        search.addEventListener('click', function (e) {
+            e.stopPropagation();
+            if (!listOpen) {
+                renderList();
+                setExpanded(true);
+            }
+        });
+
+        search.addEventListener('focus', function () {
+            if (!listOpen) {
+                renderList();
+                setExpanded(true);
+            }
         });
 
         search.addEventListener('input', function () {
@@ -792,6 +857,9 @@
             if (listOpen && !root.contains(e.target) && !list.contains(e.target)) {
                 setExpanded(false);
             }
+        });
+        list.addEventListener('click', function (e) {
+            e.stopPropagation();
         });
         window.addEventListener('resize', function () { setExpanded(false); });
         window.addEventListener('scroll', function (e) {

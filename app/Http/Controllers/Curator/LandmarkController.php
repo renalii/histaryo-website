@@ -156,7 +156,7 @@ class LandmarkController extends Controller
     }
 
     /**
-     * @return array{base64: string, url: string, filename: string}|null
+     * @return array{base64: string, url: string, downloadUrl: string, filename: string}|null
      */
     private function qrPreviewForLandmark(string $landmarkId, array $landmarkData): ?array
     {
@@ -167,7 +167,13 @@ class LandmarkController extends Controller
 
         return [
             'base64' => '',
-            'url' => QrCodeImageStorage::url($qr['imagePath']),
+            'url' => route('curators.qr.byLandmark', [
+                'landmarkId' => $landmarkId,
+                'preview' => 1,
+            ]),
+            'downloadUrl' => route('curators.qr.byLandmark', [
+                'landmarkId' => $landmarkId,
+            ]),
             'filename' => basename($qr['imagePath']),
         ];
     }

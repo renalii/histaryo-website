@@ -106,16 +106,6 @@ class SiteManagerCuratorController extends Controller
             $emailSent = $mailResult['sent'];
             $emailError = $mailResult['error'];
 
-            $this->firebase->firestore()->collection('logs')->add([
-                'email' => Session::get('email'),
-                'role' => 'site_manager',
-                'action' => 'Site Manager created curator account: '.$email,
-                'curator_email' => $email,
-                'curator_uid' => $uid,
-                'landmark_id' => $landmarkId,
-                'email_notification' => $emailSent ? 'sent' : 'failed',
-                'timestamp' => now()->toISOString(),
-            ]);
             $this->siteManagerReadModel->forget($managerUid);
 
             if ($emailSent) {
@@ -191,15 +181,6 @@ class SiteManagerCuratorController extends Controller
                 'updated_at' => $now,
             ], ['merge' => true]);
 
-            $this->firebase->firestore()->collection('logs')->add([
-                'email' => Session::get('email'),
-                'role' => 'site_manager',
-                'action' => 'Site Manager updated curator account: '.$email,
-                'curator_email' => $email,
-                'curator_uid' => $uid,
-                'landmark_id' => $validated['assigned_landmark_id'],
-                'timestamp' => now()->toISOString(),
-            ]);
             $this->siteManagerReadModel->forget($managerUid);
 
             return redirect()->route('sitemanager.curators')->with('status', 'Curator updated successfully.');
@@ -230,21 +211,6 @@ class SiteManagerCuratorController extends Controller
 
             return redirect()->route('sitemanager.curators')
                 ->with('status_err', 'Could not delete curator account: '.$e->getMessage());
-        }
-
-        try {
-            $this->firebase->firestore()->collection('logs')->add([
-                'email' => Session::get('email'),
-                'role' => 'site_manager',
-                'action' => 'Site Manager deleted curator account: '.($profile['email'] ?? $uid),
-                'curator_email' => $profile['email'] ?? '',
-                'curator_uid' => $uid,
-                'landmark_id' => $profile['assigned_landmark_id'] ?? '',
-                'timestamp' => now()->toISOString(),
-            ]);
-            $this->siteManagerReadModel->forget($managerUid);
-        } catch (\Throwable $e) {
-            report($e);
         }
 
         return redirect()->route('sitemanager.curators')->with('status', 'Curator account deleted successfully.');
@@ -302,14 +268,6 @@ class SiteManagerCuratorController extends Controller
             ], ['merge' => true]);
             $this->siteManagerReadModel->forget($managerUid);
 
-            $this->firebase->firestore()->collection('logs')->add([
-                'email' => Session::get('email'),
-                'role' => 'site_manager',
-                'action' => 'Site Manager '.($isActivating ? 'activated' : 'deactivated').' curator account: '.($profile['email'] ?? $uid),
-                'curator_email' => $profile['email'] ?? '',
-                'curator_uid' => $uid,
-                'timestamp' => now()->toISOString(),
-            ]);
         } catch (\Throwable $e) {
             report($e);
 

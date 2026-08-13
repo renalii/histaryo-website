@@ -36,31 +36,6 @@
             flex-direction: column;
         }
 
-        header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 30px 60px;
-        }
-
-        .logo {
-            font-size: 1.5rem;
-            font-weight: 700;
-            color: var(--brand-dark);
-        }
-
-        nav a {
-            text-decoration: none;
-            color: #9a6f50;
-            margin-left: 25px;
-            font-weight: 500;
-            transition: color 0.2s ease;
-        }
-
-        nav a:hover {
-            color: var(--brand-dark);
-        }
-
         .container {
             flex: 1;
             min-height: 0;
@@ -72,8 +47,8 @@
 
         .register-box {
             display: flex;
-            width: min(920px, 100%);
-            height: min(760px, calc(100vh - 140px));
+            width: min(840px, 100%);
+            height: min(440px, calc(100vh - 118px));
             background: var(--card);
             border-radius: 20px;
             overflow: hidden;
@@ -84,7 +59,7 @@
         .form-side {
             flex: 0.95;
             min-height: 0;
-            padding: 1.25rem 1.35rem;
+            padding: 1.3rem 1.45rem;
             display: flex;
             flex-direction: column;
             justify-content: center;
@@ -461,15 +436,6 @@
         }
 
         @media (max-width: 850px) {
-            header {
-                padding: 20px 18px;
-            }
-
-            nav a {
-                margin-left: 12px;
-                font-size: 0.92rem;
-            }
-
             .register-box {
                 flex-direction: column;
                 width: 95%;
@@ -509,13 +475,7 @@
         }
 
         @media (max-height: 760px) and (min-width: 851px) {
-            header {
-                padding: 18px 40px;
-            }
-
-            .register-box {
-                height: min(640px, calc(100vh - 110px));
-            }
+           
 
             .form-side {
                 padding: 0.95rem 1.05rem;
@@ -530,11 +490,6 @@
                 gap: 0.42rem;
             }
 
-            .name-row {
-                flex-direction: column;
-                gap: 0.42rem;
-            }
-
             .overlay-card {
                 display: none;
             }
@@ -543,15 +498,7 @@
 </head>
 <body>
 
-<header>
-    <div class="logo">HistARyo</div>
-    <nav>
-        <a href="{{ route('home') }}">Home</a>
-        <a href="{{ route('about') }}">About</a>
-        <a href="{{ route('login') }}">Login</a>
-        <a href="{{ route('register') }}">Register</a>
-    </nav>
-</header>
+@include('partials.public-header')
 
 <div class="container">
     <div class="register-box">

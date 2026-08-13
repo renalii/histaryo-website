@@ -163,9 +163,6 @@ class LoginController extends Controller
                 Session::forget('writable_landmark_ids');
             }
 
-            $this->queueLoginAuditLog($email, $fsRole);
-
-            
             if ($fsRole === 'admin') {
                 return redirect()->route('admin.dashboard')->with('success', 'Welcome Admin!');
             } elseif ($fsRole === 'curator') {
@@ -208,26 +205,6 @@ class LoginController extends Controller
 
     public function logout(Request $request): RedirectResponse
     {
-        $email = $request->session()->get('email');
-        $role = (string) $request->session()->get('role', '');
-
-        if ($email) {
-            try {
-                $roleLabel = \App\Support\SystemLogDisplay::roleLabel($role);
-                $this->firebase->firestore()->collection('logs')->add([
-                    'email' => $email,
-                    'role' => $role,
-                    'action' => ($roleLabel !== 'N/A' ? $roleLabel : 'User').' logged out',
-                    'timestamp' => now()->toISOString(),
-                ]);
-            } catch (\Throwable $exception) {
-                Log::warning('Unable to write Firebase logout audit log.', [
-                    'email' => $email,
-                    'exception' => $exception->getMessage(),
-                ]);
-            }
-        }
-
         $request->session()->invalidate();
         $request->session()->regenerateToken();
 
@@ -350,23 +327,4 @@ class LoginController extends Controller
         }
     }
 
-    private function queueLoginAuditLog(string $email, string $role): void
-    {
-        app()->terminating(function () use ($email, $role): void {
-            try {
-                $roleLabel = \App\Support\SystemLogDisplay::roleLabel($role);
-                $this->firebase->firestore()->collection('logs')->add([
-                    'email' => $email,
-                    'role' => $role,
-                    'action' => ($roleLabel !== 'N/A' ? $roleLabel : 'User').' logged in',
-                    'timestamp' => now()->toISOString(),
-                ]);
-            } catch (\Throwable $exception) {
-                Log::warning('Unable to write Firebase login audit log.', [
-                    'email' => $email,
-                    'exception' => $exception->getMessage(),
-                ]);
-            }
-        });
-    }
 }

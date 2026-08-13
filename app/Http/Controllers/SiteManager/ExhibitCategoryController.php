@@ -17,11 +17,21 @@ class ExhibitCategoryController extends Controller
 {
     public function __construct(private FirebaseService $firebase) {}
 
-    public function index(Request $request)
+    public function index(Request $request, ?string $id = null)
     {
         $categories = $this->categoriesForManager($this->managerUid());
         $perPage = 7;
         $page = max(1, (int) $request->query('page', 1));
+
+        if ($id !== null) {
+            $selectedIndex = array_search($id, array_column($categories, 'id'), true);
+            if ($selectedIndex === false) {
+                return redirect()->route($this->routeName('exhibit-categories.index'))
+                    ->with('status_err', 'Exhibit category not found.');
+            }
+            $page = (int) floor($selectedIndex / $perPage) + 1;
+        }
+
         $lastPage = max(1, (int) ceil(count($categories) / $perPage));
         $page = min($page, $lastPage);
 
@@ -37,6 +47,7 @@ class ExhibitCategoryController extends Controller
                 ]
             ),
             'routePrefix' => $this->routePrefix(),
+            'openViewId' => $id,
         ]);
     }
 
@@ -68,7 +79,6 @@ class ExhibitCategoryController extends Controller
             'updated_at' => now()->toDateTimeString(),
         ]);
 
-        $this->log('Site Manager created exhibit category: '.$name, $id, $name);
         $this->forgetCategoryCache($managerUid);
 
         return redirect()->route($this->routeName('exhibit-categories.index'))
@@ -104,7 +114,6 @@ class ExhibitCategoryController extends Controller
             'updated_at' => now()->toDateTimeString(),
         ], ['merge' => true]);
 
-        $this->log('Site Manager updated exhibit category: '.$name, $id, $name);
         $this->forgetCategoryCache($managerUid);
 
         return redirect()->route($this->routeName('exhibit-categories.index'))
@@ -120,9 +129,7 @@ class ExhibitCategoryController extends Controller
                 ->with('status_err', 'Exhibit category not found.');
         }
 
-        $name = trim((string) ($snapshot->data()['name'] ?? ''));
         $this->firebase->firestore()->collection('exhibit_categories')->document($id)->delete();
-        $this->log('Site Manager deleted exhibit category: '.($name !== '' ? $name : $id), $id, $name);
         $this->forgetCategoryCache($managerUid);
 
         return redirect()->route($this->routeName('exhibit-categories.index'))
@@ -256,18 +263,6 @@ class ExhibitCategoryController extends Controller
     private function routeName(string $name): string
     {
         return $this->routePrefix().'.'.$name;
-    }
-
-    private function log(string $action, string $categoryId, string $categoryName): void
-    {
-        $this->firebase->firestore()->collection('logs')->add([
-            'email' => (string) Session::get('email', ''),
-            'role' => (string) Session::get('role', 'site_manager'),
-            'action' => $action,
-            'exhibit_category_id' => $categoryId,
-            'exhibit_category_name' => $categoryName,
-            'timestamp' => now()->toIso8601String(),
-        ]);
     }
 
     private function forgetCategoryCache(string $managerUid): void

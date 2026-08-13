@@ -1,7 +1,6 @@
 @extends('layouts.sidebar')
 
 @php
-    use App\Services\LandmarkImageStorage;
     use App\Support\LandmarkActivation;
     $landmarkCount = method_exists($landmarks, 'total') ? $landmarks->total() : $landmarks->count();
     $panelRoutePrefix = session('role') === 'site_manager' ? 'sitemanager' : 'admin';
@@ -401,6 +400,126 @@
             outline: none !important;
             border-color: #d1d5db !important;
             box-shadow: none !important;
+        }
+        .lm-create-modal__panel .landmark-form-control {
+            box-sizing: border-box;
+            width: 100%;
+            height: 40px;
+            min-height: 40px;
+            padding: 0 12px;
+            border: 1px solid #cbd5e1;
+            border-radius: 8px;
+            outline: none;
+            background: #fff;
+            color: #111827;
+            box-shadow: none;
+            font-family: inherit;
+            font-size: 14px;
+        }
+        .lm-create-modal__panel .landmark-form-control:focus,
+        .lm-create-modal__panel .landmark-form-control:focus-visible {
+            border-color: #cbd5e1 !important;
+            outline: none !important;
+            box-shadow: none !important;
+        }
+        .lm-create-modal__panel .lm-create-category-dropdown {
+            height: 40px;
+            min-height: 40px;
+        }
+        .lm-create-modal__panel .lm-create-category-dropdown .landmark-form-control {
+            display: flex;
+            align-items: center;
+            padding-right: 2rem;
+            text-align: left;
+            cursor: pointer;
+        }
+        .lm-create-modal__panel input[type="file"].landmark-form-control {
+            padding: 0 12px 0 0;
+            line-height: 38px;
+        }
+        .lm-create-modal__panel input[type="file"].landmark-form-control::file-selector-button {
+            height: 38px;
+            margin: 0 12px 0 0;
+            padding: 0 12px;
+            border: 0;
+            border-right: 1px solid #cbd5e1;
+            background: #f3f4f6;
+            color: #111827;
+            font: inherit;
+            cursor: pointer;
+        }
+        .lm-create-modal__panel input[type="file"].landmark-form-control::-webkit-file-upload-button {
+            height: 38px;
+            margin: 0 12px 0 0;
+            padding: 0 12px;
+            border: 0;
+            border-right: 1px solid #cbd5e1;
+            background: #f3f4f6;
+            color: #111827;
+            font: inherit;
+            cursor: pointer;
+        }
+        .lm-edit-modal__panel .edit-landmark-control {
+            box-sizing: border-box;
+            width: 100%;
+            height: 40px;
+            min-height: 40px;
+            padding: 0 12px;
+            border: 1px solid #cbd5e1;
+            border-radius: 8px;
+            outline: none;
+            background: #fff;
+            color: #111827;
+            box-shadow: none;
+            font-family: inherit;
+            font-size: 14px;
+            line-height: 1;
+        }
+        .lm-edit-modal__panel .edit-landmark-control:focus,
+        .lm-edit-modal__panel .edit-landmark-control:focus-visible {
+            border-color: #cbd5e1 !important;
+            outline: none !important;
+            box-shadow: none !important;
+        }
+        .lm-edit-modal__panel .lm-edit-category-dropdown {
+            width: 100%;
+            min-width: 0;
+            height: 40px;
+            min-height: 40px;
+            flex: none;
+        }
+        .lm-edit-modal__panel .lm-edit-category-dropdown .edit-landmark-control {
+            display: flex;
+            align-items: center;
+            padding-right: 2rem;
+            text-align: left;
+            cursor: pointer;
+        }
+        .lm-edit-modal__panel input[type="file"].edit-landmark-control {
+            padding: 0 12px 0 0;
+            line-height: 38px;
+        }
+        .lm-edit-modal__panel input[type="file"].edit-landmark-control::file-selector-button {
+            height: 38px;
+            margin: 0 12px 0 0;
+            padding: 0 12px;
+            border: 0;
+            border-right: 1px solid #cbd5e1;
+            background: #f3f4f6;
+            color: #111827;
+            font: inherit;
+            cursor: pointer;
+        }
+        .lm-edit-modal__panel input[type="file"].edit-landmark-control::-webkit-file-upload-button {
+            height: 38px;
+            margin: 0 12px 0 0;
+            padding: 0 12px;
+            border: 0;
+            border-right: 1px solid #cbd5e1;
+            background: #f3f4f6;
+            color: #111827;
+            font: inherit;
+            cursor: pointer;
         }
         .lm-create-modal__panel button[type="submit"],
         .lm-edit-modal__panel button[type="submit"] {
@@ -997,7 +1116,6 @@
             font-size: .95rem;
         }
         .land-delete-modal__name {
-            margin: .65rem 0 0;
             color: #111827;
             font-weight: 800;
             word-break: break-word;
@@ -1187,16 +1305,170 @@
             width: 350px;
             flex: 0 0 350px;
         }
-        .land-wrap--sitemanager .land-controls select[name="category"] {
+        .land-wrap--sitemanager .land-filter-dropdown {
             width: 150px;
             min-width: 150px;
             flex: 0 0 150px;
+            height: 40px;
         }
-        .land-wrap--sitemanager .land-controls select[name="status"],
-        .land-wrap--sitemanager .land-controls select[name="order"] {
-            width: 140px;
-            min-width: 140px;
-            flex: 0 0 140px;
+        .land-controls--approval .land-filter-dropdown {
+            width: 150px;
+            min-width: 150px;
+            flex: 0 0 150px;
+            height: 40px;
+        }
+        .land-controls--approval .land-filter-dropdown__toggle {
+            height: 40px;
+        }
+        .land-wrap--sitemanager .land-controls .land-filter-dropdown__toggle {
+            display: flex;
+            align-items: center;
+            height: 40px;
+            min-height: 40px;
+            padding: 0 2rem 0 .8rem;
+            border: 1px solid #d1d5db;
+            border-radius: 8px;
+            background: #fff;
+            color: #111827;
+            line-height: 1;
+            outline: none;
+            box-shadow: none;
+        }
+        .land-wrap--sitemanager .land-controls .land-filter-dropdown__toggle:focus,
+        .land-wrap--sitemanager .land-controls .land-filter-dropdown__toggle:focus-visible {
+            border-color: #d1d5db;
+            outline: none;
+            box-shadow: none;
+        }
+        .land-wrap--sitemanager .lm-create-category-dropdown {
+            width: 100%;
+            min-width: 0;
+            flex: none;
+            height: 40px;
+            min-height: 40px;
+        }
+        .land-wrap--sitemanager .lm-edit-modal__panel .lm-edit-category-dropdown {
+            display: block;
+            box-sizing: border-box;
+            width: 100%;
+            min-width: 100%;
+            height: 40px;
+            min-height: 40px;
+            flex: none;
+        }
+        .land-filter-dropdown {
+            position: relative;
+            display: block;
+            height: 46px;
+        }
+        .land-filter-dropdown__native {
+            position: absolute;
+            inset: 0;
+            opacity: 0;
+            pointer-events: none;
+        }
+        .land-filter-dropdown__toggle {
+            position: relative;
+            display: block;
+            box-sizing: border-box;
+            width: 100%;
+            height: 46px;
+            padding: .62rem 2rem .62rem .72rem;
+            border: 1px solid #d1d5db;
+            border-radius: 8px;
+            background: #fff;
+            color: #111827;
+            font: inherit;
+            font-size: .9rem;
+            font-weight: 700;
+            line-height: 1;
+            text-align: left;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            cursor: pointer;
+        }
+        .land-filter-dropdown__arrow {
+            position: absolute;
+            z-index: 1;
+            top: 1px;
+            right: 1px;
+            width: 2.5rem;
+            height: calc(100% - 2px);
+            padding: 0;
+            border: 0;
+            border-radius: 0 7px 7px 0;
+            background: transparent;
+            color: #374151;
+            cursor: pointer;
+        }
+        .land-filter-dropdown__arrow::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: .45rem;
+            height: .45rem;
+            border-right: 2px solid currentColor;
+            border-bottom: 2px solid currentColor;
+            transform: translate(-50%, -70%) rotate(45deg);
+        }
+        .land-filter-dropdown.is-open .land-filter-dropdown__arrow::after {
+            transform: translate(-50%, -30%) rotate(225deg);
+        }
+        .land-filter-dropdown__arrow:focus-visible {
+            outline: 2px solid #9ca3af;
+            outline-offset: -3px;
+        }
+        .land-filter-dropdown__toggle:focus,
+        .land-filter-dropdown__toggle:focus-visible {
+            border-color: #d1d5db;
+            outline: none;
+            box-shadow: none;
+        }
+        .land-filter-dropdown-menu {
+            position: fixed;
+            z-index: 9999;
+            box-sizing: border-box;
+            max-height: 322px;
+            margin: 0;
+            padding: 0;
+            overflow-x: hidden;
+            overflow-y: auto;
+            scrollbar-width: thin;
+            scrollbar-color: #c7c7c7 transparent;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            background: #fff;
+            box-shadow: 0 8px 20px rgba(0, 0, 0, .15);
+            list-style: none;
+        }
+        .land-filter-dropdown-menu[hidden] { display: none; }
+        .land-filter-dropdown-menu::-webkit-scrollbar { width: 6px; }
+        .land-filter-dropdown-menu::-webkit-scrollbar-thumb { background: #c7c7c7; border-radius: 999px; }
+        .land-filter-dropdown-menu::-webkit-scrollbar-track { background: transparent; }
+        .land-filter-dropdown-menu__option {
+            display: block;
+            width: 100%;
+            height: 40px;
+            padding: 0 .72rem;
+            border: 0;
+            background: transparent;
+            color: #111827;
+            font: inherit;
+            font-size: .9rem;
+            line-height: 40px;
+            text-align: left;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            cursor: pointer;
+        }
+        .land-filter-dropdown-menu__option:hover,
+        .land-filter-dropdown-menu__option:focus,
+        .land-filter-dropdown-menu__option[aria-selected="true"] {
+            background: #f3f4f6;
+            outline: none;
         }
         .land-wrap--sitemanager .land-controls input[type="search"]:focus,
         .land-wrap--sitemanager .land-controls select:focus {
@@ -1279,22 +1551,32 @@
                 placeholder="Search landmarks..."
                 aria-label="Search landmarks">
 
-            <select name="status" aria-label="Filter by status">
-                <option value="all" @selected($landmarkStatusFilter === 'all')>All Status</option>
-                <option value="pending" @selected($landmarkStatusFilter === 'pending')>Pending</option>
-                <option value="active" @selected($landmarkStatusFilter === 'active')>Approved</option>
-                <option value="rejected" @selected($landmarkStatusFilter === 'rejected')>Rejected</option>
-            </select>
+            <span class="land-filter-dropdown">
+                <select class="land-filter-dropdown__native" name="status" aria-label="Filter by status">
+                    <option value="all" @selected($landmarkStatusFilter === 'all')>All Status</option>
+                    <option value="pending" @selected($landmarkStatusFilter === 'pending')>Pending</option>
+                    <option value="active" @selected($landmarkStatusFilter === 'active')>Approved</option>
+                    <option value="rejected" @selected($landmarkStatusFilter === 'rejected')>Rejected</option>
+                </select>
+                <button class="land-filter-dropdown__toggle" type="button" aria-haspopup="listbox" aria-expanded="false" aria-label="Filter by status"></button>
+                <button class="land-filter-dropdown__arrow custom-select-arrow" type="button" aria-label="Toggle options" aria-expanded="false"></button>
+                <ul class="land-filter-dropdown-menu" role="listbox" aria-label="Status options" hidden></ul>
+            </span>
 
-            <select name="category" aria-label="Filter by category">
-                <option value="all" @selected($landmarkCategoryFilter === 'all')>All Category</option>
-                <option value="historical" @selected($landmarkCategoryFilter === 'historical')>Historical</option>
-                <option value="religious" @selected($landmarkCategoryFilter === 'religious')>Religious</option>
-                <option value="modern" @selected($landmarkCategoryFilter === 'modern')>Modern</option>
-                <option value="natural" @selected($landmarkCategoryFilter === 'natural')>Natural</option>
-                <option value="cultural" @selected($landmarkCategoryFilter === 'cultural')>Cultural</option>
-                <option value="others" @selected($landmarkCategoryFilter === 'others')>Others</option>
-            </select>
+            <span class="land-filter-dropdown">
+                <select class="land-filter-dropdown__native" name="category" aria-label="Filter by category">
+                    <option value="all" @selected($landmarkCategoryFilter === 'all')>All Category</option>
+                    <option value="historical" @selected($landmarkCategoryFilter === 'historical')>Historical</option>
+                    <option value="religious" @selected($landmarkCategoryFilter === 'religious')>Religious</option>
+                    <option value="modern" @selected($landmarkCategoryFilter === 'modern')>Modern</option>
+                    <option value="natural" @selected($landmarkCategoryFilter === 'natural')>Natural</option>
+                    <option value="cultural" @selected($landmarkCategoryFilter === 'cultural')>Cultural</option>
+                    <option value="others" @selected($landmarkCategoryFilter === 'others')>Others</option>
+                </select>
+                <button class="land-filter-dropdown__toggle" type="button" aria-haspopup="listbox" aria-expanded="false" aria-label="Filter by category"></button>
+                <button class="land-filter-dropdown__arrow custom-select-arrow" type="button" aria-label="Toggle options" aria-expanded="false"></button>
+                <ul class="land-filter-dropdown-menu" role="listbox" aria-label="Category options" hidden></ul>
+            </span>
 
             <button type="submit">Search</button>
 
@@ -1313,28 +1595,43 @@
                 placeholder="Search landmarks..."
                 aria-label="Search landmarks">
 
-            <select name="category" aria-label="Filter by category">
-                <option value="all" @selected($landmarkCategoryFilter === 'all')>All Category</option>
-                <option value="historical" @selected($landmarkCategoryFilter === 'historical')>Historical</option>
-                <option value="religious" @selected($landmarkCategoryFilter === 'religious')>Religious</option>
-                <option value="natural" @selected($landmarkCategoryFilter === 'natural')>Natural</option>
-                <option value="modern" @selected($landmarkCategoryFilter === 'modern')>Modern</option>
-            </select>
+            <span class="land-filter-dropdown">
+                <select class="land-filter-dropdown__native" name="category" aria-label="Filter by category">
+                    <option value="all" @selected($landmarkCategoryFilter === 'all')>All Category</option>
+                    <option value="historical" @selected($landmarkCategoryFilter === 'historical')>Historical</option>
+                    <option value="religious" @selected($landmarkCategoryFilter === 'religious')>Religious</option>
+                    <option value="natural" @selected($landmarkCategoryFilter === 'natural')>Natural</option>
+                    <option value="modern" @selected($landmarkCategoryFilter === 'modern')>Modern</option>
+                </select>
+                <button class="land-filter-dropdown__toggle" type="button" aria-haspopup="listbox" aria-expanded="false" aria-label="Filter by category"></button>
+                <button class="land-filter-dropdown__arrow" type="button" aria-label="Toggle category options" aria-expanded="false"></button>
+                <ul class="land-filter-dropdown-menu" role="listbox" aria-label="Category options" hidden></ul>
+            </span>
 
-            <select name="status" aria-label="Filter by status">
-                <option value="all" @selected($landmarkStatusFilter === 'all')>All Status</option>
-                <option value="active" @selected($landmarkStatusFilter === 'active')>Active</option>
-                <option value="pending" @selected($landmarkStatusFilter === 'pending')>Pending Approval</option>
-                <option value="rejected" @selected($landmarkStatusFilter === 'rejected')>Rejected</option>
-            </select>
+            <span class="land-filter-dropdown">
+                <select class="land-filter-dropdown__native" name="status" aria-label="Filter by status">
+                    <option value="all" @selected($landmarkStatusFilter === 'all')>All Status</option>
+                    <option value="active" @selected($landmarkStatusFilter === 'active')>Active</option>
+                    <option value="pending" @selected($landmarkStatusFilter === 'pending')>Pending Approval</option>
+                    <option value="rejected" @selected($landmarkStatusFilter === 'rejected')>Rejected</option>
+                </select>
+                <button class="land-filter-dropdown__toggle" type="button" aria-haspopup="listbox" aria-expanded="false" aria-label="Filter by status"></button>
+                <button class="land-filter-dropdown__arrow" type="button" aria-label="Toggle status options" aria-expanded="false"></button>
+                <ul class="land-filter-dropdown-menu" role="listbox" aria-label="Status options" hidden></ul>
+            </span>
 
-            <select name="order" aria-label="Order landmarks">
-                <option value="default" @selected($landmarkOrder === 'default')>Default order</option>
-                <option value="name_az" @selected($landmarkOrder === 'name_az')>Name A-Z</option>
-                <option value="name_za" @selected($landmarkOrder === 'name_za')>Name Z-A</option>
-                <option value="newest" @selected($landmarkOrder === 'newest')>Newest</option>
-                <option value="oldest" @selected($landmarkOrder === 'oldest')>Oldest</option>
-            </select>
+            <span class="land-filter-dropdown">
+                <select class="land-filter-dropdown__native" name="order" aria-label="Order landmarks">
+                    <option value="default" @selected($landmarkOrder === 'default')>Default order</option>
+                    <option value="name_az" @selected($landmarkOrder === 'name_az')>Name A-Z</option>
+                    <option value="name_za" @selected($landmarkOrder === 'name_za')>Name Z-A</option>
+                    <option value="newest" @selected($landmarkOrder === 'newest')>Newest</option>
+                    <option value="oldest" @selected($landmarkOrder === 'oldest')>Oldest</option>
+                </select>
+                <button class="land-filter-dropdown__toggle" type="button" aria-haspopup="listbox" aria-expanded="false" aria-label="Order landmarks"></button>
+                <button class="land-filter-dropdown__arrow" type="button" aria-label="Toggle order options" aria-expanded="false"></button>
+                <ul class="land-filter-dropdown-menu" role="listbox" aria-label="Order options" hidden></ul>
+            </span>
 
             <button type="submit">Search</button>
 
@@ -1368,12 +1665,7 @@
                                 $modalSafe = preg_replace('/[^a-zA-Z0-9_-]/', '_', $lid);
                                 $viewModalId = 'viewModal_' . $modalSafe;
                                 $data = $landmark->data();
-                                $imageSrc = null;
-                                $storedImageUrl = $data['image_url'] ?? LandmarkImageStorage::publicUrl($lid);
-
-                                if (!empty($data['image_base64']) || $storedImageUrl !== null) {
-                                    $imageSrc = $storedImageUrl ?? route($panelRoutePrefix . '.landmarks.image', $lid);
-                                }
+                                $imageSrc = $data['image_path'] ?? null;
 
                                 $activation = strtolower((string) ($data['activation_status'] ?? 'active'));
                                 $activationLabel = $isLandmarkApprovalQueue
@@ -1459,14 +1751,32 @@
                                                 @method('PUT')
 
                                                 <label for="lm-edit-name-{{ $modalSafe }}">Landmark Name</label>
-                                                <input id="lm-edit-name-{{ $modalSafe }}" type="text" name="name" value="{{ $data['name'] ?? '' }}" required autocomplete="organization">
+                                                <input id="lm-edit-name-{{ $modalSafe }}" class="edit-landmark-control" type="text" name="name" value="{{ $data['name'] ?? '' }}" required autocomplete="organization">
 
                                                 <label for="lm-edit-category-{{ $modalSafe }}">Category</label>
-                                                <select id="lm-edit-category-{{ $modalSafe }}" name="category" required>
-                                                    @foreach (['Historical', 'Natural', 'Cultural', 'Religious', 'Modern'] as $cat)
-                                                        <option value="{{ $cat }}" {{ strcasecmp((string) ($data['category'] ?? ''), $cat) === 0 ? 'selected' : '' }}>{{ $cat }}</option>
-                                                    @endforeach
-                                                </select>
+                                                <span class="land-filter-dropdown lm-edit-category-dropdown">
+                                                    <select id="lm-edit-category-{{ $modalSafe }}"
+                                                            class="land-filter-dropdown__native"
+                                                            name="category"
+                                                            required>
+                                                        @foreach (['Historical', 'Natural', 'Cultural', 'Religious', 'Modern'] as $cat)
+                                                            <option value="{{ $cat }}" {{ strcasecmp((string) ($data['category'] ?? ''), $cat) === 0 ? 'selected' : '' }}>{{ $cat }}</option>
+                                                        @endforeach
+                                                    </select>
+                                                    <button class="land-filter-dropdown__toggle edit-landmark-control"
+                                                            type="button"
+                                                            aria-haspopup="listbox"
+                                                            aria-expanded="false"
+                                                            aria-label="Select landmark category"></button>
+                                                    <button class="land-filter-dropdown__arrow"
+                                                            type="button"
+                                                            aria-label="Toggle landmark category options"
+                                                            aria-expanded="false"></button>
+                                                    <ul class="land-filter-dropdown-menu"
+                                                        role="listbox"
+                                                        aria-label="Landmark category options"
+                                                        hidden></ul>
+                                                </span>
 
                                                 <label for="lm-edit-description-{{ $modalSafe }}">Description</label>
                                                 <textarea id="lm-edit-description-{{ $modalSafe }}" name="description" rows="4">{{ $data['description'] ?? '' }}</textarea>
@@ -1496,11 +1806,11 @@
                                                 <input id="lm-edit-lng-{{ $modalSafe }}" type="hidden" name="longitude" value="{{ $data['longitude'] ?? $data['longti'] ?? '' }}">
 
                                                 <label for="lm-edit-image-{{ $modalSafe }}">Landmark photo</label>
-                                                <input id="lm-edit-image-{{ $modalSafe }}" type="file" name="image" accept="image/*" data-max-bytes="524288">
+                                                <input id="lm-edit-image-{{ $modalSafe }}" class="edit-landmark-control" type="file" name="image" accept="image/*" data-max-bytes="524288">
                                                 <p class="lm-edit-modal__hint">Leave blank to keep the current photo.</p>
 
                                                 <label for="lm-edit-evidence-{{ $modalSafe }}">Evidence / supporting documents</label>
-                                                <input id="lm-edit-evidence-{{ $modalSafe }}" type="file" name="evidence_files[]" accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx,image/*,application/pdf" multiple data-max-files="5" data-max-file-bytes="5242880">
+                                                <input id="lm-edit-evidence-{{ $modalSafe }}" class="edit-landmark-control" type="file" name="evidence_files[]" accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx,image/*,application/pdf" multiple data-max-files="5" data-max-file-bytes="5242880">
                                                 <p class="lm-edit-modal__hint">Leave blank to keep the current evidence files.</p>
 
                                                 <div class="lm-edit-modal__actions">
@@ -1545,11 +1855,10 @@
              aria-hidden="true">
             <div class="land-delete-modal__panel"
                  role="dialog"
-                 aria-modal="true"
-                 aria-labelledby="landDeleteModalTitle">
+                aria-modal="true"
+                aria-labelledby="landDeleteModalTitle">
                 <h3 id="landDeleteModalTitle" class="land-delete-modal__title">Delete this landmark?</h3>
-                <p class="land-delete-modal__message">Are you sure you want to delete</p>
-                <p class="land-delete-modal__name" id="landDeleteModalName"></p>
+                <p class="land-delete-modal__message">Are you sure you want to delete "<strong class="land-delete-modal__name" id="landDeleteModalName"></strong>"?</p>
                 <div class="land-delete-modal__actions">
                     <button type="button" id="cancelLandDelete" class="land-delete-modal__btn cancel">Cancel</button>
                     <button type="button" id="confirmLandDelete" class="land-delete-modal__btn confirm">Delete</button>
@@ -1588,14 +1897,32 @@
                     @csrf
 
                     <label for="lm-create-name">Landmark Name</label>
-                    <input id="lm-create-name" type="text" name="name" value="{{ old('name') }}" required autocomplete="organization">
+                    <input id="lm-create-name" class="landmark-form-control" type="text" name="name" value="{{ old('name') }}" required autocomplete="organization">
 
                     <label for="lm-create-category">Category</label>
-                    <select id="lm-create-category" name="category" required>
-                        @foreach (['Historical', 'Natural', 'Cultural', 'Religious', 'Modern'] as $cat)
-                            <option value="{{ $cat }}" {{ old('category', 'Historical') === $cat ? 'selected' : '' }}>{{ $cat }}</option>
-                        @endforeach
-                    </select>
+                    <span class="land-filter-dropdown lm-create-category-dropdown">
+                        <select id="lm-create-category"
+                                class="land-filter-dropdown__native"
+                                name="category"
+                                required>
+                            @foreach (['Historical', 'Natural', 'Cultural', 'Religious', 'Modern'] as $cat)
+                                <option value="{{ $cat }}" {{ old('category', 'Historical') === $cat ? 'selected' : '' }}>{{ $cat }}</option>
+                            @endforeach
+                        </select>
+                        <button class="land-filter-dropdown__toggle landmark-form-control"
+                                type="button"
+                                aria-haspopup="listbox"
+                                aria-expanded="false"
+                                aria-label="Select landmark category"></button>
+                        <button class="land-filter-dropdown__arrow"
+                                type="button"
+                                aria-label="Toggle landmark category options"
+                                aria-expanded="false"></button>
+                        <ul class="land-filter-dropdown-menu"
+                            role="listbox"
+                            aria-label="Landmark category options"
+                            hidden></ul>
+                    </span>
 
                     <label for="lm-create-description">Description</label>
                     <textarea id="lm-create-description" name="description" rows="4">{{ old('description') }}</textarea>
@@ -1614,10 +1941,10 @@
                     <input id="lm-create-lng" type="hidden" name="longitude" value="{{ old('longitude') }}">
 
                     <label for="lm-create-image">Landmark photo</label>
-                    <input id="lm-create-image" type="file" name="image" accept="image/*" data-max-bytes="524288">
+                    <input id="lm-create-image" class="landmark-form-control" type="file" name="image" accept="image/*" data-max-bytes="524288">
 
                     <label for="lm-create-evidence">Evidence / supporting documents</label>
-                    <input id="lm-create-evidence" type="file" name="evidence_files[]" accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx,image/*,application/pdf" multiple required data-max-files="5" data-max-file-bytes="5242880">
+                    <input id="lm-create-evidence" class="landmark-form-control" type="file" name="evidence_files[]" accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx,image/*,application/pdf" multiple required data-max-files="5" data-max-file-bytes="5242880">
 
                     <button type="submit">Submit for approval</button>
                 </form>
@@ -1631,6 +1958,18 @@
     <script>
         var smLandmarksIndexUrl = @json($landmarksListUrl);
         var smLandmarkShowUrlTemplate = @json(route($panelRoutePrefix . '.landmarks.show', ['id' => '__ID__']));
+
+        function smLandmarksIndexPath() {
+            try {
+                return new URL(smLandmarksIndexUrl, window.location.origin).pathname.replace(/\/$/, '');
+            } catch (e) {
+                return String(smLandmarksIndexUrl).replace(/^https?:\/\/[^/]+/i, '').split(/[?#]/)[0].replace(/\/$/, '');
+            }
+        }
+
+        function smLandmarksIndexHistoryUrl() {
+            return smLandmarksIndexPath() + window.location.search;
+        }
 
         function smLandmarkShowUrl(landmarkId) {
             return smLandmarkShowUrlTemplate.replace('__ID__', encodeURIComponent(landmarkId));
@@ -1731,7 +2070,7 @@
         }
 
         function smLandmarkIdFromPath() {
-            var indexPath = smLandmarksIndexUrl.replace(/\/$/, '');
+            var indexPath = smLandmarksIndexPath();
             var path = window.location.pathname.replace(/\/$/, '');
             if (path === indexPath) {
                 return null;
@@ -1789,7 +2128,7 @@
             smSyncBodyScrollLock();
             if (updateUrl !== false && smLandmarkIdFromPath()) {
                 try {
-                    history.replaceState(null, '', smLandmarksIndexUrl);
+                    history.replaceState(null, '', smLandmarksIndexHistoryUrl());
                 } catch (e) {}
             }
         }
@@ -1990,6 +2329,7 @@
             for (var i = 0; i < select.options.length; i++) {
                 if (select.options[i].value === category) {
                     select.value = category;
+                    select.dispatchEvent(new Event('change', { bubbles: true }));
                     return;
                 }
             }
@@ -2657,10 +2997,174 @@
         }
         @endif
 
+        function smInitLandmarkFilterDropdowns() {
+            var dropdowns = [];
+
+            function closeDropdowns(exceptMenu, group) {
+                dropdowns.forEach(function (dropdown) {
+                    if (dropdown.menu === exceptMenu) return;
+                    if (group && dropdown.group !== group) return;
+                    dropdown.close();
+                });
+            }
+
+            document.querySelectorAll('.land-filter-dropdown').forEach(function (root) {
+                var select = root.querySelector('.land-filter-dropdown__native');
+                var toggle = root.querySelector('.land-filter-dropdown__toggle');
+                var arrow = root.querySelector('.land-filter-dropdown__arrow');
+                var menu = root.querySelector('.land-filter-dropdown-menu');
+                if (!select || !toggle || !arrow || !menu) return;
+                var group = root.closest('.land-controls') ? 'filters' : root;
+                var isOpen = false;
+
+                function syncDropdown() {
+                    var selected = select.options[select.selectedIndex] || select.options[0];
+                    toggle.textContent = selected ? selected.textContent : '';
+                    menu.querySelectorAll('[role="option"]').forEach(function (option) {
+                        option.setAttribute('aria-selected', option.dataset.value === select.value ? 'true' : 'false');
+                    });
+                }
+
+                function closeDropdown() {
+                    isOpen = false;
+                    menu.hidden = true;
+                    root.classList.remove('is-open');
+                    toggle.setAttribute('aria-expanded', 'false');
+                    arrow.setAttribute('aria-expanded', 'false');
+                }
+
+                function openDropdown() {
+                    if (group === 'filters') closeDropdowns(menu, group);
+                    isOpen = true;
+                    var viewport = window.visualViewport;
+                    var viewportTop = viewport ? viewport.offsetTop : 0;
+                    var viewportLeft = viewport ? viewport.offsetLeft : 0;
+                    var viewportBottom = viewportTop + (viewport ? viewport.height : window.innerHeight);
+                    var viewportRight = viewportLeft + (viewport ? viewport.width : document.documentElement.clientWidth);
+                    var padding = 8;
+                    var gap = 4;
+                    var maxMenuHeight = 322;
+                    var toggleRect = toggle.getBoundingClientRect();
+                    var spaceBelow = Math.max(0, viewportBottom - toggleRect.bottom - gap - padding);
+                    var spaceAbove = Math.max(0, toggleRect.top - viewportTop - gap - padding);
+
+                    menu.style.width = toggleRect.width + 'px';
+                    menu.style.maxHeight = maxMenuHeight + 'px';
+                    menu.style.top = '0';
+                    menu.hidden = false;
+
+                    var desiredHeight = Math.min(menu.scrollHeight + 2, maxMenuHeight);
+                    var opensUp = spaceBelow < desiredHeight && spaceAbove > spaceBelow;
+                    var availableSpace = opensUp ? spaceAbove : spaceBelow;
+                    menu.style.maxHeight = Math.min(maxMenuHeight, availableSpace) + 'px';
+
+                    var menuHeight = menu.getBoundingClientRect().height;
+                    var menuTop = opensUp ? toggleRect.top - gap - menuHeight : toggleRect.bottom + gap;
+                    var maxLeft = viewportRight - padding - toggleRect.width;
+                    menu.style.top = Math.max(viewportTop + padding, menuTop) + 'px';
+                    menu.style.left = Math.max(viewportLeft + padding, Math.min(toggleRect.left, maxLeft)) + 'px';
+                    root.classList.add('is-open');
+                    toggle.setAttribute('aria-expanded', 'true');
+                    arrow.setAttribute('aria-expanded', 'true');
+
+                    var selected = menu.querySelector('[aria-selected="true"]');
+                    if (selected) selected.scrollIntoView({ block: 'nearest' });
+                }
+
+                Array.from(select.options).forEach(function (nativeOption) {
+                    var item = document.createElement('li');
+                    var option = document.createElement('button');
+                    option.type = 'button';
+                    option.className = 'land-filter-dropdown-menu__option';
+                    option.setAttribute('role', 'option');
+                    option.dataset.value = nativeOption.value;
+                    option.textContent = nativeOption.textContent;
+                    option.addEventListener('click', function () {
+                        select.value = nativeOption.value;
+                        select.dispatchEvent(new Event('change', { bubbles: true }));
+                        syncDropdown();
+                        closeDropdown();
+                        toggle.focus();
+                    });
+                    item.appendChild(option);
+                    menu.appendChild(item);
+                });
+
+                document.body.appendChild(menu);
+                dropdowns.push({ menu: menu, group: group, close: closeDropdown });
+                syncDropdown();
+                select.addEventListener('change', syncDropdown);
+
+                toggle.addEventListener('click', function (event) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    if (!isOpen) openDropdown();
+                });
+                arrow.addEventListener('mousedown', function (event) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                });
+                arrow.addEventListener('click', function (event) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    if (isOpen) {
+                        closeDropdown();
+                    } else {
+                        openDropdown();
+                        toggle.focus({ preventScroll: true });
+                    }
+                });
+                toggle.addEventListener('keydown', function (event) {
+                    if (event.key === 'Escape' && isOpen) {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        closeDropdown();
+                    } else if (event.key === 'ArrowDown' || event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault();
+                        openDropdown();
+                        (menu.querySelector('[aria-selected="true"]') || menu.querySelector('[role="option"]'))?.focus();
+                    }
+                });
+                menu.addEventListener('keydown', function (event) {
+                    var options = Array.from(menu.querySelectorAll('[role="option"]'));
+                    var current = options.indexOf(document.activeElement);
+                    if (event.key === 'Escape') {
+                        event.stopPropagation();
+                        closeDropdown();
+                        toggle.focus();
+                    } else if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+                        event.preventDefault();
+                        var direction = event.key === 'ArrowDown' ? 1 : -1;
+                        options[(current + direction + options.length) % options.length]?.focus();
+                    } else if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault();
+                        document.activeElement.click();
+                    }
+                });
+                menu.addEventListener('click', function (event) {
+                    event.stopPropagation();
+                });
+            });
+
+            document.addEventListener('click', function (event) {
+                if (!event.target.closest('.land-filter-dropdown') && !event.target.closest('.land-filter-dropdown-menu')) {
+                    closeDropdowns();
+                }
+            });
+            document.addEventListener('keydown', function (event) {
+                if (event.key === 'Escape') closeDropdowns();
+            });
+            window.addEventListener('resize', function () { closeDropdowns(); });
+            window.addEventListener('scroll', function (event) {
+                if (!event.target.closest || !event.target.closest('.land-filter-dropdown-menu')) closeDropdowns();
+            }, true);
+        }
+
         document.addEventListener('DOMContentLoaded', function () {
             smInitLandmarkListExpansion();
             smInitLandmarkControls();
             smInitLandmarkDeleteModal();
+            smInitLandmarkFilterDropdowns();
             @if ($panelRoutePrefix === 'sitemanager')
             lmAttachCreateUploadGuard();
             lmAttachEditUploadGuards();

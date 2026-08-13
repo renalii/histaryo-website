@@ -368,7 +368,7 @@
                     <img id="cu-qr-preview-image" class="cu-qr-modal__image" src="{{ $qrPreview['url'] }}" alt="QR code image" hidden>
                     <a id="cu-qr-preview-download"
                        class="cu-lm-add-btn cu-qr-modal__download"
-                       href="{{ $qrPreview['url'] }}"
+                       href="{{ $qrPreview['downloadUrl'] ?? $qrPreview['url'] }}"
                        download="{{ $qrPreview['filename'] ?? 'landmark-code-qr.png' }}"
                        hidden>
                         Download QR Image

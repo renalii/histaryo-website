@@ -91,7 +91,6 @@ Route::prefix('admin')->middleware(['web', 'panel.admin'])->group(function () {
     Route::post('/users/{uid}/approve', [AdminController::class, 'approveUser'])->name('admin.users.approve');
     Route::post('/users/{uid}/reject', [AdminController::class, 'rejectUser'])->name('admin.users.reject');
     Route::get('/landmarks', [AdminController::class, 'landmarks'])->name('admin.landmarks');
-    Route::get('/landmarks/{id}/image', [AdminController::class, 'landmarkImage'])->name('admin.landmarks.image');
     Route::get('/landmarks/{id}', [AdminController::class, 'showLandmark'])->name('admin.landmarks.show');
     Route::post('/landmarks/{id}/approve', [AdminController::class, 'approveLandmark'])->name('admin.landmarks.approve');
     Route::post('/landmarks/{id}/reject', [AdminController::class, 'rejectLandmark'])->name('admin.landmarks.reject');
@@ -101,10 +100,12 @@ Route::prefix('sitemanager')->middleware(['web', 'panel.sitemanager'])->group(fu
     Route::get('/', [AdminController::class, 'dashboard'])->name('sitemanager.dashboard');
     Route::get('/curators', [AdminController::class, 'users'])->name('sitemanager.curators');
     Route::get('/exhibit-categories', [ExhibitCategoryController::class, 'index'])->name('sitemanager.exhibit-categories.index');
+    Route::get('/exhibit-categories/{id}', [ExhibitCategoryController::class, 'index'])->name('sitemanager.exhibit-categories.show');
     Route::post('/exhibit-categories', [ExhibitCategoryController::class, 'store'])->name('sitemanager.exhibit-categories.store');
     Route::put('/exhibit-categories/{id}', [ExhibitCategoryController::class, 'update'])->name('sitemanager.exhibit-categories.update');
     Route::delete('/exhibit-categories/{id}', [ExhibitCategoryController::class, 'destroy'])->name('sitemanager.exhibit-categories.destroy');
     Route::get('/exhibits', [ExhibitController::class, 'index'])->name('sitemanager.exhibits.index');
+    Route::get('/exhibits/{id}', [ExhibitController::class, 'index'])->name('sitemanager.exhibits.show');
     Route::post('/exhibits', [ExhibitController::class, 'store'])->name('sitemanager.exhibits.store');
     Route::put('/exhibits/{id}', [ExhibitController::class, 'update'])->name('sitemanager.exhibits.update');
     Route::delete('/exhibits/{id}', [ExhibitController::class, 'destroy'])->name('sitemanager.exhibits.destroy');
@@ -121,7 +122,6 @@ Route::prefix('sitemanager')->middleware(['web', 'panel.sitemanager'])->group(fu
     Route::get('/landmarks', [AdminController::class, 'landmarks'])->name('sitemanager.landmarks');
     Route::get('/landmarks/create', [SiteManagerController::class, 'create'])->name('sitemanager.landmarks.create');
     Route::post('/landmarks', [SiteManagerController::class, 'store'])->name('sitemanager.landmarks.store');
-    Route::get('/landmarks/{id}/image', [AdminController::class, 'landmarkImage'])->name('sitemanager.landmarks.image');
     Route::put('/landmarks/{id}', [SiteManagerController::class, 'update'])->name('sitemanager.landmarks.update');
     Route::delete('/landmarks/{id}', [SiteManagerController::class, 'destroy'])->name('sitemanager.landmarks.destroy');
     Route::get('/landmarks/{id}', [AdminController::class, 'showLandmark'])->name('sitemanager.landmarks.show');

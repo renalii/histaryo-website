@@ -23,13 +23,4 @@ class AdminPanelSessionTest extends TestCase
         $response->assertRedirect(route('login'));
     }
 
-    public function test_direct_navigation_to_clear_logs_redirects_without_clearing(): void
-    {
-        $response = $this->withSession([
-            'uid' => 'admin-1',
-            'role' => 'admin',
-        ])->get('/admin/logs/clear');
-
-        $response->assertRedirect('/admin/logs');
-    }
 }

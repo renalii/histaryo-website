@@ -55,8 +55,13 @@
       box-sizing: border-box;
     }
 
+    html,
     body {
+      height: 100%;
       margin: 0;
+    }
+
+    body {
       font-family: 'Inter', sans-serif;
       background: linear-gradient(to bottom right, #f4f1ff, #e0e7ff);
       color: #111827;
@@ -65,7 +70,13 @@
     }
 
     .sidebar {
-      width: 260px;
+      position: fixed;
+      top: 0;
+      left: 0;
+      z-index: 10;
+      width: 240px;
+      height: 100vh;
+      min-height: 100vh;
       background: linear-gradient(180deg, #7A2E1F, #8b3926);
       backdrop-filter: blur(12px);
       -webkit-backdrop-filter: blur(12px);
@@ -77,9 +88,12 @@
       flex-direction: column;
       justify-content: space-between;
       box-shadow: 6px 0 30px rgba(122, 46, 31, 0.28);
-      height: 100vh;        
-      position: sticky;     
-      top: 0;
+      overflow-y: auto;
+    }
+
+    .sidebar-menu {
+      flex: 1;
+      min-height: 0;
     }
 
     .sidebar h2 {
@@ -128,8 +142,9 @@
       transform: translateX(4px);
     }
 
-    .logout {
-      margin-top: 2rem;
+    .logout-container {
+      margin-top: auto;
+      padding: 20px;
     }
 
     .logout form button {
@@ -156,7 +171,9 @@
 
     .main-content {
       flex: 1;
+      margin-left: 240px;
       min-width: 0;
+      min-height: 100vh;
       padding: 2.5rem;
     }
 
@@ -166,6 +183,7 @@
       }
 
       .main-content {
+        margin-left: 0;
         padding: 1.25rem;
       }
     }
@@ -175,7 +193,7 @@
 
   {{-- Sidebar --}}
   <aside class="sidebar">
-    <div>
+    <div class="sidebar-menu">
       <h2>Histaryo</h2>
       <nav class="nav-links">
         @if(session('role') === 'curator')
@@ -208,7 +226,7 @@
       </nav>
     </div>
 
-    <div class="logout">
+    <div class="logout logout-container">
       <form method="POST" action="{{ route('logout') }}">
         @csrf
         <button type="submit">Logout</button>

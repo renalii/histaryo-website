@@ -8,9 +8,7 @@ use RuntimeException;
 
 final class CloudinaryImageService
 {
-    /**
-     * @return array{image_url: string, image_public_id: string, image_base64: string, image_mime: string}
-     */
+    /** @return array{image_path: string, image_public_id: string, image_mime: string} */
     public function uploadLandmark(UploadedFile $file, string $landmarkId): array
     {
         return $this->optimize(
@@ -18,34 +16,6 @@ final class CloudinaryImageService
             $this->landmarkPublicId($landmarkId),
             $file->getClientOriginalName()
         );
-    }
-
-    /**
-     * @return array{image_url: string, image_public_id: string, image_base64: string, image_mime: string}
-     */
-    public function uploadLandmarkBase64(string $base64, string $landmarkId): array
-    {
-        if (str_contains($base64, ',')) {
-            $base64 = explode(',', $base64, 2)[1] ?? '';
-        }
-
-        $binary = base64_decode($base64, true);
-        if ($binary === false) {
-            throw new RuntimeException('The landmark image contains invalid base64 data.');
-        }
-
-        return $this->optimize($binary, $this->landmarkPublicId($landmarkId), $landmarkId.'.jpg');
-    }
-
-    /**
-     * @return array{image_url: string, image_public_id: string, image_base64: string, image_mime: string}
-     */
-    public function uploadLandmarkUrl(string $url, string $landmarkId): array
-    {
-        $response = Http::get($url);
-        $response->throw();
-
-        return $this->optimize($response->body(), $this->landmarkPublicId($landmarkId), $landmarkId.'.jpg');
     }
 
     public function deleteLandmark(string $publicId): void
@@ -58,9 +28,7 @@ final class CloudinaryImageService
         $this->delete($publicId);
     }
 
-    /**
-     * @return array{image_url: string, image_public_id: string, image_base64: string, image_mime: string}
-     */
+    /** @return array{image_path: string, image_public_id: string, image_mime: string} */
     private function optimize(string|false $binary, string $publicId, string $filename): array
     {
         $this->assertConfigured();
@@ -92,19 +60,9 @@ final class CloudinaryImageService
             throw new RuntimeException('Cloudinary did not return the required image metadata.');
         }
 
-        $optimized = Http::get($url);
-        $optimized->throw();
-
-        $dataUri = 'data:image/webp;base64,'.base64_encode($optimized->body());
-        $maxBytes = (int) config('services.cloudinary.max_base64_bytes', 700000);
-        if (strlen($dataUri) > $maxBytes) {
-            throw new RuntimeException('The optimized image is too large to store safely in Firestore.');
-        }
-
         return [
-            'image_url' => $url,
+            'image_path' => $url,
             'image_public_id' => $storedPublicId,
-            'image_base64' => $dataUri,
             'image_mime' => 'image/webp',
         ];
     }

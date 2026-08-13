@@ -16,13 +16,8 @@
     $mapboxEmbedToken = isset($mapboxToken) ? trim((string) $mapboxToken) : '';
     $useLeafletFallback = $showMapEmbed && $mapboxEmbedToken === '';
     $imageSrc = null;
-    if (!empty($landmark['image_url'])) {
-        $imageSrc = $landmark['image_url'];
-    } elseif (!empty($landmark['image_base64'])) {
-        $imageMime = $landmark['image_mime'] ?? 'image/jpeg';
-        $imageSrc = str_starts_with($landmark['image_base64'], 'data:')
-            ? $landmark['image_base64']
-            : 'data:' . $imageMime . ';base64,' . $landmark['image_base64'];
+    if (!empty($landmark['image_path'])) {
+        $imageSrc = $landmark['image_path'];
     }
 @endphp
 <!DOCTYPE html>

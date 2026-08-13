@@ -60,6 +60,106 @@
             border-color: #d1d5db;
             box-shadow: none;
         }
+        .curator-filter-control {
+            height: 40px;
+            min-height: 40px;
+            box-sizing: border-box;
+            background: #ffffff;
+            border: 1px solid #cbd5e1;
+            border-radius: 8px;
+            color: #111827;
+            font-size: 14px;
+            outline: none;
+            box-shadow: none;
+        }
+        .curator-landmark-filter {
+            position: relative;
+            width: 270px;
+            min-width: 270px;
+        }
+        .curator-landmark-filter .sa-custom-select__field {
+            display: block;
+            width: 100%;
+            height: 40px;
+            min-height: 40px;
+            padding: 0 38px 0 12px;
+            border-color: #cbd5e1;
+            font-size: 14px;
+            line-height: 1;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .curator-landmark-filter .sa-custom-select__field:focus,
+        .curator-landmark-filter .sa-custom-select__field:focus-visible {
+            border-color: #cbd5e1;
+            outline: none;
+            box-shadow: none;
+        }
+        .curator-landmark-filter .custom-select-arrow:focus-visible {
+            outline: 2px solid #9ca3af;
+            outline-offset: -3px;
+            box-shadow: none;
+        }
+        .curator-landmark-filter-menu {
+            min-width: 270px;
+            max-height: 280px;
+            overflow-x: hidden;
+            overflow-y: auto;
+            border-color: #cbd5e1;
+            border-radius: 8px;
+            background: #ffffff;
+            box-shadow: 0 8px 18px rgba(0, 0, 0, .14);
+        }
+        .curator-landmark-filter-menu .sa-custom-select__option {
+            display: flex;
+            align-items: center;
+            width: 100%;
+            height: 40px;
+            min-height: 40px;
+            padding: 0 12px;
+            box-sizing: border-box;
+            line-height: 1;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .curator-landmark-filter-menu .sa-custom-select__option:hover {
+            background: #f8fafc;
+        }
+        .sa-custom-select { position:relative; display:block; width:170px; height:40px; }
+        .sa-custom-select__native { position:absolute; inset:0; opacity:0; pointer-events:none; }
+        .sa-custom-select__field {
+            box-sizing:border-box; width:100%; height:40px; padding:0 2rem 0 .72rem;
+            border:1px solid #d1d5db; border-radius:8px; background:#fff; color:#111827;
+            font:inherit; text-align:left; cursor:pointer;
+        }
+        .custom-select-arrow {
+            position:absolute; z-index:1; top:1px; right:1px; width:2.5rem; height:38px;
+            padding:0; border:0; border-radius:0 7px 7px 0; background:transparent;
+            color:#374151; cursor:pointer;
+        }
+        .custom-select-arrow::after {
+            content:''; position:absolute; top:50%; left:50%; width:.45rem; height:.45rem;
+            border-right:2px solid currentColor; border-bottom:2px solid currentColor;
+            transform:translate(-50%,-70%) rotate(45deg);
+        }
+        .sa-custom-select.is-open .custom-select-arrow::after { transform:translate(-50%,-30%) rotate(225deg); }
+        .sa-custom-select__menu {
+            position:fixed; z-index:9999; box-sizing:border-box; max-height:322px; margin:0;
+            padding:0; overflow-x:hidden; overflow-y:auto; border:1px solid #d1d5db;
+            border-radius:6px; background:#fff; box-shadow:0 8px 20px rgba(0,0,0,.15);
+            list-style:none;
+        }
+        .sa-custom-select__menu[hidden] { display:none; }
+        .sa-custom-select__option {
+            display:block; width:100%; height:40px; padding:0 .72rem; border:0;
+            background:transparent; color:#111827; font:inherit; line-height:40px;
+            text-align:left; cursor:pointer;
+        }
+        .sa-custom-select__option:hover,
+        .sa-custom-select__option:focus,
+        .sa-custom-select__option[aria-selected="true"] { background:#f3f4f6; outline:none; }
         .users-btn {
             border: 1px solid transparent;
             border-radius: 8px;
@@ -458,22 +558,48 @@
             type="text"
             name="search"
             value="{{ request('search') }}"
-            placeholder="{{ $curatorsOnly ? 'Search by email, landmark, or status...' : 'Search by email...' }}"
-            class="users-input">
+            placeholder="Search by email..."
+            class="users-input{{ $curatorsOnly && $panelRoutePrefix === 'sitemanager' ? ' curator-filter-control' : '' }}">
 
-        @if (! $curatorsOnly && ! $siteManagersOnly)
-        <select name="role" class="users-select">
-            <option value="">All Roles</option>
-            <option value="admin" {{ request('role') === 'admin' ? 'selected' : '' }}>Admin</option>
-            <option value="curator" {{ request('role') === 'curator' ? 'selected' : '' }}>Curator</option>
-            <option value="site_manager" {{ request('role') === 'site_manager' ? 'selected' : '' }}>Site Manager</option>
-        </select>
+        @if ($curatorsOnly && $panelRoutePrefix === 'sitemanager')
+        <span class="sa-custom-select curator-landmark-filter">
+            <input
+                type="hidden"
+                name="landmark"
+                value="{{ $landmarkFilter ?? '' }}"
+                data-custom-select-value>
+            <select class="sa-custom-select__native" aria-label="Filter curators by landmark">
+                <option value="">All landmarks</option>
+                @foreach (($curatorFilterLandmarks ?? []) as $filterLandmark)
+                    <option
+                        value="{{ $filterLandmark['id'] }}"
+                        @selected(($landmarkFilter ?? '') === (string) $filterLandmark['id'])>
+                        {{ $filterLandmark['name'] ?? 'Unnamed landmark' }}
+                    </option>
+                @endforeach
+            </select>
+            <button type="button" class="sa-custom-select__field curator-filter-control" aria-haspopup="listbox" aria-expanded="false"></button>
+            <button type="button" class="custom-select-arrow" aria-label="Toggle landmark options" aria-expanded="false"></button>
+            <ul class="sa-custom-select__menu" role="listbox" aria-label="Landmark options" hidden></ul>
+        </span>
+        @elseif (! $curatorsOnly && ! $siteManagersOnly)
+        <span class="sa-custom-select">
+            <select name="role" class="sa-custom-select__native">
+                <option value="">All Roles</option>
+                <option value="admin" {{ request('role') === 'admin' ? 'selected' : '' }}>Admin</option>
+                <option value="curator" {{ request('role') === 'curator' ? 'selected' : '' }}>Curator</option>
+                <option value="site_manager" {{ request('role') === 'site_manager' ? 'selected' : '' }}>Site Manager</option>
+            </select>
+            <button type="button" class="sa-custom-select__field" aria-haspopup="listbox" aria-expanded="false"></button>
+            <button type="button" class="custom-select-arrow" aria-label="Toggle options" aria-expanded="false"></button>
+            <ul class="sa-custom-select__menu" role="listbox" hidden></ul>
+        </span>
         @endif
 
         <button type="submit" class="users-btn apply">
             {{ ($curatorsOnly && $panelRoutePrefix === 'sitemanager') || $adminUsersIndex ? 'Search' : 'Apply' }}
         </button>
-
+    
         <a href="{{ route($usersListRouteName) }}" class="users-btn clear">
             Clear
         </a>
@@ -1054,4 +1180,118 @@
             })();
         </script>
     @endif
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            document.querySelectorAll('.sa-custom-select').forEach(function (root) {
+                var select = root.querySelector('.sa-custom-select__native');
+                var field = root.querySelector('.sa-custom-select__field');
+                var arrow = root.querySelector('.custom-select-arrow');
+                var menu = root.querySelector('.sa-custom-select__menu');
+                var submissionInput = root.querySelector('[data-custom-select-value]');
+                var isOpen = false;
+
+                function sync() {
+                    var selected = select.options[select.selectedIndex] || select.options[0];
+                    field.textContent = selected ? selected.textContent : '';
+                    if (submissionInput) {
+                        submissionInput.value = select.value;
+                    }
+                    menu.querySelectorAll('[role="option"]').forEach(function (option) {
+                        option.setAttribute('aria-selected', option.dataset.value === select.value ? 'true' : 'false');
+                    });
+                }
+                function closeDropdown() {
+                    isOpen = false;
+                    menu.hidden = true;
+                    root.classList.remove('is-open');
+                    field.setAttribute('aria-expanded', 'false');
+                    arrow.setAttribute('aria-expanded', 'false');
+                }
+                function openDropdown() {
+                    isOpen = true;
+                    var rect = field.getBoundingClientRect();
+                    var gap = 4;
+                    var padding = 8;
+                    var maxHeight = 322;
+                    if (root.classList.contains('curator-landmark-filter')) {
+                        maxHeight = 280;
+                    }
+                    var below = Math.max(0, window.innerHeight - rect.bottom - gap - padding);
+                    var above = Math.max(0, rect.top - gap - padding);
+                    var menuWidth = rect.width;
+                    if (root.classList.contains('curator-landmark-filter')) {
+                        var canvas = document.createElement('canvas');
+                        var context = canvas.getContext('2d');
+                        if (context) {
+                            context.font = window.getComputedStyle(field).font;
+                            Array.from(select.options).forEach(function (nativeOption) {
+                                menuWidth = Math.max(menuWidth, Math.ceil(context.measureText(nativeOption.textContent).width) + 26);
+                            });
+                        }
+                        menuWidth = Math.min(menuWidth, window.innerWidth - (padding * 2));
+                    }
+                    menu.style.width = menuWidth + 'px';
+                    menu.style.maxHeight = maxHeight + 'px';
+                    menu.hidden = false;
+                    var desired = Math.min(menu.scrollHeight + 2, maxHeight);
+                    var opensUp = below < desired && above > below;
+                    menu.style.maxHeight = Math.min(maxHeight, opensUp ? above : below) + 'px';
+                    var height = menu.getBoundingClientRect().height;
+                    menu.style.top = (opensUp ? rect.top - gap - height : rect.bottom + gap) + 'px';
+                    menu.style.left = Math.max(padding, Math.min(rect.left, window.innerWidth - padding - menuWidth)) + 'px';
+                    root.classList.add('is-open');
+                    field.setAttribute('aria-expanded', 'true');
+                    arrow.setAttribute('aria-expanded', 'true');
+                }
+                Array.from(select.options).forEach(function (nativeOption) {
+                    var item = document.createElement('li');
+                    var option = document.createElement('button');
+                    option.type = 'button';
+                    option.className = 'sa-custom-select__option';
+                    option.setAttribute('role', 'option');
+                    option.dataset.value = nativeOption.value;
+                    option.textContent = nativeOption.textContent;
+                    option.addEventListener('click', function () {
+                        select.value = nativeOption.value;
+                        select.dispatchEvent(new Event('change', { bubbles: true }));
+                        sync();
+                        closeDropdown();
+                        field.focus();
+                    });
+                    item.appendChild(option);
+                    menu.appendChild(item);
+                });
+                if (root.classList.contains('curator-landmark-filter')) {
+                    menu.classList.add('curator-landmark-filter-menu');
+                }
+                document.body.appendChild(menu);
+                sync();
+                field.addEventListener('click', function (event) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    if (!isOpen) openDropdown();
+                });
+                arrow.addEventListener('mousedown', function (event) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                });
+                arrow.addEventListener('click', function (event) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    isOpen ? closeDropdown() : openDropdown();
+                });
+                menu.addEventListener('click', function (event) { event.stopPropagation(); });
+                document.addEventListener('click', function (event) {
+                    if (!root.contains(event.target) && !menu.contains(event.target)) closeDropdown();
+                });
+                document.addEventListener('keydown', function (event) {
+                    if (event.key === 'Escape') closeDropdown();
+                });
+                window.addEventListener('resize', closeDropdown);
+                window.addEventListener('scroll', function (event) {
+                    if (!menu.contains(event.target)) closeDropdown();
+                }, true);
+            });
+        });
+    </script>
 @endsection
