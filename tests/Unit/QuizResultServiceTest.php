@@ -59,4 +59,31 @@ class QuizResultServiceTest extends TestCase
         $this->assertSame(5000, $result['quiz_total']);
         $this->assertSame(91, $result['score_percentage']);
     }
+
+    public function test_it_removes_duplicate_copies_but_keeps_separate_attempts(): void
+    {
+        $service = new QuizResultService($this->createMock(FirebaseService::class));
+        $method = new ReflectionMethod(QuizResultService::class, 'deduplicateResults');
+        $method->setAccessible(true);
+
+        $result = [
+            'visitor_key' => 'visitor-1',
+            'visitor_name' => 'Chedist Cabarubias',
+            'landmark_id' => 'landmark-1',
+            'quiz_score' => 3119,
+            'quiz_total' => 5000,
+            'score_percentage' => 62.38,
+            'occurred_at' => '2026-08-16T13:43:00+00:00',
+        ];
+        $separateAttempt = $result;
+        $separateAttempt['occurred_at'] = '2026-08-16T13:44:00+00:00';
+
+        $unique = $method->invoke($service, [$result, $result, $result, $separateAttempt]);
+
+        $this->assertCount(2, $unique);
+        $this->assertSame([
+            '2026-08-16T13:43:00+00:00',
+            '2026-08-16T13:44:00+00:00',
+        ], array_column($unique, 'occurred_at'));
+    }
 }

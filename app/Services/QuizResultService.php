@@ -96,11 +96,11 @@ final class QuizResultService
      */
     private function resultsForLandmarkSet(array $landmarkSet): array
     {
-        $cacheKey = 'quiz-results:visitor-trivia:v2:'.md5(implode('|', array_keys($landmarkSet)));
+        $cacheKey = 'quiz-results:visitor-trivia:v3:'.md5(implode('|', array_keys($landmarkSet)));
 
         return Cache::remember($cacheKey, now()->addMinutes(5), function () use ($landmarkSet): array {
             $start = microtime(true);
-            $results = $this->resultsFromVisitorProfiles($landmarkSet);
+            $results = $this->deduplicateResults($this->resultsFromVisitorProfiles($landmarkSet));
 
             Log::info('Timing Firestore query', [
                 'query' => 'visitor_profiles.trivia_results_by_landmark',
@@ -111,6 +111,39 @@ final class QuizResultService
 
             return $results;
         });
+    }
+
+    /**
+     * Remove duplicate copies of the same completed quiz result while keeping
+     * separate attempts by the same visitor.
+     *
+     * @param  list<array<string, mixed>>  $results
+     * @return list<array<string, mixed>>
+     */
+    private function deduplicateResults(array $results): array
+    {
+        $unique = [];
+        $seen = [];
+
+        foreach ($results as $result) {
+            $identity = implode('|', [
+                strtolower(trim((string) ($result['visitor_key'] ?? $result['visitor_name'] ?? ''))),
+                trim((string) ($result['landmark_id'] ?? '')),
+                trim((string) ($result['quiz_score'] ?? '')),
+                trim((string) ($result['quiz_total'] ?? '')),
+                trim((string) ($result['score_percentage'] ?? '')),
+                trim((string) ($result['occurred_at'] ?? '')),
+            ]);
+
+            if (isset($seen[$identity])) {
+                continue;
+            }
+
+            $seen[$identity] = true;
+            $unique[] = $result;
+        }
+
+        return $unique;
     }
 
     /**

@@ -11,7 +11,7 @@
 @endphp
 
 <style>
-    .manager-dashboard { max-width: 1800px; margin: 0 auto; color: #374151; }
+    .manager-dashboard { max-width: 1800px; min-height: 1700px; margin: 0 auto; color: #374151; }
     .manager-hero {
         background: linear-gradient(135deg, #7A2E1F, #E8B34B);
         color: #fffdf7;
@@ -385,30 +385,6 @@
                     <ul id="visitsPerLandmarkPeriodOptions" class="leaderboard-landmark-select__options" role="listbox" hidden></ul>
                 </div>
             </div>
-            <div class="analytics-filter">
-                <label for="visitsPerLandmarkDisplay">Display</label>
-                <div class="leaderboard-landmark-select visitor-filter-select">
-                    <select id="visitsPerLandmarkDisplay">
-                        <option value="5">Top 5</option>
-                        <option value="10" selected>Top 10</option>
-                        <option value="20">Top 20</option>
-                        <option value="all">All Landmarks</option>
-                    </select>
-                    <button type="button"
-                            id="visitsPerLandmarkDisplayToggle"
-                            class="leaderboard-landmark-select__toggle"
-                            aria-haspopup="listbox"
-                            aria-controls="visitsPerLandmarkDisplayOptions"
-                            aria-expanded="false">Top 10</button>
-                    <button type="button"
-                            id="visitsPerLandmarkDisplayArrow"
-                            class="leaderboard-landmark-select__arrow custom-select-arrow"
-                            aria-label="Toggle options"
-                            aria-controls="visitsPerLandmarkDisplayOptions"
-                            aria-expanded="false"></button>
-                    <ul id="visitsPerLandmarkDisplayOptions" class="leaderboard-landmark-select__options" role="listbox" hidden></ul>
-                </div>
-            </div>
         </div>
         <div class="visitor-landmark-chart">
             <h3>Visits per Landmark</h3>
@@ -554,7 +530,6 @@
 
         function renderVisitsPerLandmarkChart() {
             const period = document.getElementById('visitsPerLandmarkPeriod').value || '7';
-            const display = document.getElementById('visitsPerLandmarkDisplay').value || '10';
             const cutoff = period === 'all' ? null : Date.now() - (Number(period) * 24 * 60 * 60 * 1000);
             const totals = new Map();
             visitorRecords.forEach(function (record) {
@@ -568,18 +543,13 @@
                 totals.set(landmark, (totals.get(landmark) || 0) + count);
             });
 
-            let rows = Array.from(totals.entries()).sort(function (a, b) {
+            const rows = Array.from(totals.entries()).sort(function (a, b) {
                 return b[1] - a[1] || a[0].localeCompare(b[0]);
             });
-            if (display !== 'all') {
-                rows = rows.slice(0, Number(display));
-            }
 
             const wrap = document.getElementById('visitsPerLandmarkCanvasWrap');
             const scroller = document.getElementById('visitsPerLandmarkScroller');
-            const minWidth = display === 'all'
-                ? Math.max(scroller.clientWidth, rows.length * 130)
-                : scroller.clientWidth;
+            const minWidth = Math.max(scroller.clientWidth, rows.length * 130);
             wrap.style.width = minWidth + 'px';
 
             if (visitsPerLandmarkChart) {
@@ -916,17 +886,9 @@
             'visitsPerLandmarkPeriodArrow',
             'visitsPerLandmarkPeriodOptions'
         );
-        setupLandmarkDropdown(
-            'visitsPerLandmarkDisplay',
-            'visitsPerLandmarkDisplayToggle',
-            'visitsPerLandmarkDisplayArrow',
-            'visitsPerLandmarkDisplayOptions'
-        );
-
         document.getElementById('visitorAnalyticsPeriod').addEventListener('change', updateVisitorAnalytics);
         document.getElementById('visitorAnalyticsLandmark').addEventListener('change', updateVisitorAnalytics);
         document.getElementById('visitsPerLandmarkPeriod').addEventListener('change', renderVisitsPerLandmarkChart);
-        document.getElementById('visitsPerLandmarkDisplay').addEventListener('change', renderVisitsPerLandmarkChart);
         window.addEventListener('resize', renderVisitsPerLandmarkChart);
         document.getElementById('leaderboardPrev').addEventListener('click', function () {
             leaderboardPage--;
