@@ -34,6 +34,8 @@
         body {
             display: flex;
             flex-direction: column;
+            overflow-x: hidden;
+            overflow-y: auto;
         }
 
         .container {
@@ -47,8 +49,8 @@
 
         .register-box {
             display: flex;
-            width: min(840px, 100%);
-            height: min(440px, calc(100vh - 118px));
+            width: min(940px, 100%);
+            height: auto;
             background: var(--card);
             border-radius: 20px;
             overflow: hidden;
@@ -57,13 +59,11 @@
         }
 
         .form-side {
-            flex: 0.95;
-            min-height: 0;
+            flex: 0 0 45%;
             padding: 1.3rem 1.45rem;
             display: flex;
             flex-direction: column;
             justify-content: center;
-            overflow-y: auto;
             background: linear-gradient(180deg, #fff 0%, #fef9f4 100%);
         }
 
@@ -100,13 +100,13 @@
         form {
             display: flex;
             flex-direction: column;
-            gap: 0.48rem;
+            gap: 0.72rem;
         }
 
         .field {
             display: flex;
             flex-direction: column;
-            gap: 0.42rem;
+            gap: 0.36rem;
         }
 
         .name-row {
@@ -120,9 +120,9 @@
         }
 
         .field label {
-            font-size: 0.7rem;
+            font-size: 0.66rem;
             font-weight: 600;
-            color: #654a39;
+            color: #566170;
         }
 
         .hidden {
@@ -133,13 +133,14 @@
         form select,
         form textarea {
             width: 100%;
-            padding: 0.52rem 0.66rem;
-            border-radius: 8px;
-            border: 1px solid var(--input-border);
+            padding: 0.78rem 0.85rem;
+            min-height: 48px;
+            border-radius: 13px;
+            border: 1px solid #d8e1ee;
             font-size: 0.88rem;
             outline: none;
             transition: border-color 0.2s ease, box-shadow 0.2s ease;
-            background-color: #fff;
+            background-color: #faf8f3;
         }
 
         form textarea {
@@ -151,7 +152,7 @@
 
         form input::placeholder,
         form textarea::placeholder {
-            color: #9f938a;
+            color: #b3c0d0;
         }
 
         .field-input-wrap {
@@ -160,35 +161,35 @@
         }
 
         .field-input-wrap > input {
-            padding-left: 2.35rem;
-            border-color: #d7e2e8;
+            padding-left: 2.65rem;
+            border-color: #d8e1ee;
             outline: none;
-            box-shadow: 0 2px 8px rgba(148, 163, 184, 0.12);
+            box-shadow: inset 0 1px 2px rgba(148, 163, 184, 0.08), 0 1px 3px rgba(148, 163, 184, 0.12);
         }
 
         .field-input-wrap > input:focus,
         .field-input-wrap > input:focus-visible {
             outline: none !important;
-            border-color: #c7d3da;
-            box-shadow: 0 2px 8px rgba(148, 163, 184, 0.12);
+            border-color: #b8c9df;
+            box-shadow: inset 0 1px 2px rgba(148, 163, 184, 0.08), 0 0 0 3px rgba(142, 160, 184, 0.14);
         }
 
         .field-input-icon {
             position: absolute;
-            left: 0.72rem;
+            left: 0.86rem;
             top: 50%;
             z-index: 1;
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            color: #7c8798;
+            color: #8ea0b8;
             pointer-events: none;
             transform: translateY(-50%);
         }
 
         .field-input-icon svg {
-            width: 1rem;
-            height: 1rem;
+            width: 1.12rem;
+            height: 1.12rem;
         }
 
         .password-wrap {
@@ -197,13 +198,13 @@
         }
 
         .password-wrap > input {
-            padding-left: 2.35rem;
-            padding-right: 2.55rem;
+            padding-left: 2.65rem;
+            padding-right: 2.8rem;
         }
 
         form .password-toggle {
             position: absolute;
-            right: 0.35rem;
+            right: 0.45rem;
             top: 50%;
             transform: translateY(-50%);
             width: 2.15rem;
@@ -217,13 +218,13 @@
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            color: #8a7a70;
+            color: #4f86ff;
             transition: color 0.2s ease, background-color 0.2s ease;
         }
 
         form .password-toggle:hover {
-            color: var(--brand-dark);
-            background: rgba(140, 92, 58, 0.1);
+            color: #3d73e8;
+            background: rgba(79, 134, 255, 0.08);
         }
 
         form .password-toggle:focus-visible {
@@ -327,11 +328,12 @@
             background: var(--brand);
             border: none;
             margin-top: 0.15rem;
-            padding: 0.56rem;
+            min-height: 48px;
+            padding: 0.7rem;
             width: 100%;
             color: white;
             font-size: 0.9rem;
-            border-radius: 8px;
+            border-radius: 13px;
             cursor: pointer;
             font-weight: 600;
             transition: background-color 0.2s ease, transform 0.08s ease;
@@ -370,7 +372,7 @@
         }
 
         .register-image {
-            flex: 1.05;
+            flex: 0 0 55%;
             background-image: url('{{ asset('images/magellancross.jpg') }}');
             background-size: cover;
             background-position: center;
@@ -440,7 +442,6 @@
                 flex-direction: column;
                 width: 95%;
                 height: auto;
-                max-height: unset;
                 border-radius: 16px;
             }
 
