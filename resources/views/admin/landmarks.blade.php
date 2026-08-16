@@ -57,7 +57,7 @@
         }
         @endif
 
-        .land-wrap { max-width: 2000px; margin: 0 auto; }
+        .land-wrap { max-width: 2000px; min-height: 1100px; margin: 0 auto; }
         .land-wrap--approval,
         .land-wrap--sitemanager {
             min-height: calc(100vh - 5rem);
