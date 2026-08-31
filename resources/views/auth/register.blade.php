@@ -274,6 +274,53 @@
             box-shadow: 0 0 0 4px rgba(220, 38, 38, 0.15);
         }
 
+        .file-upload {
+            border: 1px solid #d8e1ee;
+            border-radius: 13px;
+            padding: 0.45rem 0.6rem;
+            background: #faf8f3;
+            box-shadow: inset 0 1px 2px rgba(148, 163, 184, 0.08), 0 1px 3px rgba(148, 163, 184, 0.12);
+        }
+
+        .file-upload:focus-within {
+            border-color: #b8c9df;
+            box-shadow: inset 0 1px 2px rgba(148, 163, 184, 0.08), 0 0 0 3px rgba(142, 160, 184, 0.14);
+        }
+
+        .file-upload input {
+            min-height: auto;
+            padding: 0.1rem 0;
+            border: 0;
+            background: transparent;
+            box-shadow: none;
+            color: #566170;
+            font-size: 0.75rem;
+        }
+
+        .file-upload input::file-selector-button {
+            margin-right: 0.55rem;
+            padding: 0.48rem 0.7rem;
+            border: 0;
+            border-radius: 8px;
+            background: #4f86ff;
+            color: #fff;
+            font: inherit;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.2s ease;
+        }
+
+        .file-upload input::file-selector-button:hover {
+            background: #3d73e8;
+        }
+
+        .file-upload small {
+            display: block;
+            margin-top: 0.35rem;
+            color: #8ea0b8;
+            font-size: 0.62rem;
+        }
+
         .choice-grid {
             display: flex;
             flex-direction: column;
@@ -519,7 +566,7 @@
                 </div>
             @endif
 
-            <form method="POST" action="{{ route('register') }}">
+            <form method="POST" action="{{ route('register') }}" enctype="multipart/form-data">
                 @csrf
                 <div class="name-row">
                     <div class="field">
@@ -576,6 +623,13 @@
                         </button>
                     </div>
                     <p id="password-confirm-hint" class="field-hint" role="alert" hidden>Passwords do not match.</p>
+                </div>
+                <div class="field">
+                    <label for="credentials_file">Credentials / proof of eligibility</label>
+                    <div class="file-upload">
+                        <input id="credentials_file" type="file" name="credentials_file" accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx" required>
+                        
+                    </div>
                 </div>
                 <button type="submit">Register</button>
             </form>

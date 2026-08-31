@@ -12,6 +12,7 @@ use App\Support\QrResolveUrl;
 use Google\Cloud\Firestore\FieldValue;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Session;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 
@@ -189,6 +190,7 @@ class SiteManagerController extends Controller
         }
 
         $this->siteManagerReadModel->forget($managerUid);
+        Cache::forget('landmarks.approval.records');
 
         return redirect()->route('sitemanager.landmarks')
             ->with('status', 'Landmark submitted for administrator approval.');
@@ -305,6 +307,7 @@ class SiteManagerController extends Controller
             }
 
             $this->siteManagerReadModel->forget($managerUid);
+            Cache::forget('landmarks.approval.records');
         } catch (\Throwable $e) {
             report($e);
 
@@ -344,6 +347,7 @@ class SiteManagerController extends Controller
             $this->cloudinary->deleteLandmark((string) ($data['image_public_id'] ?? ''));
             $landmarkRef->delete();
             $this->siteManagerReadModel->forget($managerUid);
+            Cache::forget('landmarks.approval.records');
         } catch (\Throwable $e) {
             report($e);
 
