@@ -203,10 +203,10 @@
           @if($curatorHasLandmark)
             <a href="{{ route('curators.dashboard') }}"><span class="nav-label">Dashboard</span></a>
             <a href="{{ route('landmarks.show', session('assigned_landmark_id')) }}"><span class="nav-label">Landmark</span></a>
-            <a href="{{ route('curators.exhibit-categories.index') }}"><span class="nav-label">Exhibit Categories</span></a>
             <a href="{{ route('curators.exhibits.index') }}"><span class="nav-label">Exhibits</span></a>
+            <a href="{{ route('curators.exhibit-categories.index') }}"><span class="nav-label">Exhibit Categories</span></a>
             <a href="{{ route('curators.quiz.all') }}"><span class="nav-label">Quiz Bank</span></a>
-            <a href="{{ route('curators.tips.index') }}"><span class="nav-label">Tips Review</span></a>
+            <a href="{{ route('curators.tips.index') }}"><span class="nav-label">Review Tip</span></a>
           @else
             <a href="{{ route('curators.pending-assignment') }}"><span class="nav-label">Assignment pending</span></a>
           @endif
@@ -219,8 +219,8 @@
         @elseif(session('role') === 'site_manager')
           <a href="{{ route('sitemanager.dashboard') }}"><span class="nav-label">Dashboard</span></a>
           <a href="{{ route('sitemanager.landmarks') }}"><span class="nav-label">Landmarks</span></a>
-          <a href="{{ route('sitemanager.exhibit-categories.index') }}"><span class="nav-label">Exhibit Categories</span></a>
           <a href="{{ route('sitemanager.exhibits.index') }}"><span class="nav-label">Exhibits</span></a>
+          <a href="{{ route('sitemanager.exhibit-categories.index') }}"><span class="nav-label">Exhibit Categories</span></a>
           <a href="{{ route('sitemanager.curators') }}"><span class="nav-label">Curators</span></a>
         @endif
       </nav>
