@@ -48,6 +48,51 @@
         font: 500 .78rem Inter, system-ui, sans-serif;
         outline: none;
     }
+    .sm-map-search-input-wrap {
+        position: relative;
+        display: block;
+    }
+    .sm-map-search-suggestions {
+        position: absolute;
+        top: calc(100% + .35rem);
+        left: 0;
+        z-index: 10;
+        width: 100%;
+        min-width: 260px;
+        max-height: 240px;
+        overflow-y: auto;
+        padding: .3rem 0;
+        border: 1px solid #d1d5db;
+        border-radius: 6px;
+        background: #fff;
+        box-shadow: 0 8px 20px rgba(0, 0, 0, .15);
+    }
+    .sm-map-search-suggestions[hidden] { display: none; }
+    .sm-map-search-suggestion {
+        display: block;
+        width: 100%;
+        padding: .55rem .7rem;
+        border: 0;
+        background: transparent;
+        color: #111827;
+        font: 600 .78rem Inter, system-ui, sans-serif;
+        text-align: left;
+        cursor: pointer;
+    }
+    .sm-map-search-suggestion:hover,
+    .sm-map-search-suggestion:focus { background: #f3f4f6; outline: none; }
+    .sm-map-search-suggestion.is-best {
+        background: #fff7ed;
+        color: #7A2E1F;
+    }
+    .sm-map-search-suggestion.is-best:hover,
+    .sm-map-search-suggestion.is-best:focus { background: #ffedd5; }
+    .sm-map-search-suggestions__message {
+        display: block;
+        padding: .55rem .7rem;
+        color: #7A2E1F;
+        font: 700 .78rem Inter, system-ui, sans-serif;
+    }
     .sm-map-search input:focus {
         border-color: #7A2E1F;
         box-shadow: 0 0 0 2px rgba(122, 46, 31, .12);
@@ -139,6 +184,9 @@
             flex-wrap: wrap;
         }
         .sm-map-search input {
+            width: 100%;
+        }
+        .sm-map-search-input-wrap {
             flex: 1 1 100%;
             width: 100%;
         }
@@ -293,11 +341,16 @@
     <div class="sm-map-shell">
         <div id="sm-map" aria-label="Managed landmarks map"></div>
         <form class="sm-map-search" id="sm-map-search" autocomplete="off">
-            <input
-                id="sm-map-search-input"
-                type="text"
-                placeholder="Search landmarks... e.g., Magellan's Cross"
-                aria-label="Search landmarks">
+            <span class="sm-map-search-input-wrap">
+                <input
+                    id="sm-map-search-input"
+                    type="text"
+                    placeholder="Search landmarks... e.g., Magellan's Cross"
+                    aria-label="Search landmarks"
+                    aria-autocomplete="list"
+                    aria-controls="sm-map-search-suggestions">
+                <div id="sm-map-search-suggestions" class="sm-map-search-suggestions" role="listbox" hidden></div>
+            </span>
             @isset($mapCategories, $mapCities)
                 <span class="map-custom-select">
                     <select class="map-custom-select__native" id="sm-map-category-filter" aria-label="Filter landmarks by category">
@@ -445,9 +498,56 @@ document.addEventListener('DOMContentLoaded', function () {
 
     var searchForm = document.getElementById('sm-map-search');
     var searchInput = document.getElementById('sm-map-search-input');
+    var suggestions = document.getElementById('sm-map-search-suggestions');
     var categoryFilter = document.getElementById('sm-map-category-filter');
     var cityFilter = document.getElementById('sm-map-city-filter');
     var mapDropdowns = [];
+
+    function closeSuggestions() {
+        suggestions.hidden = true;
+        suggestions.innerHTML = '';
+        searchInput.setAttribute('aria-expanded', 'false');
+    }
+
+    function showSuggestions(query) {
+        if (query.length < 2) {
+            closeSuggestions();
+            return;
+        }
+
+        var matches = getLandmarkSuggestions(query, true);
+        suggestions.innerHTML = '';
+        if (!matches.length) {
+            var noMatch = document.createElement('span');
+            noMatch.className = 'sm-map-search-suggestions__message';
+            noMatch.textContent = 'No matching landmarks found.';
+            suggestions.appendChild(noMatch);
+        } else {
+            if (!findLandmark(query, true)) {
+                var suggestionLabel = document.createElement('span');
+                suggestionLabel.className = 'sm-map-search-suggestions__message';
+                suggestionLabel.textContent = 'Did you mean:';
+                suggestions.appendChild(suggestionLabel);
+            }
+            matches.forEach(function (match) {
+                var option = document.createElement('button');
+                option.type = 'button';
+                option.className = 'sm-map-search-suggestion';
+                if (match === matches[0]) option.classList.add('is-best');
+                option.setAttribute('role', 'option');
+                option.textContent = match.data.name || 'Untitled';
+                option.addEventListener('click', function () {
+                    searchInput.value = match.data.name || '';
+                    applyFilters();
+                    closeSuggestions();
+                    searchForLandmark(match);
+                });
+                suggestions.appendChild(option);
+            });
+        }
+        suggestions.hidden = false;
+        searchInput.setAttribute('aria-expanded', 'true');
+    }
 
     function closeMapDropdowns(exceptMenu) {
         mapDropdowns.forEach(function (dropdown) {
@@ -559,19 +659,44 @@ document.addEventListener('DOMContentLoaded', function () {
     searchForm.addEventListener('submit', function (event) {
         event.preventDefault();
         var query = normalizeSearch(searchInput.value);
-        var filtersChangedMarkers = categoryFilter && cityFilter;
+        var match = findLandmark(query, true);
+        var matches = query ? getLandmarkSuggestions(query, true) : [];
 
-        if (filtersChangedMarkers) {
+        if (!query) {
             applyFilters();
-        }
-
-        var match = findLandmark(query, filtersChangedMarkers);
-
-        searchInput.classList.toggle('is-missing', !match && query !== '');
-
-        if (!match) {
+            closeSuggestions();
             return;
         }
+
+        if (!match) {
+            searchInput.classList.toggle('is-missing', query !== '' && !matches.length);
+            showSuggestions(query);
+            return;
+        }
+
+        // Use the canonical landmark name so the existing marker filtering
+        // continues to work after a partial or accent-free search.
+        searchInput.value = match.data.name || '';
+        applyFilters();
+        closeSuggestions();
+        searchForLandmark(match);
+    });
+
+    searchInput.addEventListener('input', function () {
+        searchInput.classList.remove('is-missing');
+        showSuggestions(normalizeSearch(searchInput.value));
+    });
+
+    searchInput.addEventListener('keydown', function (event) {
+        if (event.key === 'Escape') closeSuggestions();
+    });
+
+    document.addEventListener('click', function (event) {
+        if (!event.target.closest('.sm-map-search-input-wrap')) closeSuggestions();
+    });
+
+    function searchForLandmark(match) {
+        searchInput.classList.remove('is-missing');
 
         if (activePopup) {
             activePopup.remove();
@@ -583,7 +708,7 @@ document.addEventListener('DOMContentLoaded', function () {
             essential: true
         });
         match.marker.togglePopup();
-    });
+    }
 
     function applyFilters() {
         var query = normalizeSearch(searchInput.value);
@@ -630,7 +755,7 @@ document.addEventListener('DOMContentLoaded', function () {
         var partial = null;
         Object.keys(markersById).some(function (key) {
             var item = markersById[key];
-            if (onlyVisible && !item.isVisible) {
+            if (onlyVisible && !matchesCurrentFilters(item.data)) {
                 return false;
             }
             var name = normalizeSearch(item.data.name);
@@ -650,8 +775,71 @@ document.addEventListener('DOMContentLoaded', function () {
         return exact || partial;
     }
 
+    function getLandmarkSuggestions(query, onlyVisible) {
+        return Object.keys(markersById).map(function (key) {
+            var item = markersById[key];
+            if (onlyVisible && !matchesCurrentFilters(item.data)) return null;
+            var name = normalizeSearch(item.data.name);
+            var nameTokens = normalizeSearchWords(item.data.name).match(/[a-z0-9]+/g) || [];
+            var queryTokens = normalizeSearchWords(searchInput.value).match(/[a-z0-9]+/g) || [];
+            var tokenScore = nameTokens.reduce(function (best, token) {
+                return Math.max(best, similarity(query, token));
+            }, 0);
+            if (queryTokens.length > 1) {
+                tokenScore = Math.max(tokenScore, queryTokens.reduce(function (total, token) {
+                    return total + nameTokens.reduce(function (best, nameToken) {
+                        return Math.max(best, similarity(token, nameToken));
+                    }, 0);
+                }, 0) / queryTokens.length);
+            }
+            var score = Math.max(tokenScore, similarity(query, name));
+            if (name.indexOf(query) !== -1) score = Math.max(score, .92);
+            return score >= .58 ? { data: item.data, marker: item.marker, score: score } : null;
+        }).filter(Boolean).sort(function (a, b) {
+            return b.score - a.score || String(a.data.name).localeCompare(String(b.data.name));
+        }).slice(0, 5);
+    }
+
+    function matchesCurrentFilters(landmark) {
+        var category = categoryFilter ? normalizeSearch(categoryFilter.value) : '';
+        var city = cityFilter ? normalizeSearch(cityFilter.value) : '';
+        return (!category || normalizeSearch(landmark.category) === category)
+            && (!city || normalizeSearch(landmark.city) === city);
+    }
+
+    function similarity(left, right) {
+        if (!left || !right) return 0;
+        var distance = levenshtein(left, right);
+        return 1 - (distance / Math.max(left.length, right.length));
+    }
+
+    function levenshtein(left, right) {
+        var row = Array.from({ length: right.length + 1 }, function (_, index) { return index; });
+        for (var i = 1; i <= left.length; i++) {
+            var previous = row[0];
+            row[0] = i;
+            for (var j = 1; j <= right.length; j++) {
+                var current = row[j];
+                row[j] = Math.min(row[j] + 1, row[j - 1] + 1, previous + (left[i - 1] === right[j - 1] ? 0 : 1));
+                previous = current;
+            }
+        }
+        return row[right.length];
+    }
+
     function normalizeSearch(value) {
-        return String(value || '').trim().toLowerCase();
+        return String(value || '')
+            .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+            .toLowerCase().replace(/[’'`]/g, '')
+            .replace(/[^a-z0-9]+/g, '');
+    }
+
+    function normalizeSearchWords(value) {
+        return String(value || '')
+            .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+            .toLowerCase()
+            .replace(/[\u2018\u2019\u0060']/g, '')
+            .replace(/[^a-z0-9]+/g, ' ').trim();
     }
 
     function markerInitial(value) {

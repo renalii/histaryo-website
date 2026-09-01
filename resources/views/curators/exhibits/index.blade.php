@@ -10,6 +10,19 @@
     $canSelectLandmark = (bool) ($canSelectLandmark ?? false);
     $routePrefix = $routePrefix ?? (session('role') === 'site_manager' ? 'sitemanager' : 'curators');
     $exhibitsIndexUrl = route($routePrefix.'.exhibits.index');
+    $sort = $sort ?? null;
+    $sortDirection = $sortDirection ?? null;
+    $sortUrl = function (string $field) use ($routePrefix, $sort, $sortDirection): string {
+        $direction = $sort === $field && $sortDirection === 'asc' ? 'desc' : 'asc';
+        return route($routePrefix.'.exhibits.index', array_merge(request()->query(), [
+            'sort' => $field,
+            'direction' => $direction,
+            'page' => 1,
+        ]));
+    };
+    $sortIndicator = function (string $field) use ($sort, $sortDirection): string {
+        return $sort === $field ? ($sortDirection === 'desc' ? '↓' : '↑') : '';
+    };
 @endphp
 
 <style>
@@ -23,6 +36,16 @@
     }
     .exhibits-title { margin: 0; color: #7A2E1F; font-size: 1.9rem; font-weight: 800; }
     .exhibits-sub { margin: .2rem 0 0; color: #6b7280; font-size: .95rem; }
+    .exhibits-sort-link {
+        display: inline-flex;
+        align-items: center;
+        gap: .3rem;
+        color: inherit;
+        text-decoration: none;
+        cursor: pointer;
+    }
+    .exhibits-sort-link:hover { color: #5f2418; }
+    .exhibits-sort-indicator { font-size: .9rem; line-height: 1; }
     .exhibits-context {
         display: inline-flex;
         align-items: center;
@@ -917,9 +940,9 @@
             <table class="exhibits-table">
                 <thead>
                     <tr>
-                        <th>Exhibit Name</th>
-                        <th>Category</th>
-                        <th>Landmark</th>
+                        <th aria-sort="{{ $sort === 'name' ? ($sortDirection === 'desc' ? 'descending' : 'ascending') : 'none' }}"><a class="exhibits-sort-link" href="{{ $sortUrl('name') }}">Exhibit Name <span class="exhibits-sort-indicator" aria-hidden="true">{{ $sortIndicator('name') }}</span></a></th>
+                        <th aria-sort="{{ $sort === 'category' ? ($sortDirection === 'desc' ? 'descending' : 'ascending') : 'none' }}"><a class="exhibits-sort-link" href="{{ $sortUrl('category') }}">Category <span class="exhibits-sort-indicator" aria-hidden="true">{{ $sortIndicator('category') }}</span></a></th>
+                        <th aria-sort="{{ $sort === 'landmark' ? ($sortDirection === 'desc' ? 'descending' : 'ascending') : 'none' }}"><a class="exhibits-sort-link" href="{{ $sortUrl('landmark') }}">Landmark <span class="exhibits-sort-indicator" aria-hidden="true">{{ $sortIndicator('landmark') }}</span></a></th>
                         <th>Status</th>
                         <th>Actions</th>
                     </tr>

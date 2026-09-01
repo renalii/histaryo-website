@@ -13,7 +13,7 @@
 @endphp
 
 <style>
-    .curator-dashboard { max-width: 1800px; min-height: 1050px; margin: 0 auto; color: #374151; }
+    .curator-dashboard { max-width: 1800px; min-height: 1100px; margin: 0 auto; color: #374151; }
     .curator-hero {
         background: linear-gradient(135deg, #7A2E1F, #E8B34B);
         color: #fffdf7;

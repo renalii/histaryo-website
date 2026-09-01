@@ -20,41 +20,51 @@
     body:has(.admin-dashboard-wrap) .main-content {
         min-width: 0;
         overflow-x: hidden;
-        padding: 24px;
+        padding: 20px;
     }
+
+    /* Keep the admin dashboard compact on desktop, matching the reference layout. */
+    body:has(.admin-dashboard-wrap) .sidebar {
+        width: 220px;
+        padding: 1.5rem 1.25rem;
+    }
+    body:has(.admin-dashboard-wrap) .sidebar h2 { margin-bottom: 2rem; font-size: 1.85rem; }
+    body:has(.admin-dashboard-wrap) .nav-links { gap: .8rem; }
+    body:has(.admin-dashboard-wrap) .nav-links a { font-size: .92rem; padding: .5rem .8rem; }
+    body:has(.admin-dashboard-wrap) .main-content { margin-left: 220px; }
 
     .admin-wrap { width: 100%; max-width: 2000px; min-width: 0; margin: 0 auto; }
     .admin-kicker { font-size: .82rem; letter-spacing: .04em; text-transform: uppercase; opacity: .9; }
     .admin-hero {
         background: linear-gradient(135deg, #7A2E1F, #E8B34B);
         color: #fffdf7;
-        padding: 1.6rem 2rem;
+        padding: 1.25rem 1.5rem;
         border-radius: 1rem;
-        margin-bottom: 1.2rem;
+        margin-bottom: 1rem;
         box-shadow: 0 12px 28px rgba(122, 46, 31, 0.22);
     }
-    .admin-hero h1 { font-size: 2rem; font-weight: 800; margin: 0; line-height: 1.2; }
+    .admin-hero h1 { font-size: 1.7rem; font-weight: 800; margin: 0; line-height: 1.2; }
     .admin-hero p { margin: 0 0 0.35rem 0; opacity: 0.95; font-weight: 500; }
     .admin-hero-sub { margin-top: .45rem; opacity: .92; font-size: .95rem; }
-    .admin-grid { display: grid; grid-template-columns: repeat(12, minmax(0,1fr)); gap: 20px; min-width: 0; }
+    .admin-grid { display: grid; grid-template-columns: repeat(12, minmax(0,1fr)); gap: 16px; min-width: 0; }
     .stats-grid {
         display: grid;
         grid-template-columns: repeat(3, minmax(0, 1fr));
-        gap: 20px;
+        gap: 14px;
         min-width: 0;
     }
     .stats-grid--manager { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .stats-grid .stat-card {
         grid-column: auto !important;
         width: 100%;
-        min-height: 90px;
+        min-height: 72px;
     }
     .admin-stat {
         grid-column: span 3;
         background: #fff;
         border: 1px solid #eceff3;
         border-radius: 14px;
-        padding: 24px;
+        padding: 14px 16px;
         box-shadow: 0 6px 16px rgba(0,0,0,0.05);
         position: relative;
         overflow: hidden;
@@ -70,9 +80,9 @@
         background: linear-gradient(90deg, #7A2E1F, #E8B34B);
     }
     .admin-stat h3 { margin: 0; font-size: .95rem; color: #6b7280; font-weight: 700; }
-    .admin-stat p { margin: .45rem 0 0 0; font-size: 2rem; font-weight: 800; color: #111827; }
+    .admin-stat p { margin: .25rem 0 0 0; font-size: 1.75rem; font-weight: 800; color: #111827; }
     .admin-stat small { color: #6b7280; font-weight: 600; display: block; margin-top: .35rem; }
-    .admin-summary-stat { padding: .8rem 1.1rem; }
+    .admin-summary-stat { padding: .65rem 1rem; }
     .admin-summary-stat p { margin-top: .3rem; line-height: 1; }
     @media (min-width: 641px) {
         .admin-stat.lm-stat-3col { grid-column: span 4 !important; }
@@ -87,27 +97,34 @@
         min-width: 0;
         overflow: hidden;
     }
-    .admin-chart h3 { margin: 0 0 .85rem 0; color: #4b5563; font-size: 1rem; font-weight: 700; }
+    .admin-chart h3 { margin: 0 0 .85rem 0; color: #4b5563; font-size: 1.5rem; font-weight: 700; }
     .admin-chart p { margin: -0.45rem 0 .8rem 0; color: #6b7280; font-size: .85rem; }
-    .admin-chart-lg { grid-column: span 6; }
+    .admin-chart-lg { grid-column: span 6; align-self: start; }
     .admin-chart-sm { grid-column: span 6; }
-    .chart-frame { margin-top: 15px; position: relative; width: 100%; max-width: 100%; height: 300px; min-width: 0; overflow: hidden; }
+    .admin-insights-grid { grid-template-columns: minmax(0, 1.1fr) minmax(0, .9fr); }
+    .admin-insights-grid { align-items: stretch; }
+    .admin-insights-grid .admin-chart-lg,
+    .admin-insights-grid .admin-chart-sm {
+        grid-column: auto;
+        min-height: clamp(450px, calc(100vh - 360px), 520px);
+    }
+    .chart-frame { margin-top: 10px; position: relative; width: 100%; max-width: 100%; height: 350px; min-width: 0; overflow: hidden; }
     .chart-frame canvas { display: block; width: 100% !important; height: 100% !important; max-width: 100%; }
     .top-performers-card { height: 100%; min-width: 0; }
-    .performer-section + .performer-section { margin-top: .95rem; }
-    .performer-section h4 { margin: 0 0 .45rem; color: #7A2E1F; font-size: .9rem; font-weight: 800; }
+    .performer-section + .performer-section { margin-top: .6rem; }
+    .performer-section h4 { margin: 0 0 .25rem; color: #7A2E1F; font-size: .87rem; font-weight: 800; }
     .performer-table-wrap { width: 100%; max-width: 100%; overflow: hidden; }
     .performer-table {
         width: 100%;
         max-width: 100%;
         table-layout: fixed;
         border-collapse: separate;
-        border-spacing: 0 10px;
+        border-spacing: 0 3px;
     }
     .performer-table th,
-    .performer-table td { padding: .55rem .65rem; text-align: left; border-bottom: 1px solid #eceff3; }
-    .performer-table th { color: #6b7280; font-size: .68rem; letter-spacing: .04em; text-transform: uppercase; }
-    .performer-table td { color: #374151; font-size: .78rem; overflow-wrap: anywhere; word-break: break-word; }
+    .performer-table td { padding: .3rem .4rem; text-align: left; border-bottom: 1px solid #eceff3; }
+    .performer-table th { color: #6b7280; font-size: .8rem; letter-spacing: .03em; text-transform: uppercase; }
+    .performer-table td { color: #374151; font-size: .9rem; overflow-wrap: anywhere; word-break: break-word; }
     .performer-table th:first-child,
     .performer-table td:first-child { width: 2.5rem; }
     .performer-table th:nth-child(2),
@@ -116,10 +133,15 @@
     .performer-table td:nth-child(3) { width: 35%; }
     .performer-table th:last-child,
     .performer-table td:last-child { width: 20%; }
-    .performer-table td.landmark-name {
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
+    .top-curators-table th:nth-child(2),
+    .top-curators-table td:nth-child(2) { width: 24%; }
+    .top-curators-table th:nth-child(3),
+    .top-curators-table td:nth-child(3) { width: 45%; }
+    .top-curators-table td.landmark-name {
+        white-space: normal;
+        overflow: visible;
+        overflow-wrap: anywhere;
+        word-break: normal;
     }
     .performer-table th.landmark-count,
     .performer-table td.landmark-count,
@@ -130,15 +152,15 @@
     }
     .performer-table tbody tr:last-child td { border-bottom: 0; }
     .rank-badge {
-        width: 1.7rem;
-        height: 1.7rem;
+        width: 1.35rem;
+        height: 1.35rem;
         border-radius: 999px;
         display: inline-flex;
         align-items: center;
         justify-content: center;
         background: #fff5dd;
         color: #7A2E1F;
-        font-size: .78rem;
+        font-size: .68rem;
         font-weight: 800;
         border: 1px solid #f3d79b;
     }
@@ -201,6 +223,12 @@
         .stats-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
         .admin-stat { grid-column: span 6; }
         .admin-chart-lg, .admin-chart-sm { grid-column: span 12; }
+        .admin-insights-grid { grid-template-columns: 1fr; }
+        .admin-insights-grid .admin-chart-lg,
+        .admin-insights-grid .admin-chart-sm {
+            grid-column: span 12;
+            min-height: 360px;
+        }
         .sm-stat, .sm-stat-total { grid-column: span 6; }
     }
     @media (max-width: 640px) {
@@ -209,13 +237,14 @@
         .sm-stat, .sm-stat-total { grid-column: span 12; }
         .admin-hero { padding: 1.2rem 1rem; }
         .admin-hero h1 { font-size: 1.55rem; }
-        .chart-frame, .sm-chart-frame { height: 230px; }
+        .sm-chart-frame { height: 230px; }
         .sm-chart-header { align-items: stretch; flex-direction: column; }
         .sm-chart-filter { justify-content: space-between; }
         .sm-chart-filter select { flex: 1; }
     }
     @media (max-width: 480px) {
-        body:has(.admin-dashboard-wrap) .main-content { padding: 16px; }
+        body:has(.admin-dashboard-wrap) .main-content { padding: 16px; margin-left: 0; }
+        body:has(.admin-dashboard-wrap) .sidebar { width: 100%; }
         .admin-chart { padding: 20px 16px; }
         .performer-table th,
         .performer-table td,
@@ -354,7 +383,7 @@
 @endif
 
 @if ($showInsights)
-<div class="admin-grid">
+<div class="admin-grid admin-insights-grid">
     <div class="admin-chart admin-chart-lg">
         <h3>Visits Overview</h3>
         <p>Daily visitor activity for the last 7 days</p>
@@ -402,7 +431,7 @@
             <div class="performer-section">
                 <h4>Top Curators</h4>
                 <div class="performer-table-wrap">
-                    <table class="performer-table">
+                    <table class="performer-table top-curators-table">
                         <thead>
                             <tr>
                                 <th>Rank</th>
@@ -417,7 +446,7 @@
                                 <tr>
                                     <td><span class="rank-badge {{ $rankClass }}">{{ $loop->iteration }}</span></td>
                                     <td>{{ $performer['curator'] }}</td>
-                                    <td class="landmark-name" title="{{ $performer['assigned_landmark'] }}">{{ $performer['assigned_landmark'] }}</td>
+                                    <td class="landmark-name">{{ $performer['assigned_landmark'] }}</td>
                                     <td class="visitor-count"><strong>{{ number_format($performer['total_visitors']) }}</strong></td>
                                 </tr>
                             @empty

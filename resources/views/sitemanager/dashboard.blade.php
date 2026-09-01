@@ -460,6 +460,8 @@
         const charts = @json($statistics['charts'] ?? []);
         const analyticsByLandmark = @json($statistics['analytics_by_landmark'] ?? []);
         const visitorRecords = @json($statistics['visitor_records'] ?? []);
+        const visitsByLandmarkPeriod = @json($statistics['visits_by_landmark_period'] ?? []);
+        const landmarkNames = @json(collect($statistics['landmark_options'] ?? [])->skip(1)->keyBy('id')->map(fn ($landmark) => $landmark['name'])->all());
         const leaderboardByLandmark = @json($statistics['leaderboard_by_landmark'] ?? ['all' => ($statistics['leaderboard'] ?? [])]);
         const leaderboardPerPage = 5;
         let leaderboardPage = 1;
@@ -530,17 +532,13 @@
 
         function renderVisitsPerLandmarkChart() {
             const period = document.getElementById('visitsPerLandmarkPeriod').value || '7';
-            const cutoff = period === 'all' ? null : Date.now() - (Number(period) * 24 * 60 * 60 * 1000);
             const totals = new Map();
-            visitorRecords.forEach(function (record) {
-                const lastVisit = Date.parse(record.last_visit_at || '');
-                if (cutoff !== null && (!Number.isFinite(lastVisit) || lastVisit < cutoff)) {
-                    return;
+            Object.keys(visitsByLandmarkPeriod).forEach(function (landmarkId) {
+                const counts = visitsByLandmarkPeriod[landmarkId] || {};
+                const count = Number(counts[period === 'all' ? 'all' : period] || 0);
+                if (count > 0) {
+                    totals.set(String(landmarkNames[landmarkId] || 'Unknown landmark'), count);
                 }
-
-                const landmark = String(record.landmark || 'Unknown landmark');
-                const count = Number(record.visit_count || 0);
-                totals.set(landmark, (totals.get(landmark) || 0) + count);
             });
 
             const rows = Array.from(totals.entries()).sort(function (a, b) {

@@ -13,6 +13,15 @@
         $usersTotal = $usersIsPaginated ? $users->total() : count($users);
         $usersIsEmpty = $usersTotal === 0;
         $adminUsersIndex = request()->routeIs('admin.users') && ! $curatorsOnly && ! $siteManagersOnly;
+        $userSort = $userSort ?? null;
+        $userSortDirection = $userSortDirection ?? null;
+        $userSortQuery = request()->except(['sort', 'direction', 'page']);
+        $userSortUrl = static function (string $column, string $direction) use ($userSortQuery, $usersListRouteName): string {
+            return route($usersListRouteName, array_merge($userSortQuery, [
+                'sort' => $column,
+                'direction' => $direction,
+            ]));
+        };
     @endphp
     <style>
         @if ($adminUsersIndex)
@@ -201,6 +210,18 @@
             color: #1f2937;
             vertical-align: middle;
         }
+        .users-table th:last-child,
+        .users-table td:last-child { text-align: center; }
+        .users-sort-link {
+            display: inline-flex;
+            align-items: center;
+            gap: .3rem;
+            color: inherit;
+            text-decoration: none;
+            cursor: pointer;
+        }
+        .users-sort-link:hover { color: #5f2418; }
+        .users-sort-indicator { font-size: .9rem; line-height: 1; }
         .users-table tbody tr:hover { background: #fcfcfd; }
         .role-pill {
             display: inline-flex;
@@ -267,6 +288,54 @@
             color: #991b1b;
         }
         .btn-reject:hover { background: #fef2f2; }
+        .btn-view {
+            box-sizing: border-box;
+            min-width: 46px;
+            height: 27px;
+            padding: .25rem .65rem;
+            border-radius: 8px;
+            border: 1px solid #d1d5db;
+            font-weight: 600;
+            font-size: .78rem;
+            line-height: 1;
+            cursor: pointer;
+            background: #fff;
+            color: #374151;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            vertical-align: middle;
+            transition: background-color .15s ease, border-color .15s ease, color .15s ease;
+        }
+        .btn-view:hover { background: #f9fafb; border-color: #9ca3af; color: #1f2937; }
+        .user-view-approval-actions { display: none; }
+        .user-view-modal__panel { width: min(100%, 520px); }
+        .user-view-modal__details {
+            display: grid;
+            grid-template-columns: minmax(110px, .35fr) 1fr;
+            gap: .7rem 1rem;
+            margin: 1rem 0 0;
+            padding: 1rem;
+            border-radius: 10px;
+            background: #fffaf0;
+            border: 1px solid #f7e5bf;
+        }
+        .user-view-modal__details dt { color: #7A2E1F; font-weight: 800; }
+        .user-view-modal__details dd { margin: 0; color: #1f2937; overflow-wrap: anywhere; }
+        .user-view-modal__details dd a,
+        .user-view-modal__details dd a:visited,
+        .user-view-modal__details dd a:hover,
+        .user-view-modal__details dd a:focus {
+            color: inherit;
+            text-decoration: none;
+        }
+        @media (max-width: 520px) {
+            .user-view-modal__details { grid-template-columns: 1fr; gap: .25rem; }
+            .user-view-modal__details dd { margin-bottom: .55rem; }
+            .user-view-modal__details dd:last-child { margin-bottom: 0; }
+            .user-view-modal__actions { flex-direction: column; }
+            .user-view-modal__actions .curator-delete-modal__btn { width: 100%; }
+        }
         .curator-delete-modal {
             position: fixed;
             inset: 0;
@@ -278,6 +347,8 @@
             background: rgba(17, 24, 39, 0.55);
         }
         .curator-delete-modal.is-open { display: flex; }
+        #siteManagerApproveModal,
+        #siteManagerRejectModal { z-index: 1110; }
         .curator-delete-modal__panel {
             position: relative;
             width: min(100%, 430px);
@@ -321,6 +392,7 @@
             gap: .6rem;
             margin-top: 1.25rem;
         }
+        .curator-delete-modal__actions[hidden] { display: none; }
         .curator-delete-modal__btn {
             border-radius: 8px;
             border: 1px solid transparent;
@@ -386,6 +458,38 @@
             background: #166534;
             border-color: #166534;
             color: #fff;
+        }
+        #userViewModal .curator-delete-modal__btn--approve {
+            min-width: 80px;
+            height: 36px;
+            padding: .45rem .85rem;
+            border-radius: 8px;
+            background: #166534;
+            border: 1px solid #166534;
+            color: #fff;
+            font-size: .85rem;
+            font-weight: 700;
+            line-height: 1;
+        }
+        #userViewModal .curator-delete-modal__btn--approve:hover {
+            background: #14532d;
+            border-color: #14532d;
+        }
+        #userViewModal .curator-delete-modal__btn--danger {
+            min-width: 80px;
+            height: 36px;
+            padding: .45rem .85rem;
+            border-radius: 8px;
+            background: #ef4444;
+            border: 1px solid #ef4444;
+            color: #fff;
+            font-size: .85rem;
+            font-weight: 700;
+            line-height: 1;
+        }
+        #userViewModal .curator-delete-modal__btn--danger:hover {
+            background: #dc2626;
+            border-color: #dc2626;
         }
         #siteManagerApproveModal .curator-delete-modal__btn--approve:hover {
             background: #14532d;
@@ -554,6 +658,10 @@
     @endif
 
     <form method="GET" action="{{ route($usersListRouteName) }}" class="users-filter{{ $curatorsOnly && $panelRoutePrefix === 'sitemanager' ? ' curators-filter' : '' }}">
+        @if ($adminUsersIndex && $userSort !== null)
+            <input type="hidden" name="sort" value="{{ $userSort }}">
+            <input type="hidden" name="direction" value="{{ $userSortDirection }}">
+        @endif
         <input
             type="text"
             name="search"
@@ -620,12 +728,41 @@
             <table class="users-table{{ $curatorsOnly ? ' curators-table' : '' }}{{ $adminUsersIndex ? ' admin-users-table' : '' }}">
                 <thead>
                     <tr>
-                        <th>Email</th>
+                        <th aria-sort="{{ $userSort === 'email' ? ($userSortDirection === 'desc' ? 'descending' : 'ascending') : 'none' }}">
+                            @if ($adminUsersIndex || ($curatorsOnly && $panelRoutePrefix === 'sitemanager'))
+                                <a class="users-sort-link" href="{{ $userSortUrl('email', $userSort === 'email' && $userSortDirection === 'asc' ? 'desc' : 'asc') }}">
+                                    Email
+                                    @if ($userSort === 'email')
+                                        <span class="users-sort-indicator" aria-hidden="true">{{ $userSortDirection === 'desc' ? '↓' : '↑' }}</span>
+                                    @endif
+                                </a>
+                            @else
+                                Email
+                            @endif
+                        </th>
                         @if (! $curatorsOnly)
-                            <th>Role</th>
+                            <th>
+                                @if ($adminUsersIndex)
+                                    <a class="users-sort-link" href="{{ $userSortUrl('role', $userSort === 'role' && $userSortDirection === 'asc' ? 'desc' : 'asc') }}">
+                                        Role
+                                        @if ($userSort === 'role')
+                                            <span class="users-sort-indicator" aria-hidden="true">{{ $userSortDirection === 'desc' ? '↓' : '↑' }}</span>
+                                        @endif
+                                    </a>
+                                @else
+                                    Role
+                                @endif
+                            </th>
                         @endif
                         @if ($curatorsOnly && $panelRoutePrefix === 'sitemanager')
-                            <th>Landmark</th>
+                            <th aria-sort="{{ $userSort === 'landmark' ? ($userSortDirection === 'desc' ? 'descending' : 'ascending') : 'none' }}">
+                                <a class="users-sort-link" href="{{ $userSortUrl('landmark', $userSort === 'landmark' && $userSortDirection === 'asc' ? 'desc' : 'asc') }}">
+                                    Landmark
+                                    @if ($userSort === 'landmark')
+                                        <span class="users-sort-indicator" aria-hidden="true">{{ $userSortDirection === 'desc' ? '↓' : '↑' }}</span>
+                                    @endif
+                                </a>
+                            </th>
                         @endif
                         @if (! $adminUsersIndex && ! ($curatorsOnly && $panelRoutePrefix === 'sitemanager'))
                             <th>Approval</th>
@@ -639,13 +776,21 @@
                 <tbody>
                     @foreach ($users as $user)
                         @php
-                            $approvalLabel = ucfirst(str_replace('_', ' ', $user->approval_status));
+                            $approvalStatus = strtolower(trim((string) ($user->approval_status ?? 'approved')));
+                            $approvalLabel = ucfirst(str_replace('_', ' ', $approvalStatus));
                             $showPendingActions = ! empty($user->approval_actions);
                             $roleLabel = $user->role === 'site_manager'
                                 ? 'Site Manager'
                                 : ucfirst(str_replace('_', ' ', $user->role));
                             $accountStatus = $user->account_status ?? 'active';
                             $accountStatusLabel = ucfirst($accountStatus);
+                            $fullName = trim((string) ($user->name ?? ''));
+                            if ($fullName === '') {
+                                $fullName = trim(trim((string) ($user->first_name ?? '')).' '.trim((string) ($user->last_name ?? '')));
+                            }
+                            if ($fullName === '') {
+                                $fullName = 'Not provided';
+                            }
                         @endphp
                         <tr>
                             <td>{{ $user->email }}</td>
@@ -674,6 +819,21 @@
                                 </td>
                             @endif
                             <td>
+                                @if (! ($curatorsOnly && $panelRoutePrefix === 'sitemanager'))
+                                    <button
+                                        type="button"
+                                        class="btn-view js-user-view-action"
+                                        data-user-name="{{ $fullName }}"
+                                        data-user-email="{{ $user->email }}"
+                                        data-user-role="{{ $roleLabel }}"
+                                        data-user-status="{{ $approvalLabel }}"
+                                        data-user-approval-status="{{ $approvalStatus }}"
+                                        data-user-credentials-url="{{ $user->role === 'site_manager' ? ($user->credentials_document['url'] ?? '') : '' }}"
+                                        data-user-credentials-name="{{ $user->role === 'site_manager' ? ($user->credentials_document['filename'] ?? '') : '' }}"
+                                        data-user-pending="{{ $approvalStatus === 'pending' ? 'true' : 'false' }}">
+                                        View
+                                    </button>
+                                @endif
                                 @if ($curatorsOnly && $panelRoutePrefix === 'sitemanager')
                                     <div class="user-actions">
                                         <a href="{{ route('sitemanager.curators', array_filter(['search' => request('search'), 'page' => request('page'), 'edit' => $user->uid])) }}" class="btn-edit">Edit</a>
@@ -707,7 +867,7 @@
                                         @endif
                                     </div>
                                 @elseif ($showPendingActions)
-                                    <div class="user-actions">
+                                    <div class="user-actions user-view-approval-actions">
                                         <form
                                             method="POST"
                                             action="{{ route($userActionsRoutePrefix.'.approve', ['uid' => $user->uid]) }}"
@@ -749,8 +909,6 @@
                                             </button>
                                         </form>
                                     </div>
-                                @else
-                                    <span style="color: #9ca3af; font-size: .82rem;">—</span>
                                 @endif
                             </td>
                         </tr>
@@ -802,6 +960,115 @@
         </div>
     @endif
     </div>
+
+    <div
+        id="userViewModal"
+        class="curator-delete-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-hidden="true"
+        aria-labelledby="userViewModalTitle">
+        <div class="curator-delete-modal__panel user-view-modal__panel" tabindex="-1">
+            <button type="button" id="userViewModalClose" class="site-manager-reject-modal__close" aria-label="Close user details">&times;</button>
+            <h2 id="userViewModalTitle" class="curator-delete-modal__title">User Information</h2>
+            <dl class="user-view-modal__details">
+                <dt>Full Name</dt>
+                <dd id="userViewName"></dd>
+                <dt>Email Address</dt>
+                <dd id="userViewEmail"></dd>
+                <dt>Role</dt>
+                <dd id="userViewRole"></dd>
+                <dt>Registration Status</dt>
+                <dd><span id="userViewStatus" class="status-pill"></span></dd>
+                <dt id="userViewCredentialsLabel" hidden>Credentials</dt>
+                <dd id="userViewCredentials" hidden></dd>
+            </dl>
+            <div id="userViewPendingActions" class="curator-delete-modal__actions user-view-modal__actions" hidden>
+                <button type="button" id="userViewApprove" class="curator-delete-modal__btn curator-delete-modal__btn--approve">Approve</button>
+                <button type="button" id="userViewReject" class="curator-delete-modal__btn curator-delete-modal__btn--danger">Reject</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        (function () {
+            var modal = document.getElementById('userViewModal');
+            var panel = modal ? modal.querySelector('.user-view-modal__panel') : null;
+            var closeButton = document.getElementById('userViewModalClose');
+            var nameElement = document.getElementById('userViewName');
+            var emailElement = document.getElementById('userViewEmail');
+            var roleElement = document.getElementById('userViewRole');
+            var statusElement = document.getElementById('userViewStatus');
+            var credentialsLabel = document.getElementById('userViewCredentialsLabel');
+            var credentialsElement = document.getElementById('userViewCredentials');
+            var pendingActions = document.getElementById('userViewPendingActions');
+            var approveButton = document.getElementById('userViewApprove');
+            var rejectButton = document.getElementById('userViewReject');
+            var activeTrigger = null;
+
+            if (!modal || !closeButton || !nameElement || !emailElement || !roleElement || !statusElement) return;
+
+            function closeModal() {
+                modal.classList.remove('is-open');
+                modal.setAttribute('aria-hidden', 'true');
+                document.body.style.overflow = '';
+                if (activeTrigger) activeTrigger.focus();
+                activeTrigger = null;
+            }
+
+            function openModal(trigger) {
+                activeTrigger = trigger;
+                nameElement.textContent = trigger.dataset.userName || 'Not provided';
+                emailElement.textContent = trigger.dataset.userEmail || 'Not provided';
+                roleElement.textContent = trigger.dataset.userRole || 'Not provided';
+                var credentialsUrl = trigger.dataset.userCredentialsUrl || '';
+                var credentialsName = trigger.dataset.userCredentialsName || 'Submitted document';
+                credentialsLabel.hidden = !credentialsUrl && !credentialsName;
+                credentialsElement.hidden = credentialsLabel.hidden;
+                credentialsElement.textContent = '';
+                if (credentialsUrl) {
+                    var credentialsLink = document.createElement('a');
+                    credentialsLink.href = credentialsUrl;
+                    credentialsLink.target = '_blank';
+                    credentialsLink.rel = 'noopener';
+                    credentialsLink.textContent = 'View ' + credentialsName;
+                    credentialsElement.appendChild(credentialsLink);
+                } else if (credentialsName) {
+                    credentialsElement.textContent = credentialsName + ' (stored securely)';
+                }
+                var status = (trigger.dataset.userApprovalStatus || '').toLowerCase().trim();
+                statusElement.textContent = trigger.dataset.userStatus || 'Unknown';
+                statusElement.className = 'status-pill' + (status ? ' status-' + status : '');
+                pendingActions.hidden = status !== 'pending';
+                modal.classList.add('is-open');
+                modal.setAttribute('aria-hidden', 'false');
+                document.body.style.overflow = 'hidden';
+                if (panel) panel.focus();
+            }
+
+            document.querySelectorAll('.js-user-view-action').forEach(function (trigger) {
+                trigger.addEventListener('click', function () { openModal(trigger); });
+            });
+            closeButton.addEventListener('click', closeModal);
+            modal.addEventListener('click', function (event) {
+                if (event.target === modal) closeModal();
+            });
+            document.addEventListener('keydown', function (event) {
+                if (event.key === 'Escape' && modal.classList.contains('is-open')) {
+                    if (document.querySelector('#siteManagerApproveModal.is-open, #siteManagerRejectModal.is-open')) return;
+                    closeModal();
+                }
+            });
+
+            function triggerExistingAction(selector) {
+                if (!activeTrigger) return;
+                var action = activeTrigger.closest('td').querySelector(selector);
+                if (action) action.click();
+            }
+            approveButton.addEventListener('click', function () { triggerExistingAction('.btn-approve'); });
+            rejectButton.addEventListener('click', function () { triggerExistingAction('.btn-reject'); });
+        })();
+    </script>
 
     @if ($panelRoutePrefix === 'admin' && ! $curatorsOnly)
         <div
@@ -890,9 +1157,16 @@
                     modal.setAttribute('aria-hidden', 'true');
                     selectedForm = null;
                     selectedEmail.textContent = '';
-                    document.body.style.overflow = '';
-                    if (activeTrigger) {
-                        activeTrigger.focus();
+                    var parentModal = document.getElementById('userViewModal');
+                    if (parentModal && parentModal.classList.contains('is-open')) {
+                        document.body.style.overflow = 'hidden';
+                        var parentPanel = parentModal.querySelector('.user-view-modal__panel');
+                        if (parentPanel) parentPanel.focus();
+                    } else {
+                        document.body.style.overflow = '';
+                        if (activeTrigger) {
+                            activeTrigger.focus();
+                        }
                     }
                     activeTrigger = null;
                 }
@@ -963,9 +1237,16 @@
                     modal.setAttribute('aria-hidden', 'true');
                     selectedForm = null;
                     selectedEmail.textContent = '';
-                    document.body.style.overflow = '';
-                    if (activeTrigger) {
-                        activeTrigger.focus();
+                    var parentModal = document.getElementById('userViewModal');
+                    if (parentModal && parentModal.classList.contains('is-open')) {
+                        document.body.style.overflow = 'hidden';
+                        var parentPanel = parentModal.querySelector('.user-view-modal__panel');
+                        if (parentPanel) parentPanel.focus();
+                    } else {
+                        document.body.style.overflow = '';
+                        if (activeTrigger) {
+                            activeTrigger.focus();
+                        }
                     }
                     activeTrigger = null;
                 }

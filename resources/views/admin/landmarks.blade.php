@@ -8,7 +8,25 @@
     $landmarkStatusFilter = $landmarkStatusFilter ?? 'all';
     $landmarkSearch = $landmarkSearch ?? '';
     $landmarkCategoryFilter = $landmarkCategoryFilter ?? 'all';
-    $landmarkOrder = $landmarkOrder ?? 'default';
+    $landmarkSort = $landmarkSort ?? null;
+    $landmarkSortDirection = $landmarkSortDirection ?? null;
+    $landmarkSortQuery = request()->except(['sort', 'direction', 'page', 'view', 'order']);
+    $landmarkSortUrl = static function (string $column, ?string $direction) use ($landmarkSortQuery, $panelRoutePrefix): string {
+        $query = $landmarkSortQuery;
+        if ($direction !== null) {
+            $query['sort'] = $column;
+            $query['direction'] = $direction;
+        }
+
+        return route($panelRoutePrefix . '.landmarks', $query);
+    };
+    $landmarkSortLink = static function (string $column) use ($landmarkSort, $landmarkSortDirection, $landmarkSortUrl): string {
+        if ($landmarkSort !== $column) {
+            return $landmarkSortUrl($column, 'asc');
+        }
+
+        return $landmarkSortUrl($column, $landmarkSortDirection === 'asc' ? 'desc' : null);
+    };
     $landmarksListUrl = route($panelRoutePrefix . '.landmarks', array_filter([
         'status' => $isLandmarkApprovalQueue ? $landmarkStatusFilter : null,
     ]));
@@ -92,6 +110,19 @@
             background: #fff7ed;
             border-bottom: 1px solid #f1f5f9;
             line-height: 1.2;
+        }
+        .land-sort-link {
+            display: inline-flex;
+            align-items: center;
+            gap: .3rem;
+            color: inherit;
+            text-decoration: none;
+            cursor: pointer;
+        }
+        .land-sort-link:hover { color: #5f2418; }
+        .land-sort-indicator {
+            font-size: .9rem;
+            line-height: 1;
         }
         .land-wrap--approval .land-table td {
             padding: .65rem .78rem;
@@ -1544,6 +1575,10 @@
 
     @if ($isLandmarkApprovalQueue)
         <form method="GET" action="{{ route('admin.landmarks') }}" class="land-controls land-controls--approval land-controls--manual">
+            @if ($landmarkSort !== null)
+                <input type="hidden" name="sort" value="{{ $landmarkSort }}">
+                <input type="hidden" name="direction" value="{{ $landmarkSortDirection }}">
+            @endif
             <input
                 type="search"
                 name="search"
@@ -1588,6 +1623,10 @@
 
     @if ($panelRoutePrefix === 'sitemanager' && ! $isLandmarkApprovalQueue)
         <form method="GET" action="{{ route('sitemanager.landmarks') }}" class="land-controls land-controls--manual">
+            @if ($landmarkSort !== null)
+                <input type="hidden" name="sort" value="{{ $landmarkSort }}">
+                <input type="hidden" name="direction" value="{{ $landmarkSortDirection }}">
+            @endif
             <input
                 type="search"
                 name="search"
@@ -1620,19 +1659,6 @@
                 <ul class="land-filter-dropdown-menu" role="listbox" aria-label="Status options" hidden></ul>
             </span>
 
-            <span class="land-filter-dropdown">
-                <select class="land-filter-dropdown__native" name="order" aria-label="Order landmarks">
-                    <option value="default" @selected($landmarkOrder === 'default')>Default order</option>
-                    <option value="name_az" @selected($landmarkOrder === 'name_az')>Name A-Z</option>
-                    <option value="name_za" @selected($landmarkOrder === 'name_za')>Name Z-A</option>
-                    <option value="newest" @selected($landmarkOrder === 'newest')>Newest</option>
-                    <option value="oldest" @selected($landmarkOrder === 'oldest')>Oldest</option>
-                </select>
-                <button class="land-filter-dropdown__toggle" type="button" aria-haspopup="listbox" aria-expanded="false" aria-label="Order landmarks"></button>
-                <button class="land-filter-dropdown__arrow" type="button" aria-label="Toggle order options" aria-expanded="false"></button>
-                <ul class="land-filter-dropdown-menu" role="listbox" aria-label="Order options" hidden></ul>
-            </span>
-
             <button type="submit">Search</button>
 
             <a href="{{ route('sitemanager.landmarks') }}" class="land-clear-btn">
@@ -1649,10 +1675,20 @@
                 <table class="land-table">
                     <thead>
                         <tr>
-                            <th>Name</th>
-                            <th>Location</th>
-                            <th>Category</th>
-                            <th>Status</th>
+                            @foreach (['name' => 'Name', 'location' => 'Location', 'category' => 'Category', 'status' => 'Status'] as $sortColumn => $sortLabel)
+                                <th aria-sort="{{ $landmarkSort === $sortColumn ? ($landmarkSortDirection === 'desc' ? 'descending' : 'ascending') : 'none' }}">
+                                    @if ($isLandmarkApprovalQueue || $panelRoutePrefix === 'sitemanager')
+                                        <a class="land-sort-link" href="{{ $landmarkSortLink($sortColumn) }}">
+                                            {{ $sortLabel }}
+                                            @if ($landmarkSort === $sortColumn)
+                                                <span class="land-sort-indicator" aria-hidden="true">{{ $landmarkSortDirection === 'desc' ? '↓' : '↑' }}</span>
+                                            @endif
+                                        </a>
+                                    @else
+                                        {{ $sortLabel }}
+                                    @endif
+                                </th>
+                            @endforeach
                             @if ($panelRoutePrefix === 'sitemanager' || $isLandmarkApprovalQueue)
                             <th>Action</th>
                             @endif
@@ -2276,6 +2312,33 @@
             return haystack.indexOf('cebu') !== -1 && isPhilippines;
         }
 
+        function lmNormalizeLocationSearchText(value) {
+            return String(value || '')
+                .toLowerCase()
+                .replace(/[^\p{L}\p{N}]+/gu, ' ')
+                .trim()
+                .replace(/\s+/g, ' ');
+        }
+
+        function lmLocationSearchScore(feature, query) {
+            var needle = lmNormalizeLocationSearchText(query);
+            var properties = feature && feature.properties || {};
+            var name = lmNormalizeLocationSearchText(
+                feature && (feature.text || properties.name || '')
+            );
+            var placeName = lmNormalizeLocationSearchText(feature && feature.place_name || '');
+            if (!needle) return 0;
+            if (name === needle) return 100;
+            if (name.indexOf(needle) !== -1) return 90;
+            if (placeName.indexOf(needle) !== -1) return 80;
+
+            var words = needle.split(' ');
+            var matchingWords = words.filter(function (word) {
+                return name.indexOf(word) !== -1;
+            }).length;
+            return matchingWords === words.length ? 70 : matchingWords * 5;
+        }
+
         function lmCloseCreateLocationResults() {
             var searchInput = document.getElementById('lm-create-location-search');
             var resultsEl = document.getElementById('lm-create-location-results');
@@ -2497,12 +2560,12 @@
                     lmCebuGeocodeBounds.north
                 ].join(','),
                 country: 'ph',
-                limit: '5',
+                limit: '10',
                 types: 'poi,address,place,locality',
                 proximity: lmDefaultLng + ',' + lmDefaultLat
             });
             var url = 'https://api.mapbox.com/geocoding/v5/mapbox.places/'
-                + encodeURIComponent(query + ' Cebu Philippines')
+                + encodeURIComponent(query).replace(/'/g, '%27')
                 + '.json?'
                 + params.toString();
 
@@ -2516,6 +2579,9 @@
                     var features = payload && payload.features
                         ? payload.features.filter(lmFeatureIsInCebu)
                         : [];
+                    features.sort(function (a, b) {
+                        return lmLocationSearchScore(b, query) - lmLocationSearchScore(a, query);
+                    });
                     lmRenderCreateLocationResults(features);
                 })
                 .catch(function () {
@@ -2767,12 +2833,12 @@
                     lmCebuGeocodeBounds.north
                 ].join(','),
                 country: 'ph',
-                limit: '5',
+                limit: '10',
                 types: 'poi,address,place,locality',
                 proximity: picker.startLng + ',' + picker.startLat
             });
             var url = 'https://api.mapbox.com/geocoding/v5/mapbox.places/'
-                + encodeURIComponent(query + ' Cebu Philippines')
+                + encodeURIComponent(query).replace(/'/g, '%27')
                 + '.json?'
                 + params.toString();
 
@@ -2786,6 +2852,9 @@
                     var features = payload && payload.features
                         ? payload.features.filter(lmFeatureIsInCebu)
                         : [];
+                    features.sort(function (a, b) {
+                        return lmLocationSearchScore(b, query) - lmLocationSearchScore(a, query);
+                    });
                     lmRenderEditLocationResults(picker, features);
                 })
                 .catch(function () {
@@ -3235,5 +3304,6 @@
             }
             @endif
         });
+
     </script>
 @endsection
