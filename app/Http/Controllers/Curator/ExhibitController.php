@@ -7,6 +7,7 @@ use App\Services\ExhibitMediaStorage;
 use App\Services\FirebaseService;
 use App\Services\SiteManagerReadModel;
 use App\Support\CuratorAssignedLandmark;
+use App\Support\ArrayDocumentSnapshot;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\Cache;
@@ -49,13 +50,26 @@ class ExhibitController extends Controller
         if (! in_array($status, ['all', 'active', 'inactive'], true)) {
             $status = 'all';
         }
+        $sort = strtolower(trim((string) $request->query('sort', '')));
+        $sortDirection = strtolower(trim((string) $request->query('direction', 'asc')));
+        $sortFields = [
+            'name' => 'name',
+            'category' => 'category',
+            'landmark' => 'landmark_name',
+        ];
+        if (! isset($sortFields[$sort])) {
+            $sort = null;
+            $sortDirection = null;
+        } elseif (! in_array($sortDirection, ['asc', 'desc'], true)) {
+            $sortDirection = 'asc';
+        }
 
         $start = microtime(true);
         $exhibits = [];
         $managerUid = $this->managerUid();
         $categoryOptions = $this->activeCategoryNamesForManager($managerUid);
         $queryLandmarkIds = $selectedLandmarkId === 'all' ? $landmarkIds : [$selectedLandmarkId];
-        foreach ($this->exhibitDocumentsForLandmarks($queryLandmarkIds) as $doc) {
+        foreach ($this->exhibitDocumentsForLandmarks($queryLandmarkIds, $sort !== null ? $sortFields[$sort] : null, $sortDirection) as $doc) {
             if (! $doc->exists()) {
                 continue;
             }
@@ -105,7 +119,16 @@ class ExhibitController extends Controller
             ]);
         }
 
-        usort($exhibits, function (array $left, array $right): int {
+        usort($exhibits, function (array $left, array $right) use ($sort, $sortDirection): int {
+            if ($sort !== null) {
+                $leftValue = (string) ($left[$sort === 'landmark' ? 'landmark_name' : $sort] ?? '');
+                $rightValue = (string) ($right[$sort === 'landmark' ? 'landmark_name' : $sort] ?? '');
+                $comparison = strnatcasecmp($leftValue, $rightValue);
+                if ($comparison !== 0) {
+                    return $sortDirection === 'desc' ? -$comparison : $comparison;
+                }
+            }
+
             $leftDate = strtotime((string) ($left['created_at'] ?? '')) ?: 0;
             $rightDate = strtotime((string) ($right['created_at'] ?? '')) ?: 0;
 
@@ -134,7 +157,7 @@ class ExhibitController extends Controller
             $page,
             [
                 'path' => route($this->routeName('exhibits.index')),
-                'query' => $request->only(['search', 'category', 'landmark', 'status']),
+                'query' => $request->only(['search', 'category', 'landmark', 'status', 'sort', 'direction']),
             ]
         );
 
@@ -156,6 +179,8 @@ class ExhibitController extends Controller
             'categoryFilter' => $category,
             'categoryOptions' => $this->uniqueCategories($categoryOptions),
             'statusFilter' => $status,
+            'sort' => $sort,
+            'sortDirection' => $sortDirection,
             'openViewId' => $id,
         ]);
     }
@@ -183,6 +208,7 @@ class ExhibitController extends Controller
         ];
 
         $this->firebase->firestore()->collection('exhibits')->document($exhibitId)->set($payload);
+        $this->forgetExhibitDocumentsCache([$landmark['id']]);
 
         return redirect()->route($this->routeName('exhibits.index'))->with('success', 'Exhibit added successfully.');
     }
@@ -217,6 +243,10 @@ class ExhibitController extends Controller
         ];
 
         $this->firebase->firestore()->collection('exhibits')->document($id)->set($payload, ['merge' => true]);
+        $this->forgetExhibitDocumentsCache([
+            (string) ($snapshot->data()['landmark_id'] ?? ''),
+            (string) ($landmark['id'] ?? ''),
+        ]);
 
         return redirect()->route($this->routeName('exhibits.index'))->with('success', 'Exhibit updated successfully.');
     }
@@ -229,6 +259,7 @@ class ExhibitController extends Controller
         $this->mediaStorage->deleteMany(is_array($data['images'] ?? null) ? $data['images'] : []);
 
         $this->firebase->firestore()->collection('exhibits')->document($id)->delete();
+        $this->forgetExhibitDocumentsCache([(string) ($data['landmark_id'] ?? '')]);
 
         return redirect()->route($this->routeName('exhibits.index'))->with('success', 'Exhibit deleted successfully.');
     }
@@ -511,7 +542,7 @@ class ExhibitController extends Controller
         return is_array($files) ? array_values($files) : [];
     }
 
-    private function exhibitDocumentsForLandmarks(array $landmarkIds): array
+    private function exhibitDocumentsForLandmarks(array $landmarkIds, ?string $sortField = null, ?string $sortDirection = 'asc'): array
     {
         $landmarkIds = array_values(array_filter(array_unique(array_map(
             fn (mixed $id): string => trim((string) $id),
@@ -521,26 +552,48 @@ class ExhibitController extends Controller
             return [];
         }
 
-        $start = microtime(true);
-        $collection = $this->firebase->firestore()->collection('exhibits');
-        $documents = [];
-        if (count($landmarkIds) === 1) {
-            $documents = iterator_to_array($collection->where('landmark_id', '==', $landmarkIds[0])->documents());
-        } else {
-            foreach (array_chunk($landmarkIds, 30) as $chunk) {
-                foreach ($collection->where('landmark_id', 'in', $chunk)->documents() as $document) {
-                    $documents[] = $document;
+        $cacheKey = 'exhibits:landmarks:v2:'.md5(implode('|', $landmarkIds));
+        $records = Cache::remember($cacheKey, now()->addMinutes(2), function () use ($landmarkIds): array {
+            $start = microtime(true);
+            $collection = $this->firebase->firestore()->collection('exhibits');
+            $documents = [];
+            if (count($landmarkIds) === 1) {
+                $documents = iterator_to_array(
+                    $collection->where('landmark_id', '==', $landmarkIds[0])->documents()
+                );
+            } else {
+                foreach (array_chunk($landmarkIds, 30) as $chunk) {
+                    foreach ($collection->where('landmark_id', 'in', $chunk)->documents() as $document) {
+                        $documents[] = $document;
+                    }
                 }
             }
+
+            Log::info('Timing Firestore query', [
+                'query' => 'exhibits.by_landmark_id',
+                'landmark_count' => count($landmarkIds),
+                'documents' => count($documents),
+                'duration_ms' => (int) round((microtime(true) - $start) * 1000),
+            ]);
+
+            return array_map(fn (mixed $document): array => [
+                'id' => $document->id(),
+                'data' => $document->data(),
+            ], $documents);
+        });
+
+        return array_map(
+            fn (array $record): ArrayDocumentSnapshot => new ArrayDocumentSnapshot((string) $record['id'], $record['data']),
+            $records
+        );
+    }
+
+    /** @param list<string> $landmarkIds */
+    private function forgetExhibitDocumentsCache(array $landmarkIds): void
+    {
+        $ids = array_values(array_filter(array_unique(array_map('strval', $landmarkIds))));
+        if ($ids !== []) {
+            Cache::forget('exhibits:landmarks:v2:'.md5(implode('|', $ids)));
         }
-
-        Log::info('Timing Firestore query', [
-            'query' => 'exhibits.by_landmark_id',
-            'landmark_count' => count($landmarkIds),
-            'documents' => count($documents),
-            'duration_ms' => (int) round((microtime(true) - $start) * 1000),
-        ]);
-
-        return $documents;
     }
 }

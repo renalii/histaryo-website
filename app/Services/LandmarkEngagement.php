@@ -58,6 +58,15 @@ final class LandmarkEngagement
         return $this->analyticsForLandmarks($landmarkIds)['totals'];
     }
 
+    /** Clear the short-lived dashboard activity cache after a manual refresh. */
+    public function forgetAnalyticsForLandmarks(array $landmarkIds): void
+    {
+        $ids = array_values(array_filter(array_map('strval', $landmarkIds), fn (string $id): bool => trim($id) !== ''));
+        if ($ids !== []) {
+            Cache::forget('landmark-engagement:visitor-visits:v2:'.md5(implode('|', $ids)));
+        }
+    }
+
     /**
      * @param list<string> $landmarkIds
      * @return array{

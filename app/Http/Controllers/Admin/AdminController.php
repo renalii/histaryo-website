@@ -25,6 +25,8 @@ use App\Support\UserApprovalPolicy;
 
 class AdminController extends Controller
 {
+    private const LANDMARK_APPROVAL_CACHE_KEY = 'landmarks.approval.records';
+
     protected ?Auth $auth = null;
 
     protected ?FirestoreClient $firestore = null;
@@ -423,12 +425,20 @@ class AdminController extends Controller
 
     private function siteManagerDashboard(string $managerUid)
     {
+        $forceRefresh = request()->boolean('refresh');
+        if ($forceRefresh) {
+            Cache::forget($this->siteManagerReadModel->dashboardKey($managerUid));
+        }
+
         $data = Cache::remember(
             $this->siteManagerReadModel->dashboardKey($managerUid),
             now()->addMinutes(5),
-            function () use ($managerUid) {
+            function () use ($managerUid, $forceRefresh) {
                 $landmarks = $this->siteManagerReadModel->landmarks($managerUid);
                 $landmarkIds = array_column($landmarks, 'id');
+                if ($forceRefresh) {
+                    $this->engagement->forgetAnalyticsForLandmarks($landmarkIds);
+                }
                 $landmarkNames = [];
                 foreach ($landmarks as $landmark) {
                     $landmarkNames[$landmark['id']] = trim((string) ($landmark['name'] ?? '')) ?: 'Unnamed landmark';
@@ -559,9 +569,17 @@ class AdminController extends Controller
     {
         $search = strtolower(trim((string) $request->input('search', '')));
         $roleFilter = strtolower(trim((string) $request->input('role', '')));
+        $userSort = strtolower(trim((string) $request->query('sort', '')));
+        $userSortDirection = strtolower(trim((string) $request->query('direction', 'asc')));
         $curatorsOnly = $request->routeIs('sitemanager.curators');
         $siteManagersOnly = $request->routeIs('admin.site-managers');
         $adminUsersIndex = $request->routeIs('admin.users');
+        if (! $adminUsersIndex || ! in_array($userSort, ['email', 'role'], true)) {
+            $userSort = null;
+            $userSortDirection = null;
+        } elseif (! in_array($userSortDirection, ['asc', 'desc'], true)) {
+            $userSortDirection = 'asc';
+        }
         if ($adminUsersIndex && ! in_array($roleFilter, ['', 'admin', 'curator', 'site_manager'], true)) {
             $roleFilter = '';
         }
@@ -646,10 +664,14 @@ class AdminController extends Controller
                 }
 
                 $curatorRegistrationType = (string) ($profile['curator_registration_type'] ?? '');
+                $credentialsDocument = is_array($profile['credentials_document'] ?? null)
+                    ? $profile['credentials_document']
+                    : null;
                 $effectiveProfile = array_merge($profile, [
                     'role' => $role,
                     'assigned_landmark_id' => $assignedLandmarkId,
                     'curator_registration_type' => $curatorRegistrationType,
+                    'credentials_document' => $credentialsDocument,
                 ]);
 
                 $approvalActions = $requiresApproval && $approvalStatus === 'pending'
@@ -670,6 +692,7 @@ class AdminController extends Controller
                     'curator_registration_type' => $curatorRegistrationType,
                     'assigned_landmark_id' => $assignedLandmarkId,
                     'approval_actions' => $approvalActions,
+                    'credentials_document' => $credentialsDocument,
                 ];
             }
         }
@@ -711,19 +734,40 @@ class AdminController extends Controller
         }
 
         if ($adminUsersIndex) {
-            usort($mergedUsers, static function (object $left, object $right): int {
+            usort($mergedUsers, static function (object $left, object $right) use ($userSort, $userSortDirection): int {
                 $approvalPriority = (empty($left->approval_actions) ? 1 : 0)
                     <=> (empty($right->approval_actions) ? 1 : 0);
 
-                if ($approvalPriority !== 0) {
-                    return $approvalPriority;
+                $defaultComparison = $approvalPriority !== 0
+                    ? $approvalPriority
+                    : (strnatcasecmp((string) $left->email, (string) $right->email)
+                        ?: strcmp((string) $left->uid, (string) $right->uid));
+
+                if ($userSort === null) {
+                    return $defaultComparison;
                 }
 
-                $emailComparison = strnatcasecmp((string) $left->email, (string) $right->email);
+                $leftValue = $userSort === 'role'
+                    ? match ((string) $left->role) {
+                        'admin' => 'Admin',
+                        'curator' => 'Curator',
+                        'site_manager' => 'Site Manager',
+                        default => ucfirst((string) $left->role),
+                    }
+                    : (string) $left->email;
+                $rightValue = $userSort === 'role'
+                    ? match ((string) $right->role) {
+                        'admin' => 'Admin',
+                        'curator' => 'Curator',
+                        'site_manager' => 'Site Manager',
+                        default => ucfirst((string) $right->role),
+                    }
+                    : (string) $right->email;
+                $comparison = strnatcasecmp($leftValue, $rightValue);
 
-                return $emailComparison !== 0
-                    ? $emailComparison
-                    : strcmp((string) $left->uid, (string) $right->uid);
+                return $comparison !== 0
+                    ? ($userSortDirection === 'desc' ? -$comparison : $comparison)
+                    : $defaultComparison;
             });
         }
 
@@ -753,6 +797,8 @@ class AdminController extends Controller
             'siteManagersOnly' => $siteManagersOnly,
             'assignableLandmarks' => $assignableLandmarks,
             'editCurator' => $editCurator,
+            'userSort' => $userSort,
+            'userSortDirection' => $userSortDirection,
         ]);
     }
 
@@ -766,6 +812,14 @@ class AdminController extends Controller
         $landmarkFilter = trim((string) $request->query('landmark', ''));
         if (! isset($landmarkNames[$landmarkFilter])) {
             $landmarkFilter = '';
+        }
+        $userSort = strtolower(trim((string) $request->query('sort', '')));
+        $userSortDirection = strtolower(trim((string) $request->query('direction', 'asc')));
+        if (! in_array($userSort, ['email', 'landmark'], true)) {
+            $userSort = null;
+            $userSortDirection = null;
+        } elseif (! in_array($userSortDirection, ['asc', 'desc'], true)) {
+            $userSortDirection = 'asc';
         }
 
         $users = [];
@@ -818,7 +872,15 @@ class AdminController extends Controller
             ];
         }
 
-        usort($users, function (object $left, object $right): int {
+        usort($users, function (object $left, object $right) use ($userSort, $userSortDirection): int {
+            if ($userSort !== null) {
+                $field = $userSort === 'landmark' ? 'assigned_landmark_name' : 'email';
+                $comparison = strnatcasecmp((string) $left->{$field}, (string) $right->{$field});
+                if ($comparison !== 0) {
+                    return $userSortDirection === 'desc' ? -$comparison : $comparison;
+                }
+            }
+
             $statusRank = static fn (string $status): int => $status === 'active' ? 1 : 2;
             $statusComparison = $statusRank((string) $left->account_status)
                 <=> $statusRank((string) $right->account_status);
@@ -870,6 +932,8 @@ class AdminController extends Controller
             'curatorFilterLandmarks' => $landmarks,
             'landmarkFilter' => $landmarkFilter,
             'editCurator' => $editCurator,
+            'userSort' => $userSort,
+            'userSortDirection' => $userSortDirection,
         ]);
     }
 
@@ -1076,8 +1140,27 @@ class AdminController extends Controller
                 $this->siteManagerReadModel->landmarks($sessionUid)
             );
         } else {
-            $landmarksQuery = $this->firestore()->collection('landmarks')->documents();
-            $allLandmarks = iterator_to_array($landmarksQuery);
+            $records = Cache::remember(
+                self::LANDMARK_APPROVAL_CACHE_KEY,
+                now()->addSeconds(15),
+                function (): array {
+                    $records = [];
+                    foreach ($this->firestore()->collection('landmarks')->documents() as $document) {
+                        if ($document->exists()) {
+                            $records[] = [
+                                'id' => $document->id(),
+                                'data' => $document->data(),
+                            ];
+                        }
+                    }
+
+                    return $records;
+                }
+            );
+            $allLandmarks = array_map(
+                fn (array $record) => new ArrayDocumentSnapshot((string) $record['id'], $record['data']),
+                $records
+            );
         }
 
         if ($sessionRole === 'site_manager' && $sessionUid !== '') {
@@ -1096,15 +1179,26 @@ class AdminController extends Controller
         $landmarkStatusFilter = 'all';
         $landmarkSearch = '';
         $landmarkCategoryFilter = 'all';
+        $landmarkSort = null;
+        $landmarkSortDirection = null;
         if ($sessionRole === 'admin') {
             $landmarkSearch = trim((string) $request->query('search', ''));
             $landmarkStatusFilter = strtolower((string) $request->query('status', 'all'));
             $landmarkCategoryFilter = strtolower(trim((string) $request->query('category', 'all')));
+            $landmarkSort = strtolower(trim((string) $request->query('sort', '')));
+            $landmarkSortDirection = strtolower(trim((string) $request->query('direction', 'asc')));
+            $allowedSorts = ['name', 'location', 'category', 'status'];
             if (! in_array($landmarkStatusFilter, ['pending', 'active', 'rejected', 'all'], true)) {
                 $landmarkStatusFilter = 'all';
             }
             if (! in_array($landmarkCategoryFilter, ['all', 'historical', 'religious', 'modern', 'natural', 'cultural', 'others'], true)) {
                 $landmarkCategoryFilter = 'all';
+            }
+            if (! in_array($landmarkSort, $allowedSorts, true)) {
+                $landmarkSort = null;
+                $landmarkSortDirection = null;
+            } elseif (! in_array($landmarkSortDirection, ['asc', 'desc'], true)) {
+                $landmarkSortDirection = 'asc';
             }
 
             $searchNeedle = strtolower($landmarkSearch);
@@ -1144,23 +1238,51 @@ class AdminController extends Controller
                 return true;
             }));
 
-            usort($allLandmarks, function ($left, $right) use ($landmarkStatusFilter) {
-                return LandmarkApprovalOrder::compare(
+            usort($allLandmarks, function ($left, $right) use ($landmarkStatusFilter, $landmarkSort, $landmarkSortDirection) {
+                $defaultComparison = LandmarkApprovalOrder::compare(
                     $left->data(),
                     $left->id(),
                     $right->data(),
                     $right->id(),
                     $landmarkStatusFilter === 'all'
                 );
+
+                if ($landmarkSort === null) {
+                    return $defaultComparison;
+                }
+
+                $sortValue = static function (array $data, string $sort): string {
+                    if ($sort === 'status') {
+                        return match (strtolower((string) ($data['activation_status'] ?? 'active'))) {
+                            'pending' => 'Pending',
+                            'rejected' => 'Rejected',
+                            default => 'Approved',
+                        };
+                    }
+
+                    return trim((string) ($data[$sort] ?? ''));
+                };
+
+                $comparison = strnatcasecmp(
+                    $sortValue($left->data(), $landmarkSort),
+                    $sortValue($right->data(), $landmarkSort)
+                );
+
+                if ($comparison === 0) {
+                    return $defaultComparison;
+                }
+
+                return $landmarkSortDirection === 'desc' ? -$comparison : $comparison;
             });
         } elseif ($sessionRole === 'site_manager') {
             $landmarkSearch = trim((string) $request->query('search', ''));
             $landmarkCategoryFilter = strtolower(trim((string) $request->query('category', 'all')));
             $landmarkStatusFilter = strtolower(trim((string) $request->query('status', 'all')));
-            $landmarkOrder = strtolower(trim((string) $request->query('order', 'default')));
+            $landmarkSort = strtolower(trim((string) $request->query('sort', '')));
+            $landmarkSortDirection = strtolower(trim((string) $request->query('direction', 'asc')));
             $allowedCategories = ['all', 'historical', 'religious', 'natural', 'modern'];
             $allowedStatuses = ['all', 'active', 'pending', 'rejected'];
-            $allowedOrders = ['default', 'name_az', 'name_za', 'newest', 'oldest'];
+            $allowedSorts = ['name', 'location', 'category', 'status'];
 
             if (! in_array($landmarkCategoryFilter, $allowedCategories, true)) {
                 $landmarkCategoryFilter = 'all';
@@ -1168,10 +1290,12 @@ class AdminController extends Controller
             if (! in_array($landmarkStatusFilter, $allowedStatuses, true)) {
                 $landmarkStatusFilter = 'all';
             }
-            if (! in_array($landmarkOrder, $allowedOrders, true)) {
-                $landmarkOrder = 'default';
+            if (! in_array($landmarkSort, $allowedSorts, true)) {
+                $landmarkSort = null;
+                $landmarkSortDirection = null;
+            } elseif (! in_array($landmarkSortDirection, ['asc', 'desc'], true)) {
+                $landmarkSortDirection = 'asc';
             }
-
             $searchNeedle = strtolower($landmarkSearch);
             $allLandmarks = array_values(array_filter($allLandmarks, function ($doc) use ($searchNeedle, $landmarkCategoryFilter, $landmarkStatusFilter) {
                 if (! $doc->exists()) {
@@ -1199,64 +1323,33 @@ class AdminController extends Controller
                 return true;
             }));
 
-            usort($allLandmarks, function ($left, $right) use ($landmarkOrder) {
-                $leftData = $left->data();
-                $rightData = $right->data();
-
-                if ($landmarkOrder === 'default') {
-                    return LandmarkApprovalOrder::compare(
-                        $leftData,
-                        $left->id(),
-                        $rightData,
-                        $right->id(),
-                        true
-                    );
-                }
-
-                if (in_array($landmarkOrder, ['name_az', 'name_za'], true)) {
-                    $nameComparison = LandmarkApprovalOrder::compare(
-                        $leftData,
-                        $left->id(),
-                        $rightData,
-                        $right->id(),
-                        false
-                    );
-
-                    return $landmarkOrder === 'name_za' ? -$nameComparison : $nameComparison;
-                }
-
-                $dateValue = static function (mixed $value): int {
-                    if ($value instanceof \DateTimeInterface) {
-                        return $value->getTimestamp();
-                    }
-                    if (is_object($value) && method_exists($value, 'get')) {
-                        $date = $value->get();
-                        if ($date instanceof \DateTimeInterface) {
-                            return $date->getTimestamp();
+            if ($landmarkSort !== null) {
+                usort($allLandmarks, function ($left, $right) use ($landmarkSort, $landmarkSortDirection) {
+                    $sortValue = static function (array $data, string $sort): string {
+                        if ($sort === 'status') {
+                            return match (strtolower((string) ($data['activation_status'] ?? $data['status'] ?? 'active'))) {
+                                'pending' => 'Pending',
+                                'rejected' => 'Rejected',
+                                default => 'Active',
+                            };
                         }
-                    }
-                    if (is_numeric($value)) {
-                        return (int) $value;
-                    }
-                    if (is_scalar($value)) {
-                        return strtotime((string) $value) ?: 0;
+
+                        return trim((string) ($data[$sort] ?? ''));
+                    };
+
+                    $comparison = strnatcasecmp(
+                        $sortValue($left->data(), $landmarkSort),
+                        $sortValue($right->data(), $landmarkSort)
+                    );
+
+                    if ($comparison !== 0) {
+                        return $landmarkSortDirection === 'desc' ? -$comparison : $comparison;
                     }
 
-                    return 0;
-                };
-                $leftDate = $dateValue($leftData['created_at'] ?? $leftData['submitted_at'] ?? null);
-                $rightDate = $dateValue($rightData['created_at'] ?? $rightData['submitted_at'] ?? null);
-                $dateComparison = $landmarkOrder === 'oldest'
-                    ? $leftDate <=> $rightDate
-                    : $rightDate <=> $leftDate;
+                    return strcmp($left->id(), $right->id());
+                });
+            }
 
-                return LandmarkApprovalOrder::comparePortfolioStatusThenName(
-                    $leftData,
-                    $left->id(),
-                    $rightData,
-                    $right->id()
-                ) ?: $dateComparison;
-            });
         }
 
         $openLandmarkId = trim((string) ($openLandmarkId ?? ''));
@@ -1299,7 +1392,7 @@ class AdminController extends Controller
             count($allLandmarks),
             $perPage,
             $page,
-            ['path' => $paginationPath, 'query' => $request->except(['view', 'page'])]
+            ['path' => $paginationPath, 'query' => $request->except(['view', 'page', 'order'])]
         );
 
         return view('admin.landmarks', [
@@ -1307,7 +1400,8 @@ class AdminController extends Controller
             'landmarkStatusFilter' => $landmarkStatusFilter,
             'landmarkSearch' => $landmarkSearch ?? '',
             'landmarkCategoryFilter' => $landmarkCategoryFilter ?? 'all',
-            'landmarkOrder' => $landmarkOrder ?? 'default',
+            'landmarkSort' => $landmarkSort,
+            'landmarkSortDirection' => $landmarkSortDirection,
             'isLandmarkApprovalQueue' => $sessionRole === 'admin',
             'openViewModalId' => $openViewModalId,
             'openLandmarkId' => $openLandmarkId !== '' ? $openLandmarkId : null,
@@ -1385,6 +1479,7 @@ class AdminController extends Controller
                 ->with('status_err', 'Could not approve landmark: '.$e->getMessage());
         }
         $this->siteManagerReadModel->forget((string) ($data['manager_uid'] ?? $data['managerUid'] ?? ''));
+        Cache::forget(self::LANDMARK_APPROVAL_CACHE_KEY);
 
         return redirect()->route('admin.landmarks', ['status' => 'active'])
             ->with('status', 'Landmark approved and published.');
@@ -1428,6 +1523,7 @@ class AdminController extends Controller
                 ->with('status_err', 'Could not reject landmark: '.$e->getMessage());
         }
         $this->siteManagerReadModel->forget((string) ($data['manager_uid'] ?? $data['managerUid'] ?? ''));
+        Cache::forget(self::LANDMARK_APPROVAL_CACHE_KEY);
 
         return redirect()->route('admin.landmarks', ['status' => 'rejected'])
             ->with('status', 'Landmark submission rejected.');

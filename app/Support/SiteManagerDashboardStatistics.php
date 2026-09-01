@@ -30,6 +30,7 @@ final class SiteManagerDashboardStatistics
             'all' => self::analyticsBucket($now),
         ];
         $visitorRecords = [];
+        $visitsByLandmarkPeriod = [];
 
         foreach ($records as $record) {
             $activityType = strtolower(trim((string) ($record['activity_type'] ?? '')));
@@ -76,6 +77,16 @@ final class SiteManagerDashboardStatistics
                     }
                     if ($occurredAt->isSameYear($now)) {
                         $totals['yearly'] += $visitCount;
+                    }
+
+                    if ($landmarkId !== '') {
+                        $visitsByLandmarkPeriod[$landmarkId] ??= ['all' => 0, '7' => 0, '30' => 0, '90' => 0];
+                        foreach (['7' => 7, '30' => 30, '90' => 90] as $periodKey => $days) {
+                            if ($occurredAt->greaterThanOrEqualTo($now->copy()->subDays($days))) {
+                                $visitsByLandmarkPeriod[$landmarkId][$periodKey] += $visitCount;
+                            }
+                        }
+                        $visitsByLandmarkPeriod[$landmarkId]['all'] += $visitCount;
                     }
                 }
 
@@ -163,6 +174,7 @@ final class SiteManagerDashboardStatistics
                 'year_by_year' => self::chart($yearByYear),
             ],
             'analytics_by_landmark' => array_map(fn (array $bucket): array => self::serializeAnalyticsBucket($bucket), $analyticsByLandmark),
+            'visits_by_landmark_period' => $visitsByLandmarkPeriod,
             'landmark_options' => $landmarkOptions,
             'visitor_records' => array_slice($visitorRecords, 0, 25),
             'leaderboard' => array_slice($leaderboard, 0, 10),
