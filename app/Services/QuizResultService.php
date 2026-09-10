@@ -90,6 +90,15 @@ final class QuizResultService
         return $this->resultsForLandmarkSet($landmarkSet);
     }
 
+    /** Clear dashboard quiz data so a refresh reads newly submitted results. */
+    public function forgetForLandmarks(array $landmarkIds): void
+    {
+        $ids = array_values(array_filter(array_map('strval', $landmarkIds), fn (string $id): bool => trim($id) !== ''));
+        if ($ids !== []) {
+            Cache::forget('quiz-results:visitor-trivia:v3:'.md5(implode('|', $ids)));
+        }
+    }
+
     /**
      * @param  array<string, true>  $landmarkSet
      * @return list<array<string, mixed>>
@@ -98,9 +107,15 @@ final class QuizResultService
     {
         $cacheKey = 'quiz-results:visitor-trivia:v3:'.md5(implode('|', array_keys($landmarkSet)));
 
-        return Cache::remember($cacheKey, now()->addMinutes(5), function () use ($landmarkSet): array {
+        return Cache::remember($cacheKey, now()->addSeconds(30), function () use ($landmarkSet): array {
             $start = microtime(true);
-            $results = $this->deduplicateResults($this->resultsFromVisitorProfiles($landmarkSet));
+            // Collection-group reads avoid one Firestore request per visitor. Keep the
+            // profile traversal as a compatibility fallback for older data layouts.
+            $results = $this->resultsFromCollectionGroup($landmarkSet);
+            if ($results === []) {
+                $results = $this->resultsFromVisitorProfiles($landmarkSet);
+            }
+            $results = $this->deduplicateResults($results);
 
             Log::info('Timing Firestore query', [
                 'query' => 'visitor_profiles.trivia_results_by_landmark',

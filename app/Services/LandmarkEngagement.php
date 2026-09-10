@@ -113,7 +113,7 @@ final class LandmarkEngagement
 
         $cacheKey = 'landmark-engagement:visitor-visits:v2:'.md5(implode('|', array_keys($landmarkSet)));
 
-        return Cache::remember($cacheKey, now()->addMinutes(5), function () use ($summary, $days, $landmarkSet): array {
+        return Cache::remember($cacheKey, now()->addSeconds(30), function () use ($summary, $days, $landmarkSet): array {
             $start = microtime(true);
             $visitorProfileCount = null;
             $records = $this->visitRecordsForLandmarks($landmarkSet, $visitorProfileCount);
@@ -168,6 +168,16 @@ final class LandmarkEngagement
     /** @param array<string, true> $landmarkSet @return list<array<string,mixed>> */
     private function visitRecordsForLandmarks(array $landmarkSet, ?int &$visitorProfileCount = null): array
     {
+        // A collection-group query reads matching visits directly. The old
+        // visitor -> visits loop performs one Firestore request per visitor,
+        // which makes the admin dashboard increasingly slow as visitors grow.
+        $collectionGroupRecords = $this->visitRecordsFromCollectionGroup($landmarkSet);
+        if ($collectionGroupRecords !== []) {
+            $visitorProfileCount = null;
+
+            return $collectionGroupRecords;
+        }
+
         return $this->visitRecordsFromVisitorProfiles($landmarkSet, $visitorProfileCount);
     }
 

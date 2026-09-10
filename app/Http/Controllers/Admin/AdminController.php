@@ -167,7 +167,14 @@ class AdminController extends Controller
             $activity = $this->engagement->analyticsForLandmarks(array_keys($landmarksById));
             $visitsByDayLabels = $activity['totals']['daily_labels'];
             $visitsByDayValues = $activity['totals']['daily_values'];
-            $topPerformers = $this->dashboardTopPerformers($landmarksById, $siteManagerProfiles, $curatorProfiles);
+            // Reuse the already-loaded activity. Calling analytics again here
+            // causes another Firestore visitor/visits scan on a cold cache.
+            $topPerformers = $this->dashboardTopPerformers(
+                $landmarksById,
+                $siteManagerProfiles,
+                $curatorProfiles,
+                $activity
+            );
         } elseif ($sessionUid !== '') {
             $activity = $this->engagement->analyticsForLandmarks($managedLandmarkIds);
             $siteManagerStatistics = SiteManagerDashboardStatistics::fromRecords(
@@ -202,7 +209,12 @@ class AdminController extends Controller
      * @param  array<string, array<string, mixed>>  $curatorProfiles
      * @return array{site_managers:list<array<string,mixed>>,curators:list<array<string,mixed>>,has_visitor_data:bool}
      */
-    private function dashboardTopPerformers(array $landmarksById, array $siteManagerProfiles, array $curatorProfiles): array
+    private function dashboardTopPerformers(
+        array $landmarksById,
+        array $siteManagerProfiles,
+        array $curatorProfiles,
+        ?array $activity = null
+    ): array
     {
         if ($landmarksById === []) {
             return [
@@ -212,7 +224,7 @@ class AdminController extends Controller
             ];
         }
 
-        $activity = $this->engagement->analyticsForLandmarks(array_keys($landmarksById));
+        $activity ??= $this->engagement->analyticsForLandmarks(array_keys($landmarksById));
         $visitorsByLandmark = [];
         foreach ($activity['records'] as $record) {
             $landmarkId = trim((string) ($record['landmark_id'] ?? ''));
@@ -272,7 +284,7 @@ class AdminController extends Controller
             ?: strcasecmp((string) $a['curator'], (string) $b['curator']));
 
         return [
-            'site_managers' => array_slice($managerRows, 0, 2),
+            'site_managers' => array_slice($managerRows, 0, 3),
             'curators' => array_slice($curatorRows, 0, 3),
             'has_visitor_data' => true,
         ];
@@ -426,47 +438,64 @@ class AdminController extends Controller
     private function siteManagerDashboard(string $managerUid)
     {
         $forceRefresh = request()->boolean('refresh');
-        if ($forceRefresh) {
-            Cache::forget($this->siteManagerReadModel->dashboardKey($managerUid));
-        }
-
-        $data = Cache::remember(
-            $this->siteManagerReadModel->dashboardKey($managerUid),
-            now()->addMinutes(5),
-            function () use ($managerUid, $forceRefresh) {
-                $landmarks = $this->siteManagerReadModel->landmarks($managerUid);
-                $landmarkIds = array_column($landmarks, 'id');
-                if ($forceRefresh) {
-                    $this->engagement->forgetAnalyticsForLandmarks($landmarkIds);
-                }
-                $landmarkNames = [];
-                foreach ($landmarks as $landmark) {
-                    $landmarkNames[$landmark['id']] = trim((string) ($landmark['name'] ?? '')) ?: 'Unnamed landmark';
-                }
-
-                $activity = $this->engagement->analyticsForLandmarks($landmarkIds);
-                $statistics = SiteManagerDashboardStatistics::fromRecords(
-                    array_merge($activity['records'], $this->quizResults->forLandmarks($landmarkIds)),
-                    $landmarkNames,
-                    null,
-                    (int) ($activity['totals']['visitor_users'] ?? 0)
-                );
-                $curators = $this->siteManagerReadModel->curators($managerUid);
-
-                return [
-                    'landmarkCount' => count($landmarks),
-                    'curatorCount' => count($curators),
-                    'managedLandmarks' => $this->siteManagerDashboardLandmarks(
-                        $landmarks,
-                        $curators,
-                        $statistics['visitors_by_landmark'] ?? []
-                    ),
-                    'siteManagerStatistics' => $statistics,
-                ];
-            }
-        );
+        $data = $this->buildSiteManagerDashboardData($managerUid, $forceRefresh);
 
         return view('sitemanager.dashboard', $data);
+    }
+
+    /** Return fresh dashboard statistics for the background dashboard poll. */
+    public function dashboardData()
+    {
+        $managerUid = (string) request()->session()->get('uid', '');
+        $data = $this->buildSiteManagerDashboardData($managerUid, true);
+
+        return response()->json([
+            'statistics' => $data['siteManagerStatistics'],
+            'landmarkCount' => $data['landmarkCount'],
+            'curatorCount' => $data['curatorCount'],
+        ])->header('Cache-Control', 'no-store, no-cache, must-revalidate');
+    }
+
+    /** @return array<string, mixed> */
+    private function buildSiteManagerDashboardData(string $managerUid, bool $forceRefresh = false): array
+    {
+        $managerUid = trim($managerUid);
+        $key = $this->siteManagerReadModel->dashboardKey($managerUid);
+        $builder = function () use ($managerUid, $forceRefresh): array {
+            $landmarks = $this->siteManagerReadModel->landmarks($managerUid);
+            $landmarkIds = array_column($landmarks, 'id');
+            if ($forceRefresh) {
+                $this->engagement->forgetAnalyticsForLandmarks($landmarkIds);
+                $this->quizResults->forgetForLandmarks($landmarkIds);
+            }
+            $landmarkNames = [];
+            foreach ($landmarks as $landmark) {
+                $landmarkNames[$landmark['id']] = trim((string) ($landmark['name'] ?? '')) ?: 'Unnamed landmark';
+            }
+
+            $activity = $this->engagement->analyticsForLandmarks($landmarkIds);
+            $statistics = SiteManagerDashboardStatistics::fromRecords(
+                array_merge($activity['records'], $this->quizResults->forLandmarks($landmarkIds)),
+                $landmarkNames,
+                null,
+                (int) ($activity['totals']['visitor_users'] ?? 0)
+            );
+            $curators = $this->siteManagerReadModel->curators($managerUid);
+
+            return [
+                'landmarkCount' => count($landmarks),
+                'curatorCount' => count($curators),
+                'managedLandmarks' => $this->siteManagerDashboardLandmarks($landmarks, $curators, $statistics['visitors_by_landmark'] ?? []),
+                'siteManagerStatistics' => $statistics,
+            ];
+        };
+
+        if ($forceRefresh) {
+            Cache::forget($key);
+            return $builder();
+        }
+
+        return Cache::remember($key, now()->addSeconds(30), $builder);
     }
 
     /**

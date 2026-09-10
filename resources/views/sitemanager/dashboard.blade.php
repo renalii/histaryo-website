@@ -11,7 +11,7 @@
 @endphp
 
 <style>
-    .manager-dashboard { max-width: 1800px; min-height: 1700px; margin: 0 auto; color: #374151; }
+    .manager-dashboard { max-width: 1800px; min-height: 1780px; margin: 0 auto; color: #374151; }
     .manager-hero {
         background: linear-gradient(135deg, #7A2E1F, #E8B34B);
         color: #fffdf7;
@@ -283,7 +283,7 @@
         </div>
         <div class="manager-card summary-card">
             <p class="summary-label">Total Visitors</p>
-            <p class="summary-value">{{ number_format($statistics['total_visitors'] ?? 0) }}</p>
+            <p id="dashboardTotalVisitors" class="summary-value">{{ number_format($statistics['total_visitors'] ?? 0) }}</p>
         </div>
         <div class="manager-card summary-card">
             <p class="summary-label">Total Curators</p>
@@ -458,11 +458,11 @@
 <script>
     document.addEventListener('DOMContentLoaded', function () {
         const charts = @json($statistics['charts'] ?? []);
-        const analyticsByLandmark = @json($statistics['analytics_by_landmark'] ?? []);
-        const visitorRecords = @json($statistics['visitor_records'] ?? []);
-        const visitsByLandmarkPeriod = @json($statistics['visits_by_landmark_period'] ?? []);
+        let analyticsByLandmark = @json($statistics['analytics_by_landmark'] ?? []);
+        let visitorRecords = @json($statistics['visitor_records'] ?? []);
+        let visitsByLandmarkPeriod = @json($statistics['visits_by_landmark_period'] ?? []);
         const landmarkNames = @json(collect($statistics['landmark_options'] ?? [])->skip(1)->keyBy('id')->map(fn ($landmark) => $landmark['name'])->all());
-        const leaderboardByLandmark = @json($statistics['leaderboard_by_landmark'] ?? ['all' => ($statistics['leaderboard'] ?? [])]);
+        let leaderboardByLandmark = @json($statistics['leaderboard_by_landmark'] ?? ['all' => ($statistics['leaderboard'] ?? [])]);
         const leaderboardPerPage = 5;
         let leaderboardPage = 1;
         let visitsPerLandmarkChart = null;
@@ -638,6 +638,33 @@
             pageText.textContent = 'Page ' + leaderboardPage + ' of ' + totalPages;
             prev.disabled = leaderboardPage <= 1;
             next.disabled = leaderboardPage >= totalPages;
+        }
+
+        let refreshInProgress = false;
+        async function refreshDashboardData() {
+            if (refreshInProgress || document.visibilityState === 'hidden') return;
+            refreshInProgress = true;
+            try {
+                const response = await fetch(@json(route('sitemanager.dashboard.data')).toString() + '?refresh=1&_=' + Date.now(), {
+                    headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                    cache: 'no-store'
+                });
+                if (!response.ok) return;
+                const payload = await response.json();
+                const updated = payload.statistics || {};
+                analyticsByLandmark = updated.analytics_by_landmark || {};
+                visitorRecords = updated.visitor_records || [];
+                visitsByLandmarkPeriod = updated.visits_by_landmark_period || {};
+                leaderboardByLandmark = updated.leaderboard_by_landmark || { all: (updated.leaderboard || []) };
+                document.getElementById('dashboardTotalVisitors').textContent = formatNumber(updated.total_visitors);
+                updateVisitorAnalytics();
+                renderVisitsPerLandmarkChart();
+                renderLeaderboard();
+            } catch (error) {
+                console.debug('Dashboard refresh failed; will retry.', error);
+            } finally {
+                refreshInProgress = false;
+            }
         }
 
         function setupLandmarkDropdown(selectId, toggleId, arrowId, menuId) {
@@ -903,6 +930,8 @@
         updateVisitorAnalytics();
         renderVisitsPerLandmarkChart();
         renderLeaderboard();
+        // Firestore writes can arrive while this page is open; refresh well within the 60-second requirement.
+        window.setInterval(refreshDashboardData, 30000);
     });
 </script>
 @endsection

@@ -98,6 +98,7 @@ Route::prefix('admin')->middleware(['web', 'panel.admin'])->group(function () {
 
 Route::prefix('sitemanager')->middleware(['web', 'panel.sitemanager'])->group(function () {
     Route::get('/', [AdminController::class, 'dashboard'])->name('sitemanager.dashboard');
+    Route::get('/dashboard/data', [AdminController::class, 'dashboardData'])->name('sitemanager.dashboard.data');
     Route::get('/curators', [AdminController::class, 'users'])->name('sitemanager.curators');
     Route::get('/exhibit-categories', [ExhibitCategoryController::class, 'index'])->name('sitemanager.exhibit-categories.index');
     Route::get('/exhibit-categories/{id}', [ExhibitCategoryController::class, 'index'])->name('sitemanager.exhibit-categories.show');

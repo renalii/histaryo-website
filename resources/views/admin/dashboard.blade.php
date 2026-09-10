@@ -23,17 +23,13 @@
         padding: 20px;
     }
 
-    /* Keep the admin dashboard compact on desktop, matching the reference layout. */
-    body:has(.admin-dashboard-wrap) .sidebar {
-        width: 220px;
-        padding: 1.5rem 1.25rem;
-    }
-    body:has(.admin-dashboard-wrap) .sidebar h2 { margin-bottom: 2rem; font-size: 1.85rem; }
-    body:has(.admin-dashboard-wrap) .nav-links { gap: .8rem; }
-    body:has(.admin-dashboard-wrap) .nav-links a { font-size: .92rem; padding: .5rem .8rem; }
-    body:has(.admin-dashboard-wrap) .main-content { margin-left: 220px; }
+    /* Keep the admin dashboard sidebar consistent with the other admin pages. */
+    body:has(.admin-dashboard-wrap) .sidebar h2 { margin-bottom: 2.5rem; font-size: 2rem; }
+    body:has(.admin-dashboard-wrap) .nav-links { gap: 1.2rem; }
+    body:has(.admin-dashboard-wrap) .nav-links a { font-size: 1rem; padding: .6rem 1rem; }
+    body:has(.admin-dashboard-wrap) .main-content { margin-left: 240px; }
 
-    .admin-wrap { width: 100%; max-width: 2000px; min-width: 0; margin: 0 auto; }
+    .admin-wrap { width: 100%; max-width: 2000px; min-width: 0; height: auto; margin: 0 auto; }
     .admin-kicker { font-size: .82rem; letter-spacing: .04em; text-transform: uppercase; opacity: .9; }
     .admin-hero {
         background: linear-gradient(135deg, #7A2E1F, #E8B34B);
@@ -106,7 +102,7 @@
     .admin-insights-grid .admin-chart-lg,
     .admin-insights-grid .admin-chart-sm {
         grid-column: auto;
-        min-height: clamp(450px, calc(100vh - 360px), 520px);
+        min-height: clamp(280px, calc(100vh - 300px), 430px);
     }
     .chart-frame { margin-top: 10px; position: relative; width: 100%; max-width: 100%; height: 350px; min-width: 0; overflow: hidden; }
     .chart-frame canvas { display: block; width: 100% !important; height: 100% !important; max-width: 100%; }
