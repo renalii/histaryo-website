@@ -37,6 +37,8 @@ return [
         'api_key' => env('CLOUDINARY_API_KEY'),
         'api_secret' => env('CLOUDINARY_API_SECRET'),
         'landmark_folder' => env('CLOUDINARY_LANDMARK_FOLDER', 'histaryo/landmarks'),
+        'landmark_asset_folder' => env('CLOUDINARY_LANDMARK_ASSET_FOLDER', 'landmarks'),
+        'exhibit_folder' => env('CLOUDINARY_EXHIBIT_FOLDER', 'Exhibits'),
     ],
 
     'frontend' => [
