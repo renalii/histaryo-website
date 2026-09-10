@@ -33,7 +33,7 @@
         .lm-tip__empty { margin: 1.25rem 0; color: #6b7280; text-align: center; font-size: .86rem; }
     </style>
 
-    <h3>Tips Review</h3>
+    <h3>Review Tip</h3>
     <p class="lm-tip-review__intro">Visitor tips submitted for this landmark.</p>
 
     @if ($tips === [])

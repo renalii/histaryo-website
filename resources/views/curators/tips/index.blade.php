@@ -2,7 +2,7 @@
 
 @section('content')
     <div style="display:flex; align-items:center; margin-bottom:1.25rem;">
-        <h2 style="margin:0; font-size:1.5rem; color:#7A2E1F;">Tips Review</h2>
+        <h2 style="margin:0; font-size:1.5rem; color:#7A2E1F;">Review Tip</h2>
     </div>
 
     <form method="GET" action="{{ route('curators.tips.index') }}" style="display:flex; align-items:center; gap:.55rem; flex-wrap:wrap; margin-bottom:1rem;">
