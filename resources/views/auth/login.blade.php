@@ -258,6 +258,7 @@
             color: #065f46;
             background-color: #d1fae5;
             border: 1px solid #99e6c6;
+            width: 220px;
             padding: 10px ;
             border-radius: 10px;
             font-size: 0.9rem;

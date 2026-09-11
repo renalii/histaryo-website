@@ -311,7 +311,15 @@ class AdminController extends Controller
     {
         $landmarks = [];
         $mapCategories = [];
-        $mapCities = ['Carcar City', 'Cebu City', 'Lapu-Lapu City', 'Mandaue City', 'Talisay City'];
+        $mapCities = [
+            'Alcantara', 'Alcoy', 'Alegria', 'Argao', 'Asturias', 'Badian', 'Balamban', 'Bogo City',
+            'Boljoon', 'Borbon', 'Carmen', 'Carcar City', 'Catmon', 'Cebu City', 'Compostela',
+            'Consolacion', 'Daanbantayan', 'Dalaguete', 'Danao City', 'Dumanjug', 'Ginatilan',
+            'Lapu-Lapu City', 'Liloan', 'Malabuyoc', 'Mandaue City', 'Medellin', 'Minglanilla',
+            'Moalboal', 'Naga City', 'Oslob', 'Ronda', 'Samboan', 'San Remigio', 'San Fernando',
+            'Santander', 'Sibonga', 'Sogod', 'Tabogon', 'Tabuelan', 'Talisay City', 'Toledo City',
+            'Tuburan',
+        ];
 
         foreach ($this->firestore()->collection('landmarks')->documents() as $landmark) {
             if (! $landmark->exists()) {
@@ -372,11 +380,48 @@ class AdminController extends Controller
     private function adminMapCity(array $data, float $latitude, float $longitude): string
     {
         $supportedCities = [
+            'alcantara' => 'Alcantara',
+            'alcoy' => 'Alcoy',
+            'alegria' => 'Alegria',
+            'argao' => 'Argao',
+            'asturias' => 'Asturias',
+            'badian' => 'Badian',
+            'balamban' => 'Balamban',
+            'bogo city' => 'Bogo City',
+            'boljoon' => 'Boljoon',
+            'borbon' => 'Borbon',
+            'carmen' => 'Carmen',
             'carcar city' => 'Carcar City',
+            'catmon' => 'Catmon',
             'cebu city' => 'Cebu City',
+            'compostela' => 'Compostela',
+            'consolacion' => 'Consolacion',
+            'daanbantayan' => 'Daanbantayan',
+            'dalaguete' => 'Dalaguete',
+            'danao city' => 'Danao City',
+            'dumanjug' => 'Dumanjug',
+            'ginatilan' => 'Ginatilan',
             'lapu lapu city' => 'Lapu-Lapu City',
+            'liloan' => 'Liloan',
+            'malabuyoc' => 'Malabuyoc',
             'mandaue city' => 'Mandaue City',
+            'medellin' => 'Medellin',
+            'minglanilla' => 'Minglanilla',
+            'moalboal' => 'Moalboal',
+            'naga city' => 'Naga City',
+            'oslob' => 'Oslob',
+            'ronda' => 'Ronda',
+            'samboan' => 'Samboan',
+            'san remigio' => 'San Remigio',
+            'san fernando' => 'San Fernando',
+            'santander' => 'Santander',
+            'sibonga' => 'Sibonga',
+            'sogod' => 'Sogod',
+            'tabogon' => 'Tabogon',
+            'tabuelan' => 'Tabuelan',
             'talisay city' => 'Talisay City',
+            'toledo city' => 'Toledo City',
+            'tuburan' => 'Tuburan',
         ];
         $address = is_array($data['address'] ?? null) ? $data['address'] : [];
         $candidates = [
@@ -395,6 +440,23 @@ class AdminController extends Controller
             $data['location'] ?? null,
         ];
 
+        // Coordinates are authoritative for map filtering. In particular, some
+        // older landmarks contain a stale location label from another city.
+        $toledoLatitude = 10.3770;
+        $toledoLongitude = 123.6380;
+        $toledoDistance = (($latitude - $toledoLatitude) ** 2)
+            + ((($longitude - $toledoLongitude) * cos(deg2rad($latitude))) ** 2);
+        if ($toledoDistance <= 0.08 ** 2) {
+            return 'Toledo City';
+        }
+
+        // Cebu City upland landmarks (such as Sirao/Busay) can have an old
+        // Consolacion label even though their coordinates are in Cebu City.
+        if ($latitude >= 10.30 && $latitude <= 10.50
+            && $longitude >= 123.80 && $longitude < 123.93) {
+            return 'Cebu City';
+        }
+
         foreach ($candidates as $candidate) {
             if (! is_scalar($candidate)) {
                 continue;
@@ -412,11 +474,48 @@ class AdminController extends Controller
         }
 
         $cityCenters = [
+            'Alcantara' => [9.9760, 123.4050],
+            'Alcoy' => [9.7150, 123.5070],
+            'Alegria' => [9.7080, 123.3540],
+            'Argao' => [9.8800, 123.6100],
+            'Asturias' => [10.5800, 123.7200],
+            'Badian' => [9.8700, 123.4000],
+            'Balamban' => [10.5000, 123.7200],
+            'Bogo City' => [11.0500, 124.0000],
+            'Boljoon' => [9.6300, 123.4800],
+            'Borbon' => [10.8400, 124.0000],
+            'Carmen' => [10.5900, 124.0100],
             'Carcar City' => [10.1060, 123.6402],
+            'Catmon' => [10.6500, 124.0000],
             'Cebu City' => [10.3157, 123.8854],
+            'Compostela' => [10.4500, 124.0000],
+            'Consolacion' => [10.4000, 123.9600],
+            'Daanbantayan' => [11.2500, 124.0000],
+            'Dalaguete' => [9.7620, 123.5350],
+            'Danao City' => [10.5200, 124.0300],
+            'Dumanjug' => [10.0600, 123.4400],
+            'Ginatilan' => [9.5700, 123.3200],
             'Lapu-Lapu City' => [10.3103, 123.9494],
+            'Liloan' => [10.4000, 124.0000],
+            'Malabuyoc' => [9.6500, 123.3200],
             'Mandaue City' => [10.3236, 123.9222],
+            'Medellin' => [11.1300, 123.9600],
+            'Minglanilla' => [10.2450, 123.7960],
+            'Moalboal' => [9.9400, 123.4000],
+            'Naga City' => [10.2080, 123.7580],
+            'Oslob' => [9.5200, 123.4300],
+            'Ronda' => [10.0000, 123.4100],
+            'Samboan' => [9.5300, 123.3100],
+            'San Remigio' => [11.0800, 123.9400],
+            'San Fernando' => [10.1620, 123.7050],
+            'Santander' => [9.4200, 123.3400],
+            'Sibonga' => [10.0160, 123.5950],
+            'Sogod' => [10.7500, 124.0000],
+            'Tabogon' => [10.9400, 124.0200],
+            'Tabuelan' => [10.8200, 123.8700],
             'Talisay City' => [10.2447, 123.8494],
+            'Toledo City' => [10.3770, 123.6380],
+            'Tuburan' => [10.7300, 123.8300],
         ];
         $nearestCity = '';
         $nearestDistance = INF;
@@ -432,7 +531,7 @@ class AdminController extends Controller
             }
         }
 
-        return $nearestDistance <= 0.0225 ? $nearestCity : '';
+        return $nearestDistance <= 0.06 ? $nearestCity : '';
     }
 
     private function siteManagerDashboard(string $managerUid)
