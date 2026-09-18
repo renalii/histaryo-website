@@ -29,9 +29,9 @@ class TipReviewController extends Controller
 
     public function index(Request $request)
     {
-        $statusFilter = strtolower((string) $request->query('status', 'pending'));
+        $statusFilter = strtolower((string) $request->query('status', 'all'));
         if (!in_array($statusFilter, ['all', 'pending', 'accepted', 'rejected'], true)) {
-            $statusFilter = 'pending';
+            $statusFilter = 'all';
         }
 
         $tips = $this->tipsForLandmark($this->assignedLandmarkId(), $statusFilter);
@@ -255,14 +255,18 @@ class TipReviewController extends Controller
         }
 
         if ($value instanceof \DateTimeInterface) {
-            return $value->format('M d, Y h:i A');
+            return \Carbon\Carbon::instance($value)
+                ->setTimezone(config('app.timezone'))
+                ->format('M d, Y h:i A');
         }
 
         if (is_object($value) && method_exists($value, 'get')) {
             try {
                 $dt = $value->get();
                 if ($dt instanceof \DateTimeInterface) {
-                    return $dt->format('M d, Y h:i A');
+                    return \Carbon\Carbon::instance($dt)
+                        ->setTimezone(config('app.timezone'))
+                        ->format('M d, Y h:i A');
                 }
             } catch (\Throwable $e) {
                 return '-';
@@ -270,7 +274,9 @@ class TipReviewController extends Controller
         }
 
         try {
-            return \Carbon\Carbon::parse((string) $value)->format('M d, Y h:i A');
+            return \Carbon\Carbon::parse((string) $value)
+                ->setTimezone(config('app.timezone'))
+                ->format('M d, Y h:i A');
         } catch (\Throwable $e) {
             return '-';
         }
