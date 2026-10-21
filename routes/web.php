@@ -3,6 +3,7 @@
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\Auth\RegisterController;
 use App\Http\Controllers\Auth\LoginController;
+use App\Http\Controllers\Auth\MfaController;
 use App\Http\Controllers\Curator\LandmarkController;
 use App\Http\Controllers\Curator\QuizController;
 use App\Http\Controllers\Curator\DashboardController;
@@ -22,7 +23,15 @@ Route::get('/register', [RegisterController::class, 'showRegistrationForm'])->na
 Route::post('/register', [RegisterController::class, 'register']);
 
 Route::get('/login', [LoginController::class, 'showLoginForm'])->name('login');
-Route::post('/login', [LoginController::class, 'login']);
+Route::post('/login', [LoginController::class, 'login'])->middleware('throttle:10,1');
+Route::get('/login/mfa', [LoginController::class, 'showMfaForm'])->name('login.mfa');
+Route::post('/login/mfa', [LoginController::class, 'verifyMfa'])->name('login.mfa.verify')->middleware('throttle:10,1');
+Route::post('/login/mfa/resend', [LoginController::class, 'resendMfa'])->name('login.mfa.resend')->middleware('throttle:5,1');
+Route::post('/login/mfa/cancel', [LoginController::class, 'cancelMfa'])->name('login.mfa.cancel');
+Route::get('/security/mfa', [MfaController::class, 'show'])->name('mfa.settings');
+Route::post('/security/mfa/authenticator', [MfaController::class, 'enableAuthenticator'])->name('mfa.settings.enable');
+Route::post('/security/mfa/recovery-codes', [MfaController::class, 'regenerateRecoveryCodes'])->name('mfa.settings.recovery');
+Route::post('/security/mfa/authenticator/disable', [MfaController::class, 'disableAuthenticator'])->name('mfa.settings.disable');
 Route::get('/curators/login', [LoginController::class, 'showLoginForm'])->name('curators.login');
 Route::post('/curators/login', [LoginController::class, 'login'])->name('curators.login.submit');
 

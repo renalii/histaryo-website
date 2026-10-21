@@ -17,6 +17,11 @@ class EnsureCuratorSession
 
     public function handle(Request $request, Closure $next): Response
     {
+        if ($request->session()->has('uid') && ! $request->session()->get('mfa_verified')) {
+            $request->session()->invalidate();
+            return redirect()->route('login')->withErrors(['error' => 'Multi-factor verification is required.']);
+        }
+
         if (! Session::has('uid') || Session::get('role') !== 'curator') {
             Session::forget('login_redirect');
 

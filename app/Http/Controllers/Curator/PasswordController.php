@@ -160,28 +160,12 @@ class PasswordController extends Controller
             $assignedLandmarkIdRaw = $userDoc['assigned_landmark_id'] ?? '';
             $assignedTrimmed = is_string($assignedLandmarkIdRaw) ? trim($assignedLandmarkIdRaw) : '';
 
-            Session::put('uid', $uid);
-            Session::put('role', $role);
-            Session::put('email', $email);
-            Session::put('name', (string) ($userDoc['name'] ?? ''));
-            Session::put('account_status', strtolower((string) ($userDoc['account_status'] ?? 'active')));
-            Session::put('assigned_landmark_id', $assignedTrimmed);
-            Session::forget('must_change_password');
-            Session::put('browseable_landmark_ids', CuratorBrowseableLandmarks::resolveIds($this->firebase, $assignedTrimmed));
-            Session::put(
-                'writable_landmark_ids',
-                $assignedTrimmed !== ''
-                    ? CuratorAccessibleLandmarks::resolveIds($this->firebase, $assignedTrimmed)
-                    : []
-            );
-
-            $destination = $assignedTrimmed === ''
-                ? route('curators.pending-assignment')
-                : route('curators.dashboard');
+            Session::invalidate();
+            Session::regenerateToken();
 
             return redirect()
-                ->to($destination)
-                ->with('success', 'Your password has been set. Welcome to the curator dashboard.');
+                ->route('curators.login')
+                ->with('success', 'Your password has been set. Sign in to complete multi-factor verification.');
         } catch (\Throwable $e) {
             report($e);
 

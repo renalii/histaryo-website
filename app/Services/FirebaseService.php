@@ -266,6 +266,7 @@ public function addQuiz(array $data)
 {
     $docData = [
         'landmark_id' => $data['landmark_id'] ?? null,
+        'exhibit_id' => $data['exhibit_id'] ?? null,
         'question' => $data['question'] ?? '',
         'choices' => $data['choices'] ?? [],
         'correct_answer' => $data['correct_answer'] ?? '',
@@ -281,6 +282,9 @@ public function updateQuiz($quizId, array $data)
 
     if (array_key_exists('landmark_id', $data)) {
         $docData['landmark_id'] = $data['landmark_id'];
+    }
+    if (array_key_exists('exhibit_id', $data)) {
+        $docData['exhibit_id'] = $data['exhibit_id'];
     }
     if (array_key_exists('question', $data)) {
         $docData['question'] = $data['question'];
