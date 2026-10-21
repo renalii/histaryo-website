@@ -35,7 +35,7 @@ class TipReviewController extends Controller
         }
 
         $tips = $this->tipsForLandmark($this->assignedLandmarkId(), $statusFilter);
-        $perPage = 5;
+        $perPage = 3;
         $currentPage = LengthAwarePaginator::resolveCurrentPage();
         $offset = max(0, ($currentPage - 1) * $perPage);
         $pageItems = array_slice($tips, $offset, $perPage);

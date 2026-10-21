@@ -285,8 +285,10 @@ class QrController extends Controller
         }
 
         $landmark = $result['landmark_raw'];
+        $landmarkId = (string) ($result['json']['landmark']['id'] ?? '');
+        $exhibits = $this->publicExhibitsForLandmark($landmarkId);
+        $quiz = $this->publicQuizForLandmark($landmarkId);
         try {
-            $landmarkId = (string) ($result['json']['landmark']['id'] ?? '');
             $this->engagement->record($request, $landmarkId, 'qr_scan', [
                 'qr_code' => (string) ($result['json']['qr_code']['code'] ?? ''),
             ]);
@@ -305,11 +307,73 @@ class QrController extends Controller
         return response()->view('qr.landmark', [
             'payload' => $result['json'],
             'landmark' => $landmark,
+            'exhibits' => $exhibits,
+            'quiz' => $quiz,
             'mapUrl' => ($lat !== null && $lng !== null)
                 ? 'https://www.openstreetmap.org/?mlat='.$lat.'&mlon='.$lng.'#map=16/'.$lat.'/'.$lng
                 : null,
             'mapboxToken' => config('services.mapbox.token'),
         ]);
+    }
+
+    /** @return list<array<string, mixed>> */
+    private function publicExhibitsForLandmark(string $landmarkId): array
+    {
+        $exhibits = [];
+        foreach ($this->fs()->collection('exhibits')->where('landmark_id', '==', $landmarkId)->documents() as $document) {
+            if (! $document->exists()) {
+                continue;
+            }
+
+            $data = $document->data();
+            if (strtolower((string) ($data['status'] ?? 'active')) === 'inactive') {
+                continue;
+            }
+
+            $exhibits[] = [
+                'id' => $document->id(),
+                'name' => trim((string) ($data['name'] ?? 'Untitled exhibit')) ?: 'Untitled exhibit',
+                'category' => trim((string) ($data['category'] ?? '')),
+                'description' => trim((string) ($data['description'] ?? '')),
+                'historical_info' => trim((string) ($data['historical_info'] ?? '')),
+                'year_period' => trim((string) ($data['year_period'] ?? '')),
+                'images' => array_values(array_filter(array_map(
+                    fn (mixed $image): string => is_array($image) ? trim((string) ($image['url'] ?? '')) : '',
+                    is_array($data['images'] ?? null) ? $data['images'] : []
+                ))),
+            ];
+        }
+
+        usort($exhibits, fn (array $left, array $right): int => strcasecmp($left['name'], $right['name']));
+
+        return $exhibits;
+    }
+
+    /** @return list<array<string, mixed>> */
+    private function publicQuizForLandmark(string $landmarkId): array
+    {
+        $quiz = [];
+        foreach ($this->fs()->collection('question_bank')->where('landmark_id', '==', $landmarkId)->documents() as $document) {
+            if (! $document->exists()) {
+                continue;
+            }
+
+            $data = $document->data();
+            $choices = array_values(array_filter(array_map('strval', (array) ($data['choices'] ?? [])), fn (string $choice): bool => trim($choice) !== ''));
+            if (trim((string) ($data['question'] ?? '')) === '' || count($choices) < 2) {
+                continue;
+            }
+
+            $quiz[] = [
+                'id' => $document->id(),
+                'exhibit_id' => trim((string) ($data['exhibit_id'] ?? '')),
+                'question' => trim((string) $data['question']),
+                'choices' => $choices,
+                'correct_answer' => (string) ($data['correct_answer'] ?? ''),
+            ];
+        }
+
+        return $quiz;
     }
 
     /**

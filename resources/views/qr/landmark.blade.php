@@ -19,6 +19,8 @@
     if (!empty($landmark['image_path'])) {
         $imageSrc = $landmark['image_path'];
     }
+    $exhibits = is_array($exhibits ?? null) ? $exhibits : [];
+    $quiz = is_array($quiz ?? null) ? $quiz : [];
 @endphp
 <!DOCTYPE html>
 <html lang="en">
@@ -110,6 +112,25 @@
             max-height: 320px;
             object-fit: cover;
         }
+        .exhibit-section, .quiz-section { margin-top: 28px; }
+        .section-heading { margin: 0 0 12px; color: #2a1810; font-size: 20px; }
+        .exhibit-grid { display: grid; gap: 14px; }
+        .exhibit-card { border: 1px solid rgba(110, 75, 58, .15); border-radius: 14px; padding: 16px; background: #fffaf6; }
+        .exhibit-card h3 { margin: 0 0 6px; color: #6e4b3a; font-size: 18px; }
+        .exhibit-meta { margin: 0 0 8px; color: #8a6a58; font-size: 13px; font-weight: 600; }
+        .exhibit-card p { margin: 0; color: #4b3b34; line-height: 1.55; }
+        .exhibit-image { display: block; width: 100%; max-height: 180px; object-fit: cover; border-radius: 10px; margin-bottom: 12px; }
+        .quiz-section { padding: 20px; border-radius: 16px; background: #f8f1e9; border: 1px solid #ead8c9; }
+        .quiz-intro { margin: -4px 0 16px; color: #5c4a40; line-height: 1.5; }
+        .quiz-question { margin: 0 0 18px; padding: 0 0 18px; border-bottom: 1px solid #ead8c9; }
+        .quiz-question:last-of-type { border-bottom: 0; }
+        .quiz-question legend { padding: 0; margin-bottom: 10px; color: #2a1810; font-weight: 700; line-height: 1.45; }
+        .quiz-option { display: block; margin: 8px 0; color: #4b3b34; cursor: pointer; }
+        .quiz-option input { margin-right: 8px; accent-color: #6e4b3a; }
+        .quiz-submit { border: 0; border-radius: 999px; padding: 11px 18px; background: #6e4b3a; color: #fff; font: inherit; font-weight: 700; cursor: pointer; }
+        .quiz-submit:disabled { opacity: .6; cursor: wait; }
+        .quiz-result { margin: 14px 0 0; padding: 12px 14px; border-radius: 10px; background: #fff; color: #6e4b3a; font-weight: 700; line-height: 1.45; }
+        .quiz-empty { margin: 0; color: #5c4a40; }
         .qr-section-block {
             margin-top: 26px;
         }
@@ -197,6 +218,52 @@
                 <img src="{{ $imageSrc }}" alt="{{ $name }}">
             </div>
         @endif
+
+        @if (count($exhibits) > 0)
+            <section class="exhibit-section" aria-labelledby="exhibits-heading">
+                <h2 id="exhibits-heading" class="section-heading">Explore the exhibits</h2>
+                <div class="exhibit-grid">
+                    @foreach ($exhibits as $exhibit)
+                        <article class="exhibit-card">
+                            @if (!empty($exhibit['images'][0]))
+                                <img class="exhibit-image" src="{{ $exhibit['images'][0] }}" alt="{{ $exhibit['name'] }}">
+                            @endif
+                            <h3>{{ $exhibit['name'] }}</h3>
+                            @if (($exhibit['category'] ?? '') !== '' || ($exhibit['year_period'] ?? '') !== '')
+                                <p class="exhibit-meta">{{ collect([$exhibit['category'] ?? '', $exhibit['year_period'] ?? ''])->filter()->implode(' · ') }}</p>
+                            @endif
+                            @if (($exhibit['description'] ?? '') !== '')
+                                <p>{{ $exhibit['description'] }}</p>
+                            @elseif (($exhibit['historical_info'] ?? '') !== '')
+                                <p>{{ $exhibit['historical_info'] }}</p>
+                            @endif
+                        </article>
+                    @endforeach
+                </div>
+            </section>
+        @endif
+
+        @if (count($quiz) > 0)
+            <section class="quiz-section" aria-labelledby="quiz-heading">
+                <h2 id="quiz-heading" class="section-heading">Test your knowledge</h2>
+                <p class="quiz-intro">You’ve explored {{ $name }}. See what you remember from this exhibit.</p>
+                <form id="exhibit-quiz-form">
+                    @foreach ($quiz as $index => $question)
+                        <fieldset class="quiz-question">
+                            <legend>{{ $index + 1 }}. {{ $question['question'] }}</legend>
+                            @foreach ($question['choices'] as $choice)
+                                <label class="quiz-option">
+                                    <input type="radio" name="question_{{ $index }}" value="{{ $choice }}" required>
+                                    {{ $choice }}
+                                </label>
+                            @endforeach
+                        </fieldset>
+                    @endforeach
+                    <button class="quiz-submit" type="submit">Check my answers</button>
+                    <p id="quiz-result" class="quiz-result" hidden role="status"></p>
+                </form>
+            </section>
+        @endif
     </article>
 </main>
 @if ($showMapEmbed && $mapboxEmbedToken !== '')
@@ -228,6 +295,40 @@
         attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
     }).addTo(map);
     L.marker([lat, lng]).addTo(map);
+})();
+</script>
+@endif
+@if (count($quiz) > 0)
+<script>
+(function () {
+    var form = document.getElementById('exhibit-quiz-form');
+    var result = document.getElementById('quiz-result');
+    var questions = @json($quiz);
+    var landmarkId = @json($lm['id'] ?? '');
+    var landmarkName = @json($name);
+
+    form.addEventListener('submit', function (event) {
+        event.preventDefault();
+        var correct = 0;
+        questions.forEach(function (question, index) {
+            var answer = form.querySelector('input[name="question_' + index + '"]:checked');
+            if (answer && answer.value === question.correct_answer) correct++;
+        });
+        var percentage = Math.round((correct / questions.length) * 100);
+        result.textContent = 'You scored ' + correct + ' out of ' + questions.length + ' (' + percentage + '%). ' + (percentage === 100 ? 'Perfect score!' : 'Thanks for exploring ' + landmarkName + '!');
+        result.hidden = false;
+
+        var visitorId = window.localStorage.getItem('histaryo_visitor_id');
+        if (!visitorId) {
+            visitorId = window.crypto && window.crypto.randomUUID ? window.crypto.randomUUID() : 'visitor-' + Date.now();
+            window.localStorage.setItem('histaryo_visitor_id', visitorId);
+        }
+        fetch('{{ url('/api/quiz-results') }}', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': '{{ csrf_token() }}' },
+            body: JSON.stringify({ landmark_id: landmarkId, landmark_name: landmarkName, visitor_id: visitorId, score_percentage: percentage, score_points: correct, total_points: questions.length, correct_answers: correct, total_questions: questions.length })
+        }).catch(function () {});
+    });
 })();
 </script>
 @endif

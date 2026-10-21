@@ -111,6 +111,8 @@ class QuizController extends Controller
             );
         }
 
+        $exhibits = $this->exhibitsForLandmark($landmarkList[0]['id'] ?? '');
+
         $quizPaginator = new LengthAwarePaginator(
             $currentItems,
             $totalQuiz,
@@ -149,7 +151,8 @@ class QuizController extends Controller
             'writableLandmarkIdSet',
             'assignedLandmarkId',
             'autoOpenQuiz',
-            'autoOpenQuizMode'
+            'autoOpenQuizMode',
+            'exhibits'
         ));
     }
 
@@ -182,6 +185,8 @@ class QuizController extends Controller
             'quiz_id'      => $quizId,
             'landmark_id'    => $landmarkId,
             'landmark_name'  => $landmarkMap[$landmarkId] ?? 'Unknown site',
+            'exhibit_id'     => trim((string) ($data['exhibit_id'] ?? '')),
+            'exhibit_name'   => $this->quizExhibitName($data, $landmarkId),
             'question'       => $data['question'] ?? '',
             'choices'        => array_values($data['choices'] ?? []),
             'correct_answer' => $data['correct_answer'] ?? '',
@@ -196,13 +201,29 @@ class QuizController extends Controller
         }
 
         $request->validate([
+            'exhibit_id'     => 'required|string',
             'question'       => 'required|string',
             'choices'        => 'required|array|min:2',
+            'choices.*'      => 'required|string',
             'correct_answer' => 'required|string',
         ]);
 
-        
-        if (!in_array($request->correct_answer, $request->choices, true)) {
+        $exhibitId = trim((string) $request->input('exhibit_id'));
+        if (! $this->exhibitBelongsToLandmark($exhibitId, (string) $assigned)) {
+            return back()
+                ->withErrors(['exhibit_id' => 'Choose an exhibit from your assigned landmark.'])
+                ->withInput();
+        }
+
+        $question = trim((string) $request->input('question'));
+        $choices = array_values(array_map(fn (mixed $choice): string => trim((string) $choice), $request->input('choices', [])));
+        $correctAnswer = trim((string) $request->input('correct_answer'));
+        if ($question === '' || in_array('', $choices, true)) {
+            return back()
+                ->withErrors(['question' => 'Question and all answer choices are required.'])
+                ->withInput();
+        }
+        if (! in_array($correctAnswer, $choices, true)) {
             return back()
                 ->withErrors(['correct_answer' => 'Correct answer must be one of the choices.'])
                 ->withInput();
@@ -212,9 +233,10 @@ class QuizController extends Controller
 
         $this->firebase->addQuiz([
             'landmark_id'    => $assigned,
-            'question'       => (string) $request->question,
-            'choices'        => array_values(array_filter($request->choices, fn($c) => $c !== null && $c !== '')),
-            'correct_answer' => (string) $request->correct_answer,
+            'exhibit_id'     => $exhibitId,
+            'question'       => $question,
+            'choices'        => $choices,
+            'correct_answer' => $correctAnswer,
         ]);
         $this->forgetQuizCache($assigned);
         return back()->with('success', 'Quiz added successfully');
@@ -229,12 +251,32 @@ class QuizController extends Controller
         CuratorAssignedLandmark::assertMatches((string) ($snap['landmark_id'] ?? ''));
 
         $request->validate([
+            'exhibit_id'     => 'required|string',
             'question'       => 'required|string',
             'choices'        => 'required|array|min:2',
+            'choices.*'      => 'required|string',
             'correct_answer' => 'required|string',
         ]);
 
-        if (!in_array($request->correct_answer, $request->choices, true)) {
+        $landmarkId = trim((string) ($snap['landmark_id'] ?? ''));
+        $exhibitId = trim((string) $request->input('exhibit_id'));
+        if (! $this->exhibitBelongsToLandmark($exhibitId, $landmarkId)) {
+            return redirect()
+                ->route('curators.quiz.show', $id)
+                ->withErrors(['exhibit_id' => 'Choose an exhibit from your assigned landmark.'])
+                ->withInput();
+        }
+
+        $question = trim((string) $request->input('question'));
+        $choices = array_values(array_map(fn (mixed $choice): string => trim((string) $choice), $request->input('choices', [])));
+        $correctAnswer = trim((string) $request->input('correct_answer'));
+        if ($question === '' || in_array('', $choices, true)) {
+            return redirect()
+                ->route('curators.quiz.show', $id)
+                ->withErrors(['question' => 'Question and all answer choices are required.'])
+                ->withInput();
+        }
+        if (! in_array($correctAnswer, $choices, true)) {
             return redirect()
                 ->route('curators.quiz.show', $id)
                 ->withErrors(['correct_answer' => 'Correct answer must be one of the choices.'])
@@ -242,9 +284,10 @@ class QuizController extends Controller
         }
 
         $this->firebase->updateQuiz($id, [
-            'question'       => (string) $request->question,
-            'choices'        => array_values(array_filter($request->choices, fn($c) => $c !== null && $c !== '')),
-            'correct_answer' => (string) $request->correct_answer,
+            'exhibit_id'     => $exhibitId,
+            'question'       => $question,
+            'choices'        => $choices,
+            'correct_answer' => $correctAnswer,
         ]);
         $this->forgetQuizCache((string) ($snap['landmark_id'] ?? ''));
 
@@ -279,5 +322,68 @@ class QuizController extends Controller
         for ($page = 1; $page <= 20; $page++) {
             Cache::forget('curator:quiz-page:'.$landmarkId.':'.$page);
         }
+    }
+
+    private function exhibitBelongsToLandmark(string $exhibitId, string $landmarkId): bool
+    {
+        if ($exhibitId === '' || $landmarkId === '') {
+            return false;
+        }
+
+        $snapshot = $this->firebase->firestore()->collection('exhibits')->document($exhibitId)->snapshot();
+
+        return $snapshot->exists()
+            && trim((string) ($snapshot['landmark_id'] ?? '')) === $landmarkId
+            && $this->isQuizEligibleExhibit($snapshot->data());
+    }
+
+    /** @return list<array{id:string,name:string}> */
+    private function exhibitsForLandmark(string $landmarkId): array
+    {
+        if ($landmarkId === '') {
+            return [];
+        }
+
+        $exhibits = [];
+        foreach ($this->firebase->firestore()->collection('exhibits')->where('landmark_id', '==', $landmarkId)->documents() as $document) {
+            if (! $document->exists()) {
+                continue;
+            }
+
+            $data = $document->data();
+            if (! $this->isQuizEligibleExhibit($data)) {
+                continue;
+            }
+
+            $exhibits[] = [
+                'id' => $document->id(),
+                'name' => trim((string) ($data['name'] ?? 'Untitled exhibit')) ?: 'Untitled exhibit',
+            ];
+        }
+
+        usort($exhibits, fn (array $left, array $right): int => strcasecmp($left['name'], $right['name']));
+
+        return $exhibits;
+    }
+
+    /** Existing exhibits are quiz-eligible unless explicitly marked inactive. */
+    private function isQuizEligibleExhibit(array $data): bool
+    {
+        return strtolower(trim((string) ($data['status'] ?? 'active'))) !== 'inactive';
+    }
+
+    private function quizExhibitName(array $data, string $landmarkId): string
+    {
+        $exhibitId = trim((string) ($data['exhibit_id'] ?? ''));
+        if ($exhibitId === '' || $landmarkId === '') {
+            return '';
+        }
+
+        $exhibit = $this->firebase->firestore()->collection('exhibits')->document($exhibitId)->snapshot();
+        if (! $exhibit->exists() || trim((string) ($exhibit['landmark_id'] ?? '')) !== $landmarkId) {
+            return '';
+        }
+
+        return trim((string) ($exhibit['name'] ?? ''));
     }
 }

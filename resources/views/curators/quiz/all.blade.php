@@ -318,6 +318,13 @@
       border:1px solid #e5e7eb;
       border-radius:10px
     }
+
+    .row select:focus,
+    .row input[type="text"]:focus {
+      outline:none;
+      border-color:#e5e7eb;
+      box-shadow:none;
+    }
     
     .choice {
       display:flex;
@@ -462,6 +469,9 @@
             @endif
             <div class="card-body">
                 <div class="qtext">{{ $t['question'] }}</div>
+                @if (trim((string) ($t['exhibit_name'] ?? '')) !== '')
+                    <div class="muted" style="margin-top:.45rem;font-size:.85rem;">Exhibit: {{ $t['exhibit_name'] }}</div>
+                @endif
             </div>
             @if ($canEditQuiz)
                 <div class="card-footer" aria-hidden="true"></div>
@@ -512,6 +522,20 @@
       @endif
 
       <div class="row">
+        <label>Exhibit</label>
+        @if (count($exhibits) > 0)
+          <select name="exhibit_id" required>
+            <option value="">-- Select exhibit --</option>
+            @foreach($exhibits as $exhibit)
+              <option value="{{ $exhibit['id'] }}">{{ $exhibit['name'] }}</option>
+            @endforeach
+          </select>
+        @else
+          <p class="muted" style="margin:.35rem 0 0;">No active exhibits available. Please add an exhibit first in the Exhibits module.</p>
+        @endif
+      </div>
+
+      <div class="row">
         <label>Question</label>
         <input type="text" name="question" required>
       </div>
@@ -531,7 +555,7 @@
 
       <div style="display:flex;gap:.5rem;justify-content:flex-end;margin-top:.75rem">
         <button type="button" class="btn" onclick="closeAdd()">Cancel</button>
-        <button type="submit" class="btn btn-add">Save</button>
+        <button type="submit" class="btn btn-add" {{ count($exhibits) === 0 ? 'disabled' : '' }}>Save</button>
       </div>
     </form>
   </div>
@@ -544,6 +568,20 @@
     <h2>Edit Quiz</h2>
     <form id="editForm" method="POST">
       @csrf @method('PUT')
+
+      <div class="row">
+        <label>Exhibit</label>
+        @if (count($exhibits) > 0)
+          <select id="edit_exhibit_id" name="exhibit_id" required>
+            <option value="">-- Select exhibit --</option>
+            @foreach($exhibits as $exhibit)
+              <option value="{{ $exhibit['id'] }}">{{ $exhibit['name'] }}</option>
+            @endforeach
+          </select>
+        @else
+          <p class="muted" style="margin:.35rem 0 0;">No active exhibits available. Please add an exhibit first in the Exhibits module.</p>
+        @endif
+      </div>
 
       <div class="row">
         <label>Question</label>
@@ -639,6 +677,8 @@
       const form = document.getElementById('editForm');
       form.action = quizUpdateRouteTemplate.replace('__QUIZ_ID__', encodeURIComponent(t.quiz_id || ''));
       document.getElementById('edit_question').value = t.question || '';
+      const exhibitSelect = document.getElementById('edit_exhibit_id');
+      if (exhibitSelect) exhibitSelect.value = t.exhibit_id || '';
 
       const box = document.getElementById('editChoices');
       box.innerHTML = '';
